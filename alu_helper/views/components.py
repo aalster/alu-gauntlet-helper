@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QDialog, QPushButton, QHBoxLayout
 from PyQt6.QtCore import Qt, QRegularExpression
 from PyQt6.QtGui import QRegularExpressionValidator
 
@@ -26,6 +26,9 @@ class ValidatedLineEdit(QWidget):
     def text(self) -> str:
         return self.input.text().strip()
 
+    def setFocus(self):
+        self.input.setFocus()
+
     def set_text(self, text: str):
         self.input.setText(text)
 
@@ -38,3 +41,49 @@ class ValidatedLineEdit(QWidget):
         self.input.setStyleSheet("")
         self.error_label.clear()
         self.error_label.setVisible(False)
+
+
+
+class EditDialog(QDialog):
+    def __init__(self, action, parent=None):
+        super().__init__(parent)
+        self.action = action
+        self.setModal(True)
+        self.setFixedSize(300, 150)
+
+        self.error_label = QLabel()
+        self.error_label.setStyleSheet("color: red;")
+
+        self.save_button = QPushButton("Ok")
+        self.save_button.clicked.connect(self.accept)   # type: ignore
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject) # type: ignore
+
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addStretch(1)
+        buttons_layout.addWidget(self.save_button)
+        buttons_layout.addWidget(self.cancel_button)
+
+        self.main_layout = QVBoxLayout()
+        self.main_layout.addStretch(1)
+        self.main_layout.addWidget(self.error_label)
+        self.main_layout.addLayout(buttons_layout)
+        self.setLayout(self.main_layout)
+
+    def accept(self):
+        self.error_label.clear()
+
+        result = self.prepare_item()
+        if result is None:
+            return
+
+        try:
+            self.action(result)
+        except Exception as e:
+            self.error_label.setText(str(e))
+            return
+
+        super().accept()
+
+    def prepare_item(self):
+        raise NotImplementedError
