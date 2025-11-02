@@ -4,12 +4,18 @@ create table maps (
     created_at datetime     not null default current_timestamp
 );
 
+create unique index maps_name_uindex
+    on maps (name);
+
 create table tracks (
     id         integer primary key autoincrement,
     map_id     integer      not null,
     name       varchar(255) not null default '',
     created_at datetime     not null default current_timestamp
 );
+
+create unique index tracks_map_id_name_uindex
+    on tracks (map_id, name);
 
 create table cars (
     id         integer primary key autoincrement,

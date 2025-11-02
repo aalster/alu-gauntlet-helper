@@ -31,7 +31,7 @@ class TracksService:
 
     def add(self, model: TrackAddModel):
         if model.map_id <= 0:
-            model.map_id = self.maps.get_or_add(model.map_name)
+            model.map_id = self.maps.get_id_by_name(model.map_name)
         self.repo.add(model)
 
     def get_all(self) -> list[Track]:
