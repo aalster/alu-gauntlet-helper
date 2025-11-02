@@ -13,9 +13,9 @@ class MapsRepository:
     def parse(row):
         return Map(**row) if row else None
 
-    def add(self, name: str) -> int:
+    def add(self, item: Map) -> int:
         with connect() as conn:
-            return conn.execute("INSERT INTO maps (name) VALUES (:name)", {"name": name}).lastrowid
+            return conn.execute("INSERT INTO maps (name) VALUES (:name)", item.model_dump()).lastrowid
             # conn.execute("""
             #              INSERT INTO maps (name) VALUES (:name)
             #              ON CONFLICT (name) DO NOTHING
@@ -56,14 +56,11 @@ class MapsService:
     def __init__(self, repo: MapsRepository):
         self.repo = repo
 
-    def add(self, name: str) -> int:
-        return self.repo.add(name)
+    def add(self, item: Map) -> int:
+        return self.repo.add(item)
 
     def get_or_add(self, map_name: str) -> int:
-        map_item = self.repo.get(map_name)
-        if map_item is None:
-            return self.repo.add(map_name)
-        return map_item.id
+        return self.add(Map(id=0, name=map_name))
 
     def get_all(self, query: str):
         return self.repo.get_all(query)
