@@ -10,7 +10,8 @@ class PageResult(GenericModel, Generic[T]):
     total: int
 
 
-class TrackAddModel(BaseModel):
+class TrackEditModel(BaseModel):
+    id: int
     map_id: int
     map_name: str
     name: str

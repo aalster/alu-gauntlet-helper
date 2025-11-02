@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLineEdit, QListWidget
 
 from alu_helper.app_context import APP_CONTEXT
-from alu_helper.models import TrackAddModel
+from alu_helper.models import TrackEditModel
 
 
 class TestView(QWidget):
@@ -30,6 +30,6 @@ class TestView(QWidget):
         name = self.input.text().strip()
         if not name:
             return
-        APP_CONTEXT.tracks_service.add(TrackAddModel(map_id=0, map_name="test", name=name))
+        APP_CONTEXT.tracks_service.add(TrackEditModel(map_id=0, map_name="test", name=name))
         self.input.clear()
         self.load_records()

@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLineEdit, QListW
 
 from alu_helper.views.maps_tab import MapsTab
 from alu_helper.views.test_window import TestView
+from alu_helper.views.tracks_tab import TracksTab
 
 
 class MainWindow(QMainWindow):
@@ -14,7 +15,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
 
         self.test_view = TestView()
+        self.tracks_tab = TracksTab()
         self.maps_tab = MapsTab()
 
         self.tabs.addTab(self.test_view, "Test")
+        self.tabs.addTab(self.tracks_tab, "Tracks")
         self.tabs.addTab(self.maps_tab, "Maps")

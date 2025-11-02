@@ -13,7 +13,6 @@ class MapsRepository:
 
     def add(self, item: Map) -> int:
         with connect() as conn:
-            # return conn.execute("INSERT INTO maps (name) VALUES (:name)", item.model_dump()).lastrowid
             conn.execute("INSERT OR IGNORE INTO maps(name) VALUES (:name)", item.model_dump())
             return conn.execute("SELECT id FROM maps WHERE name = :name LIMIT 1", item.model_dump()).fetchone()[0]
 
@@ -24,7 +23,7 @@ class MapsRepository:
             return self.parse(row)
 
     def get_all(self, query: str):
-        with (connect() as conn):
+        with connect() as conn:
             sql = "SELECT * FROM maps"
             params = {}
 
@@ -50,8 +49,8 @@ class MapsService:
     def get_id_by_name(self, name: str) -> int:
         return self.add(Map(id=0, name=name))
 
-    def get_all(self, query: str):
-        return self.repo.get_all(query)
+    def get_all(self, query: str = ""):
+        return self.repo.get_all(query.strip())
 
     def update(self, item: Map):
         self.repo.update(item)

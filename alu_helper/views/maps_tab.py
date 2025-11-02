@@ -1,11 +1,39 @@
 # gui/maps_tab.py
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
+    QLabel
 
 from alu_helper.app_context import APP_CONTEXT
 from alu_helper.services.maps import Map
-from alu_helper.views.map_dialog import MapDialog
+from alu_helper.views.components import EditDialog, ValidatedLineEdit
 
+
+class MapDialog(EditDialog):
+    def __init__(self, item: Map, action, parent=None):
+        self.item = item
+        self.name_edit = ValidatedLineEdit(item.name)
+
+        super().__init__(action, parent)
+        self.setWindowTitle("Edit Map" if item.id else "Add Map")
+
+    def prepare_layout(self):
+        form_layout = QVBoxLayout()
+        form_layout.addWidget(QLabel("Name:"))
+        form_layout.addWidget(self.name_edit)
+
+        return form_layout
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.name_edit.setFocus()
+
+    def prepare_item(self):
+        name = self.name_edit.text().strip()
+        if not name:
+            self.name_edit.set_error()
+            return None
+
+        return Map(id=self.item.id, name=name)
 
 class MapsTab(QWidget):
     def __init__(self):

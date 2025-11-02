@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QDialog, QPushButton, QHBoxLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QDialog, QPushButton, QHBoxLayout, QLayout
 from PyQt6.QtCore import Qt, QRegularExpression
 from PyQt6.QtGui import QRegularExpressionValidator
 
@@ -15,13 +15,15 @@ class ValidatedLineEdit(QWidget):
 
         self.error_label = QLabel()
         self.error_label.setStyleSheet("color: red; font-size: 11px;")
-        self.error_label.setVisible(False)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.input)
         layout.addWidget(self.error_label)
 
+
+    def get_input(self) -> QLineEdit:
+        return self.input
 
     def text(self) -> str:
         return self.input.text().strip()
@@ -35,12 +37,10 @@ class ValidatedLineEdit(QWidget):
     def set_error(self, message: str = ""):
         self.input.setStyleSheet("background-color: rgba(255, 0, 0, 0.1);")
         self.error_label.setText(message)
-        self.error_label.setVisible(True)
 
     def clear_error(self):
         self.input.setStyleSheet("")
         self.error_label.clear()
-        self.error_label.setVisible(False)
 
 
 
@@ -49,7 +49,7 @@ class EditDialog(QDialog):
         super().__init__(parent)
         self.action = action
         self.setModal(True)
-        self.setFixedSize(300, 150)
+        self.setMinimumSize(300, 150)
 
         self.error_label = QLabel()
         self.error_label.setStyleSheet("color: red;")
@@ -65,10 +65,14 @@ class EditDialog(QDialog):
         buttons_layout.addWidget(self.cancel_button)
 
         self.main_layout = QVBoxLayout()
+        self.main_layout.addLayout(self.prepare_layout())
         self.main_layout.addStretch(1)
         self.main_layout.addWidget(self.error_label)
         self.main_layout.addLayout(buttons_layout)
         self.setLayout(self.main_layout)
+
+    def prepare_layout(self) -> QLayout:
+        raise NotImplementedError
 
     def accept(self):
         self.error_label.clear()
