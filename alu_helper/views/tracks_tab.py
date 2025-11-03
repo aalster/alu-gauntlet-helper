@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLin
 
 from alu_helper.app_context import APP_CONTEXT
 from alu_helper.services.tracks import TrackView
-from alu_helper.views.components import EditDialog, ValidatedLineEdit
+from alu_helper.views.components import EditDialog, ValidatedLineEdit, ItemCompleter
 
 
 class TrackDialog(EditDialog):
@@ -15,20 +15,13 @@ class TrackDialog(EditDialog):
         self.map_edit = ValidatedLineEdit(item.map_name)
         self.name_edit = ValidatedLineEdit(item.name)
 
-        self.maps_completer = QCompleter([])
-        self.maps_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self.maps_completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self.maps_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self.maps_completer.activated.connect(self.on_maps_completer_activated) # type: ignore
-        self.map_edit.get_input().setCompleter(self.maps_completer)
+        self.maps_completer = ItemCompleter(
+            self.map_edit.get_input(),
+            lambda q: [i.name for i in APP_CONTEXT.maps_service.autocomplete(q)]
+        )
 
         super().__init__(action, parent)
         self.setWindowTitle("Edit Track" if item.id else "Add Track")
-
-        self.map_debounce_timer = QTimer(self)
-        self.map_debounce_timer.setSingleShot(True)
-        self.map_debounce_timer.timeout.connect(self.update_maps_completer) # type: ignore
-        self.map_edit.get_input().textChanged.connect(self.on_map_text_changed)
 
     def prepare_layout(self):
         form_layout = QVBoxLayout()
@@ -43,29 +36,13 @@ class TrackDialog(EditDialog):
         super().showEvent(event)
         self.map_edit.setFocus()
 
-    def on_map_text_changed(self, text):
-        self.map_debounce_timer.start(300)
-
-    def on_maps_completer_activated(self, text):
-        self.map_edit.get_input().setText(text)
-        self.map_debounce_timer.stop()
-
-    def update_maps_completer(self):
-        query = self.map_edit.text()
-        maps = [m.name for m in APP_CONTEXT.maps_service.autocomplete(query)]
-        self.maps_completer.model().setStringList(maps)
-        if maps and query:
-            self.maps_completer.complete()
-        else:
-            self.maps_completer.popup().hide()
-
     def prepare_item(self):
-        name = self.name_edit.text().strip()
+        name = self.name_edit.text()
         if not name:
             self.name_edit.set_error()
             return None
 
-        map_name = self.map_edit.text().strip()
+        map_name = self.map_edit.text()
         if not map_name:
             self.map_edit.set_error()
             return None
@@ -113,13 +90,9 @@ class TracksTab(QWidget):
             self.list_widget.addItem(item)
 
     def on_add(self):
-        track = TrackView(id=0, map_id=0, map_name="", name=self.query.text().strip())
-        dialog = TrackDialog(item=track, action=APP_CONTEXT.tracks_service.add)
-        if dialog.exec():
+        if TrackDialog(item=TrackView(name=self.query.text().strip()), action=APP_CONTEXT.tracks_service.save).exec():
             self.refresh()
 
     def on_edit(self, item: QListWidgetItem):
-        track = item.data(Qt.ItemDataRole.UserRole)
-        dialog = TrackDialog(item=track, action=APP_CONTEXT.tracks_service.update)
-        if dialog.exec():
+        if TrackDialog(item=item.data(Qt.ItemDataRole.UserRole), action=APP_CONTEXT.tracks_service.save).exec():
             self.refresh()

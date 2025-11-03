@@ -3,9 +3,9 @@ from pydantic import BaseModel
 
 
 class Car(BaseModel):
-    id: int
-    name: str
-    rank: int
+    id: int = 0
+    name: str = ""
+    rank: int = 0
 
 class CarsRepository:
     @staticmethod
@@ -19,7 +19,7 @@ class CarsRepository:
 
     def get_by_name(self, name: str):
         with connect() as conn:
-            row = conn.execute("SELECT * FROM cars WHERE name = :name LIMIT 1", {"name": name}).fetchone()
+            row = conn.execute("SELECT * FROM cars WHERE name = :name COLLATE NOCASE LIMIT 1", {"name": name}).fetchone()
             return self.parse(row)
 
     def autocomplete(self, query: str):
@@ -34,9 +34,10 @@ class CarsRepository:
             rows = conn.execute(sql + " ORDER BY `rank` DESC, name LIMIT 100", params).fetchall()
             return [self.parse(row) for row in rows]
 
-    def update(self, item: Car):
+    def update(self, item: Car, update_empty_rank):
         with connect() as conn:
-            conn.execute("UPDATE cars SET name = :name, `rank` = :rank WHERE id = :id", item.model_dump())
+            rank_update = ", `rank` = :rank" if update_empty_rank or item.rank > 0 else ""
+            conn.execute(f"UPDATE cars SET name = :name {rank_update} WHERE id = :id", item.model_dump())
 
     def get_by_ids(self, ids):
         ids_str = ", ".join(str(id) for id in ids)
@@ -59,17 +60,12 @@ class CarsService:
         items = self.repo.get_by_ids(ids)
         return {i.id: i for i in items}
 
-    def add(self, item: Car) -> int:
-        return self.save_by_name(item.name, item.rank)
+    def save(self, item: Car, update_empty_rank = True) -> int:
+        if item.id <= 0:
+            existing = self.repo.get_by_name(item.name)
+            if not existing:
+                return self.repo.add(item)
+            item.id = existing.id
 
-    def save_by_name(self, name: str, rank: int) -> int:
-        existing = self.repo.get_by_name(name)
-        if existing:
-            if rank > 0 and existing.rank < rank:
-                existing.rank = rank
-                self.repo.update(existing)
-            return existing.id
-        return self.repo.add(Car(id=0, name=name, rank=rank))
-
-    def update(self, item: Car):
-        self.repo.update(item)
+        self.repo.update(item, update_empty_rank)
+        return item.id

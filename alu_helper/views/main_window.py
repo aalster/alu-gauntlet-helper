@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import QTabWidget, QMainWindow
 
 from alu_helper.views.cars_tab import CarsTab
 from alu_helper.views.maps_tab import MapsTab
-from alu_helper.views.test_window import TestView
+from alu_helper.views.races_tab import RacesTab
 from alu_helper.views.tracks_tab import TracksTab
 
 
@@ -15,12 +15,19 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
 
-        self.test_view = TestView()
+        self.races_tab = RacesTab()
         self.tracks_tab = TracksTab()
         self.maps_tab = MapsTab()
         self.cars_tab = CarsTab()
 
-        self.tabs.addTab(self.test_view, "Test")
+        self.tabs.addTab(self.races_tab, "Races")
         self.tabs.addTab(self.tracks_tab, "Tracks")
         self.tabs.addTab(self.maps_tab, "Maps")
         self.tabs.addTab(self.cars_tab, "Cars")
+
+        self.tabs.currentChanged.connect(self.tab_selected) # type: ignore
+
+    def tab_selected(self, idx):
+        tab = self.tabs.widget(idx)
+        if tab.refresh:
+            tab.refresh()

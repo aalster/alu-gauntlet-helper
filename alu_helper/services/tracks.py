@@ -1,16 +1,16 @@
 from alu_helper.database import connect
 from pydantic import BaseModel
 
-from alu_helper.services.maps import MapsService
+from alu_helper.services.maps import MapsService, Map
 
 
 class Track(BaseModel):
-    id: int
-    map_id: int
-    name: str
+    id: int = 0
+    map_id: int = 0
+    name: str = ""
 
 class TrackView(Track):
-    map_name: str
+    map_name: str = ""
 
 class TracksRepository:
     @staticmethod
@@ -23,7 +23,7 @@ class TracksRepository:
 
     def get_by_name(self, map_id: int, name: str):
         with connect() as conn:
-            row = conn.execute("SELECT * FROM tracks WHERE map_id = :map_id AND name = :name LIMIT 1",
+            row = conn.execute("SELECT * FROM tracks WHERE map_id = :map_id AND name = :name COLLATE NOCASE LIMIT 1",
                                {"map_id": map_id, "name": name}).fetchone()
             return self.parse(row)
 
@@ -60,10 +60,10 @@ class TracksService:
         maps = self.maps.get_by_ids(maps_ids)
         result = []
         for i in items:
-            map_ = maps[i.map_id]
+            map_ = maps.get(i.map_id)
             result.append(TrackView(
                 **i.model_dump(),
-                map_name=map_.map_name if map_ else "Unknown Map"
+                map_name=map_.name if map_ else "Unknown Map"
             ))
         return result
 
@@ -76,15 +76,15 @@ class TracksService:
     def autocomplete(self, query: str) -> list[TrackView]:
         return self.to_views(self.repo.autocomplete(query.strip()))
 
-    def add(self, item: TrackView) -> int:
-        return self.save_by_name(item.name, item.map_name)
+    def save(self, item: TrackView) -> int:
+        if item.map_id <= 0:
+            item.map_id = self.maps.save(Map(name=item.map_name))
 
-    def save_by_name(self, name, map_name) -> int:
-        map_id = self.maps.save_by_name(map_name)
-        existing = self.repo.get_by_name(map_id, name)
-        if existing:
-            return existing.id
-        return self.repo.add(Track(id=0, map_id=map_id, name=name))
+        if item.id <= 0:
+            existing = self.repo.get_by_name(item.map_id, item.name)
+            if not existing:
+                return self.repo.add(item)
+            item.id = existing.id
 
-    def update(self, item: Track):
         self.repo.update(item)
+        return item.id

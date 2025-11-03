@@ -1,8 +1,8 @@
 from pydantic import BaseModel
 
 from alu_helper.database import connect
-from alu_helper.services.cars import CarsService
-from alu_helper.services.tracks import TracksService
+from alu_helper.services.cars import CarsService, Car
+from alu_helper.services.tracks import TracksService, TrackView
 
 
 class Race(BaseModel):
@@ -47,11 +47,11 @@ class RacesService:
 
     def to_views(self, items: list[Race]):
         tracks = self.tracks.get_by_ids({i.track_id for i in items})
-        cars = self.cars.get_by_ids({i.track_id for i in items})
+        cars = self.cars.get_by_ids({i.car_id for i in items})
         result = []
         for i in items:
-            track = tracks[i.track_id]
-            car = cars[i.car_id]
+            track = tracks.get(i.track_id)
+            car = cars.get(i.car_id)
             result.append(RaceView(
                 **i.model_dump(),
                 map_name=track.map_name if track else "Unknown Map",
@@ -60,13 +60,16 @@ class RacesService:
             ))
         return result
 
-    def get_all(self) -> list[Race]:
-        return self.repo.get_all()
+    def get_all(self) -> list[RaceView]:
+        return self.to_views(self.repo.get_all())
 
-    def add(self, item: RaceView):
+    def save(self, item: RaceView):
         if item.track_id <= 0:
-            item.track_id = self.tracks.save_by_name(item.track_name, item.map_name)
-        self.repo.add(item)
+            item.track_id = self.tracks.save(TrackView(name=item.track_name, map_name=item.map_name))
+        if item.car_id <= 0:
+            item.car_id = self.cars.save(Car(name=item.car_name, rank=item.rank), False)
 
-    def update(self, item: RaceView):
-        self.repo.update(item)
+        if item.id <= 0:
+            self.repo.add(item)
+        else:
+            self.repo.update(item)

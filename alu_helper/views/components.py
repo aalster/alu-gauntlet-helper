@@ -1,6 +1,10 @@
-from PyQt6.QtCore import QRegularExpression
+import traceback
+from typing import Callable
+
+from PyQt6.QtCore import QRegularExpression, Qt, QTimer, QStringListModel
 from PyQt6.QtGui import QRegularExpressionValidator
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QDialog, QPushButton, QHBoxLayout, QLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QDialog, QPushButton, QHBoxLayout, QLayout, \
+    QCompleter
 
 
 class ValidatedLineEdit(QWidget):
@@ -84,6 +88,7 @@ class EditDialog(QDialog):
         try:
             self.action(result)
         except Exception as e:
+            traceback.print_exc()
             self.error_label.setText(str(e))
             return
 
@@ -91,3 +96,37 @@ class EditDialog(QDialog):
 
     def prepare_item(self):
         raise NotImplementedError
+
+class ItemCompleter(QCompleter):
+
+    def __init__(self, input_: QLineEdit, autocomplete, presentation, parent=None):
+        super().__init__(parent)
+        self.input_ = input_
+        self.autocomplete = autocomplete
+
+        self._model = QStringListModel(self)
+        self.setModel(self._model)
+        self.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.setFilterMode(Qt.MatchFlag.MatchContains)
+        self.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.activated.connect(self.on_completer_activated) # type: ignore
+
+        self.debounce_timer = QTimer(self)
+        self.debounce_timer.setSingleShot(True)
+        self.debounce_timer.timeout.connect(self.update_completer) # type: ignore
+
+        self.input_.textChanged.connect(lambda _: self.debounce_timer.start(300))
+        self.input_.setCompleter(self)
+
+    def on_completer_activated(self, text):
+        self.input_.setText(text)
+        self.debounce_timer.stop()
+
+    def update_completer(self):
+        query = self.input_.text().strip()
+        items = self.autocomplete(query)
+        self._model.setStringList(items)
+        if items and query:
+            self.complete()
+        else:
+            self.popup().hide()

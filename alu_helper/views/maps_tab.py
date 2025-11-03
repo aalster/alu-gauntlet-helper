@@ -75,13 +75,9 @@ class MapsTab(QWidget):
             self.list_widget.addItem(item)
 
     def on_add(self):
-        item = Map(id=0, name=self.query.text().strip())
-        dialog = MapDialog(item=item, action=APP_CONTEXT.maps_service.add)
-        if dialog.exec():
+        if MapDialog(item=Map(name=self.query.text().strip()), action=APP_CONTEXT.maps_service.save).exec():
             self.refresh()
 
     def on_edit(self, item: QListWidgetItem):
-        item = item.data(Qt.ItemDataRole.UserRole)
-        dialog = MapDialog(item=item, action=APP_CONTEXT.maps_service.update)
-        if dialog.exec():
+        if MapDialog(item=item.data(Qt.ItemDataRole.UserRole), action=APP_CONTEXT.maps_service.save).exec():
             self.refresh()

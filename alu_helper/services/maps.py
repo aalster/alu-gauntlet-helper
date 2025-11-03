@@ -3,8 +3,8 @@ from pydantic import BaseModel
 
 
 class Map(BaseModel):
-    id: int
-    name: str
+    id: int = 0
+    name: str = ""
 
 class MapsRepository:
     @staticmethod
@@ -17,7 +17,7 @@ class MapsRepository:
 
     def get_by_name(self, name: str):
         with connect() as conn:
-            row = conn.execute("SELECT * FROM maps WHERE name = :name LIMIT 1", {"name": name}).fetchone()
+            row = conn.execute("SELECT * FROM maps WHERE name = :name COLLATE NOCASE LIMIT 1", {"name": name}).fetchone()
             return self.parse(row)
 
     def get_all(self, query: str):
@@ -60,14 +60,12 @@ class MapsService:
         items = self.repo.get_by_ids(ids)
         return {m.id: m for m in items}
 
-    def add(self, item: Map) -> int:
-        return self.save_by_name(item.name)
+    def save(self, item: Map) -> int:
+        if item.id <= 0:
+            existing = self.repo.get_by_name(item.name)
+            if not existing:
+                return self.repo.add(item)
+            item.id = existing.id
 
-    def save_by_name(self, name: str) -> int:
-        existing = self.get_by_name(name)
-        if existing:
-            return existing.id
-        return self.repo.add(Map(id=0, name=name))
-
-    def update(self, item: Map):
         self.repo.update(item)
+        return item.id
