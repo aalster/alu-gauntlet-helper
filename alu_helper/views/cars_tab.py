@@ -1,17 +1,20 @@
 # gui/maps_tab.py
 from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QIntValidator
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
     QLabel
 
 from alu_helper.app_context import APP_CONTEXT
-from alu_helper.services.maps import Map
+from alu_helper.services.cars import Car
 from alu_helper.views.components import EditDialog, ValidatedLineEdit
 
 
-class MapDialog(EditDialog):
-    def __init__(self, item: Map, action, parent=None):
+class CarDialog(EditDialog):
+    def __init__(self, item: Car, action, parent=None):
         self.item = item
         self.name_edit = ValidatedLineEdit(item.name)
+        self.rank_edit = ValidatedLineEdit(str(item.rank) if item.rank else "")
+        self.rank_edit.get_input().setValidator(QIntValidator(0, 10000))
 
         super().__init__(action, parent)
         self.setWindowTitle("Edit Map" if item.id else "Add Map")
@@ -20,6 +23,8 @@ class MapDialog(EditDialog):
         form_layout = QVBoxLayout()
         form_layout.addWidget(QLabel("Name:"))
         form_layout.addWidget(self.name_edit)
+        form_layout.addWidget(QLabel("Rank:"))
+        form_layout.addWidget(self.rank_edit)
 
         return form_layout
 
@@ -33,9 +38,11 @@ class MapDialog(EditDialog):
             self.name_edit.set_error()
             return None
 
-        return Map(id=self.item.id, name=name)
+        rank = int(self.rank_edit.text()) if self.rank_edit.text() else 0
 
-class MapsTab(QWidget):
+        return Car(id=self.item.id, name=name, rank=rank)
+
+class CarsTab(QWidget):
     def __init__(self):
         super().__init__()
 
@@ -69,19 +76,19 @@ class MapsTab(QWidget):
 
     def refresh(self):
         self.list_widget.clear()
-        for i in APP_CONTEXT.maps_service.autocomplete(self.query.text()):
-            item = QListWidgetItem(i.name)
+        for i in APP_CONTEXT.cars_service.autocomplete(self.query.text()):
+            item = QListWidgetItem(f"{i.id}: {i.name} {i.rank}")
             item.setData(Qt.ItemDataRole.UserRole, i)
             self.list_widget.addItem(item)
 
     def on_add(self):
-        item = Map(id=0, name=self.query.text().strip())
-        dialog = MapDialog(item=item, action=APP_CONTEXT.maps_service.add)
+        item = Car(id=0, name=self.query.text().strip(), rank=0)
+        dialog = CarDialog(item=item, action=APP_CONTEXT.cars_service.add)
         if dialog.exec():
             self.refresh()
 
     def on_edit(self, item: QListWidgetItem):
         item = item.data(Qt.ItemDataRole.UserRole)
-        dialog = MapDialog(item=item, action=APP_CONTEXT.maps_service.update)
+        dialog = CarDialog(item=item, action=APP_CONTEXT.cars_service.update)
         if dialog.exec():
             self.refresh()

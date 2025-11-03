@@ -52,7 +52,7 @@ class TrackDialog(EditDialog):
 
     def update_maps_completer(self):
         query = self.map_edit.text()
-        maps = [m.name for m in APP_CONTEXT.maps_service.get_all(query)]
+        maps = [m.name for m in APP_CONTEXT.maps_service.autocomplete(query)]
         self.maps_completer.model().setStringList(maps)
         if maps and query:
             self.maps_completer.complete()
@@ -107,7 +107,7 @@ class TracksTab(QWidget):
 
     def refresh(self):
         self.list_widget.clear()
-        for t in APP_CONTEXT.tracks_service.get_all(self.query.text()):
+        for t in APP_CONTEXT.tracks_service.autocomplete(self.query.text()):
             item = QListWidgetItem(f"{t.id}: {t.map_name} - {t.name}")
             item.setData(Qt.ItemDataRole.UserRole, t)
             self.list_widget.addItem(item)

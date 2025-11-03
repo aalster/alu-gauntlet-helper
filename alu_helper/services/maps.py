@@ -13,11 +13,9 @@ class MapsRepository:
 
     def add(self, item: Map) -> int:
         with connect() as conn:
-            conn.execute("INSERT OR IGNORE INTO maps(name) VALUES (:name)", item.model_dump())
-            return conn.execute("SELECT id FROM maps WHERE name = :name LIMIT 1", item.model_dump()).fetchone()[0]
+            return conn.execute("INSERT INTO maps (name) VALUES (:name)", item.model_dump()).lastrowid
 
-
-    def get(self, name: str):
+    def get_by_name(self, name: str):
         with connect() as conn:
             row = conn.execute("SELECT * FROM maps WHERE name = :name LIMIT 1", {"name": name}).fetchone()
             return self.parse(row)
@@ -38,11 +36,11 @@ class MapsRepository:
         with connect() as conn:
             conn.execute("UPDATE maps SET name = :name WHERE id = :id", item.model_dump())
 
-    def get_by_ids(self, maps_ids):
-        ids = ", ".join(str(id) for id in maps_ids)
+    def get_by_ids(self, ids):
+        ids_str = ", ".join(str(id) for id in ids)
 
         with connect() as conn:
-            rows = conn.execute(f"SELECT * FROM maps WHERE id in ({ids})").fetchall()
+            rows = conn.execute(f"SELECT * FROM maps WHERE id in ({ids_str})").fetchall()
             return [self.parse(row) for row in rows]
 
 
@@ -50,20 +48,26 @@ class MapsService:
     def __init__(self, repo: MapsRepository):
         self.repo = repo
 
-    def add(self, item: Map) -> int:
-        return self.repo.add(item)
+    def get_by_name(self, name: str) -> Map:
+        return self.repo.get_by_name(name)
 
-    def get_id_by_name(self, name: str) -> int:
-        return self.add(Map(id=0, name=name))
-
-    def get_all(self, query: str = ""):
+    def autocomplete(self, query: str):
         return self.repo.get_all(query.strip())
+
+    def get_by_ids(self, ids: set[int]) -> dict[int, Map]:
+        if not ids:
+            return dict()
+        items = self.repo.get_by_ids(ids)
+        return {m.id: m for m in items}
+
+    def add(self, item: Map) -> int:
+        return self.save_by_name(item.name)
+
+    def save_by_name(self, name: str) -> int:
+        existing = self.get_by_name(name)
+        if existing:
+            return existing.id
+        return self.repo.add(Map(id=0, name=name))
 
     def update(self, item: Map):
         self.repo.update(item)
-
-    def get_by_ids(self, maps_ids: set[int]) -> dict[int, Map]:
-        if not maps_ids:
-            return dict()
-        items = self.repo.get_by_ids(maps_ids)
-        return {m.id: m for m in items}

@@ -23,7 +23,7 @@ class TestView(QWidget):
 
     def load_records(self):
         self.listbox.clear()
-        for track in APP_CONTEXT.tracks_service.get_all():
+        for track in APP_CONTEXT.tracks_service.autocomplete(""):
             self.listbox.addItem(f"{track.id}: {track.name}")
 
     def on_add(self):

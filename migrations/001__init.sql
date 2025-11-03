@@ -24,6 +24,9 @@ create table cars (
     created_at datetime     not null default current_timestamp
 );
 
+create unique index cars_name_uindex
+    on cars (name);
+
 create table races (
     id         integer primary key autoincrement,
     track_id   integer      not null,
