@@ -184,3 +184,17 @@ class ItemCompleter(QCompleter):
             self.complete()
         else:
             self.popup().hide()
+
+class InputDebounce:
+    def __init__(self, input_: QLineEdit, on_change: Callable, debounce_time: int = 300):
+        self.input_ = input_
+        self.debounce_time = debounce_time
+
+        self.timer = QTimer()
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(on_change) # type: ignore
+
+        self.input_.textEdited.connect(self.start) # type: ignore
+
+    def start(self):
+        self.timer.start(self.debounce_time)

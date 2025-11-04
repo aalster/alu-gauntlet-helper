@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLin
 from alu_helper.app_context import APP_CONTEXT
 from alu_helper.services.races import RaceView
 from alu_helper.services.tracks import TrackView
-from alu_helper.views.components import EditDialog, ValidatedLineEdit, ItemCompleter
+from alu_helper.views.components import EditDialog, ValidatedLineEdit, ItemCompleter, InputDebounce
 
 
 class RaceDialog(EditDialog):
@@ -76,10 +76,15 @@ class RacesTab(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.query = QLineEdit()
-        self.query.setClearButtonEnabled(True)
-        self.query.setPlaceholderText("Filter by name")
-        self.query.textEdited.connect(self.refresh_debounce) # type: ignore
+        self.track_query = QLineEdit()
+        self.track_query.setClearButtonEnabled(True)
+        self.track_query.setPlaceholderText("Filter by track")
+        self.track_debounce = InputDebounce(self.track_query, on_change=self.refresh)
+
+        self.car_query = QLineEdit()
+        self.car_query.setClearButtonEnabled(True)
+        self.car_query.setPlaceholderText("Filter by car")
+        self.car_debounce = InputDebounce(self.car_query, on_change=self.refresh)
 
         self.add_button = QPushButton("Add")
         self.add_button.clicked.connect(self.on_add) # type: ignore
@@ -87,12 +92,10 @@ class RacesTab(QWidget):
         self.list_widget = QListWidget()
         self.list_widget.itemDoubleClicked.connect(self.on_edit) # type: ignore
 
-        self.debounce_timer = QTimer()
-        self.debounce_timer.setSingleShot(True)
-        self.debounce_timer.timeout.connect(self.refresh) # type: ignore
 
         top_layout = QHBoxLayout()
-        top_layout.addWidget(self.query)
+        top_layout.addWidget(self.track_query)
+        top_layout.addWidget(self.car_query)
         top_layout.addWidget(self.add_button)
 
         layout = QVBoxLayout()
@@ -101,13 +104,12 @@ class RacesTab(QWidget):
         self.setLayout(layout)
         self.refresh()
 
-    def refresh_debounce(self):
-        self.debounce_timer.start(300)
-
     def refresh(self):
         self.list_widget.clear()
-        for i in APP_CONTEXT.races_service.get_all():
-            item = QListWidgetItem(f"{i.id}: {i.map_name} {i.track_name} - {i.car_name}")
+        track_query = self.track_query.text().strip()
+        car_query = self.car_query.text().strip()
+        for i in APP_CONTEXT.races_service.get_all(track_query, car_query):
+            item = QListWidgetItem(f"{i.id}: {i.map_name} {i.track_name} - {i.car_name} | {i.created_at.strftime("%d.%m.%Y %H:%M:%S")}")
             item.setData(Qt.ItemDataRole.UserRole, i)
             self.list_widget.addItem(item)
 

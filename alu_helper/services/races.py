@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from datetime import datetime
+
+from pydantic import BaseModel, validator, field_validator
 
 from alu_helper.database import connect
 from alu_helper.services.cars import CarsService, Car
@@ -11,7 +13,17 @@ class Race(BaseModel):
     car_id: int = 0
     rank: int = 0
     time: int = 0
-    created_at: str = ""
+    created_at: datetime | None = None
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def parse_datetime(cls, v):
+        if isinstance(v, str):
+            try:
+                return datetime.fromisoformat(v)
+            except ValueError:
+                return None
+        return v
 
 class RaceView(Race):
     map_name: str = ""
@@ -29,9 +41,23 @@ class RacesRepository:
             conn.execute("INSERT INTO races (track_id, car_id, `rank`, time) VALUES (:track_id, :car_id, :rank, :time)",
                          item.model_dump())
 
-    def get_all(self):
-        with connect() as conn:
-            rows = conn.execute("SELECT * FROM races ORDER BY created_at DESC LIMIT 100").fetchall()
+    def get_all(self, track_query: str, car_query: str):
+        with (connect() as conn):
+            sql = ("SELECT r.* FROM races r"
+                   " LEFT JOIN tracks t ON r.track_id = t.id"
+                   " LEFT JOIN maps m ON t.map_id = m.id"
+                   " LEFT JOIN cars c ON r.car_id = c.id")
+            params = {}
+
+            if track_query:
+                sql += " WHERE t.name LIKE :track_query OR m.name LIKE :track_query"
+                params = {"track_query": f"%{track_query}%"}
+
+            if car_query:
+                sql += " WHERE c.name LIKE :car_query"
+                params = {"car_query": f"%{car_query}%"}
+
+            rows = conn.execute(sql + " ORDER BY r.created_at LIMIT 100", params).fetchall()
             return [self.parse(row) for row in rows]
 
     def update(self, item: Race):
@@ -60,8 +86,8 @@ class RacesService:
             ))
         return result
 
-    def get_all(self) -> list[RaceView]:
-        return self.to_views(self.repo.get_all())
+    def get_all(self, track_query: str, car_query: str) -> list[RaceView]:
+        return self.to_views(self.repo.get_all(track_query, car_query))
 
     def save(self, item: RaceView):
         if item.track_id <= 0:
