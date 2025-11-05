@@ -1,7 +1,7 @@
 import traceback
 from typing import Callable
 
-from PyQt6.QtCore import QRegularExpression, Qt, QTimer, QStringListModel, QObject, QEvent
+from PyQt6.QtCore import QRegularExpression, Qt, QTimer, QObject, QEvent
 from PyQt6.QtGui import QRegularExpressionValidator, QStandardItemModel, QStandardItem
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QDialog, QPushButton, QHBoxLayout, QLayout, \
     QCompleter

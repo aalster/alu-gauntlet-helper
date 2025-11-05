@@ -2,11 +2,12 @@
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QIntValidator
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
-    QLabel, QCompleter
+    QLabel, QCompleter, QDateTimeEdit, QTimeEdit
 
 from alu_helper.app_context import APP_CONTEXT
 from alu_helper.services.races import RaceView
 from alu_helper.services.tracks import TrackView
+from alu_helper.services.utils import format_time, time_format_regex, parse_time
 from alu_helper.views.components import EditDialog, ValidatedLineEdit, ItemCompleter, InputDebounce
 
 
@@ -18,6 +19,7 @@ class RaceDialog(EditDialog):
         self.car_edit = ValidatedLineEdit(item.car_name)
         self.rank_edit = ValidatedLineEdit(str(item.rank) if item.rank else "")
         self.rank_edit.get_input().setValidator(QIntValidator(0, 10000))
+        self.time_edit = ValidatedLineEdit(format_time(item.time), placeholder="mm:ss.xxx", regex=time_format_regex)
 
         self.tracks_completer = ItemCompleter(
             self.track_edit.get_input(),
@@ -35,7 +37,7 @@ class RaceDialog(EditDialog):
         )
 
         super().__init__(action, parent)
-        self.setWindowTitle("Edit Track" if item.id else "Add Track")
+        self.setWindowTitle("Edit Race" if item.id else "Add Race")
 
     def prepare_layout(self):
         form_layout = QVBoxLayout()
@@ -45,6 +47,8 @@ class RaceDialog(EditDialog):
         form_layout.addWidget(self.car_edit)
         form_layout.addWidget(QLabel("Rank:"))
         form_layout.addWidget(self.rank_edit)
+        form_layout.addWidget(QLabel("Time:"))
+        form_layout.addWidget(self.time_edit)
 
         return form_layout
 
@@ -56,6 +60,7 @@ class RaceDialog(EditDialog):
         car_id = self.cars_completer.get_selected_item().id if self.cars_completer.get_selected_item() else 0
         car_name = self.car_edit.text()
         rank = int(self.rank_edit.text()) if self.rank_edit.text() else 0
+        time = parse_time(self.time_edit.text())
 
         error = False
         if track_id <= 0:
@@ -66,10 +71,13 @@ class RaceDialog(EditDialog):
             self.car_edit.set_error()
             error = True
 
+        if not time:
+            self.time_edit.set_error()
+            error = True
+
         if error:
             return None
-
-        return RaceView(id=self.item.id, track_id=track_id, car_id=car_id, car_name=car_name, rank=rank)
+        return RaceView(id=self.item.id, track_id=track_id, car_id=car_id, car_name=car_name, rank=rank, time=time)
 
 
 class RacesTab(QWidget):
@@ -91,7 +99,6 @@ class RacesTab(QWidget):
 
         self.list_widget = QListWidget()
         self.list_widget.itemDoubleClicked.connect(self.on_edit) # type: ignore
-
 
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.track_query)
