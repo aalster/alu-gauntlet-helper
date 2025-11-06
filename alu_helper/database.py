@@ -1,8 +1,10 @@
 import sqlite3
 from pathlib import Path
 
+from alu_helper.services.utils import get_resource_path
+
 DB_FILE = "app.db"
-MIGRATIONS_DIR = Path("migrations")
+MIGRATIONS_DIR = Path(get_resource_path("migrations"))
 
 def connect():
     conn = sqlite3.connect(DB_FILE)
@@ -18,7 +20,7 @@ def init_db():
                      )
                      """)
         applied = {row[0] for row in conn.execute("SELECT id FROM migrations")}
-        for migration in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        for migration in sorted(list(MIGRATIONS_DIR.iterdir())):
             if migration.name not in applied:
                 with open(migration) as f:
                     conn.executescript(f.read())

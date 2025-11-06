@@ -1,4 +1,4 @@
-Сборка
+Build executable:
 ```
-pyinstaller --onefile --windowed alu_helper/main.py
+pyinstaller --onefile --windowed --add-data "resources;resources" --icon=resources/logo.ico --name "ALU Helper" main.py
 ```
