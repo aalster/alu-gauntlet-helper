@@ -7,6 +7,9 @@ class Settings(BaseModel):
     window_geometry: str = ""
     window_state: str = ""
 
+    show_tray_icon: bool = False
+    close_to_tray: bool = False
+
 class SettingsRepository:
 
     def save(self, key: str, value: str):
