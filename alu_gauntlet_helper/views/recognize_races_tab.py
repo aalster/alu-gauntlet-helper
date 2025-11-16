@@ -4,9 +4,9 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QCheckBox, QFormLayout, QLabel, QFileDialog
 
-from alu_helper.app_context import APP_CONTEXT
-from alu_helper.utils.utils import pixmap_to_bytes
-from alu_helper.screen_recognition.recognition import find_rectangles, find_race_boxes
+from alu_gauntlet_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.utils.utils import pixmap_to_bytes
+from alu_gauntlet_helper.screen_recognition.recognition import find_rectangles, find_race_boxes
 
 
 class RecognizeRacesTab(QWidget):

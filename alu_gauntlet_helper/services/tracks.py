@@ -1,7 +1,7 @@
-from alu_helper.database import connect
+from alu_gauntlet_helper.database import connect
 from pydantic import BaseModel
 
-from alu_helper.services.maps import MapsService, Map
+from alu_gauntlet_helper.services.maps import MapsService, Map
 
 
 class Track(BaseModel):

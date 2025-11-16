@@ -1,37 +1,59 @@
 # gui/maps_tab.py
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
-    QLabel
+    QLabel, QCompleter
 
-from alu_helper.app_context import APP_CONTEXT
-from alu_helper.services.maps import Map
-from alu_helper.views.components import EditDialog, ValidatedLineEdit
+from alu_gauntlet_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.services.tracks import TrackView
+from alu_gauntlet_helper.views.components import EditDialog, ValidatedLineEdit, ItemCompleter
 
 
-class MapDialog(EditDialog):
-    def __init__(self, item: Map, action, parent=None):
+class TrackDialog(EditDialog):
+    def __init__(self, item: TrackView, action, parent=None):
         self.item = item
+
+        self.map_edit = ValidatedLineEdit(item.map_name)
         self.name_edit = ValidatedLineEdit(item.name)
 
+        self.maps_completer = ItemCompleter(
+            self.map_edit.get_input(),
+            APP_CONTEXT.maps_service.autocomplete,
+            lambda i: i.name
+        )
+
         super().__init__(action, parent)
-        self.setWindowTitle("Edit Map" if item.id else "Add Map")
+        self.setWindowTitle("Edit Track" if item.id else "Add Track")
 
     def prepare_layout(self):
         form_layout = QVBoxLayout()
+        form_layout.addWidget(QLabel("Map:"))
+        form_layout.addWidget(self.map_edit)
         form_layout.addWidget(QLabel("Name:"))
         form_layout.addWidget(self.name_edit)
 
         return form_layout
 
     def prepare_item(self):
+        map_id = self.maps_completer.get_selected_item().id if self.maps_completer.get_selected_item() else 0
+        map_name = self.map_edit.text()
         name = self.name_edit.text()
+
+        error = False
+        if not map_name:
+            self.map_edit.set_error()
+            error = True
+
         if not name:
             self.name_edit.set_error()
+            error = True
+
+        if error:
             return None
 
-        return Map(id=self.item.id, name=name)
+        return TrackView(id=self.item.id, map_id=map_id, map_name=map_name, name=name)
 
-class MapsTab(QWidget):
+
+class TracksTab(QWidget):
     def __init__(self):
         super().__init__()
 
@@ -65,15 +87,15 @@ class MapsTab(QWidget):
 
     def refresh(self):
         self.list_widget.clear()
-        for i in APP_CONTEXT.maps_service.autocomplete(self.query.text()):
-            item = QListWidgetItem(i.name)
-            item.setData(Qt.ItemDataRole.UserRole, i)
+        for t in APP_CONTEXT.tracks_service.autocomplete(self.query.text()):
+            item = QListWidgetItem(f"{t.id}: {t.map_name} - {t.name}")
+            item.setData(Qt.ItemDataRole.UserRole, t)
             self.list_widget.addItem(item)
 
     def on_add(self):
-        if MapDialog(item=Map(name=self.query.text().strip()), action=APP_CONTEXT.maps_service.save).exec():
+        if TrackDialog(item=TrackView(name=self.query.text().strip()), action=APP_CONTEXT.tracks_service.save).exec():
             self.refresh()
 
     def on_edit(self, item: QListWidgetItem):
-        if MapDialog(item=item.data(Qt.ItemDataRole.UserRole), action=APP_CONTEXT.maps_service.save).exec():
+        if TrackDialog(item=item.data(Qt.ItemDataRole.UserRole), action=APP_CONTEXT.tracks_service.save).exec():
             self.refresh()

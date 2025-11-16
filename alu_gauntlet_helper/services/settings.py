@@ -1,7 +1,5 @@
-from datetime import datetime
-
-from alu_helper.database import connect
-from pydantic import BaseModel, field_validator
+from alu_gauntlet_helper.database import connect
+from pydantic import BaseModel
 
 
 class Settings(BaseModel):
@@ -12,24 +10,6 @@ class Settings(BaseModel):
     show_tray_icon: bool = False
     close_to_tray: bool = False
     start_minimized: bool = False
-
-    daily_gift_link: str = "https://shop.gameloft.com/games/Asphalt_Unite"
-    daily_gift_timer: bool = False
-    daily_gift_notification: bool = True
-    next_daily_gift_time: datetime | None = None
-
-    @field_validator("next_daily_gift_time", mode="before")
-    @classmethod
-    def parse_next_daily_gift_time(cls, v):
-        if v is None:
-            return None
-        if isinstance(v, str):
-            if v == "None" or v == "":
-                return None
-            return datetime.fromisoformat(v)
-        if isinstance(v, datetime):
-            return v
-        return None
 
 class SettingsRepository:
 

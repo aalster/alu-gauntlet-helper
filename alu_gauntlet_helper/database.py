@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-from alu_helper.utils.utils import get_resource_path
+from alu_gauntlet_helper.utils.utils import get_resource_path
 
 DB_FILE = "app.db"
 MIGRATIONS_DIR = Path(get_resource_path("migrations"))

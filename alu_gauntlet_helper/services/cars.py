@@ -1,4 +1,4 @@
-from alu_helper.database import connect
+from alu_gauntlet_helper.database import connect
 from pydantic import BaseModel
 
 

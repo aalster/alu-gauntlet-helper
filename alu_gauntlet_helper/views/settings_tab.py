@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QCheckBox, QFormLayout
 
-from alu_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.app_context import APP_CONTEXT
 
 
 class SettingsTab(QWidget):

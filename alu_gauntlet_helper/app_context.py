@@ -1,8 +1,8 @@
-from alu_helper.services.cars import CarsRepository, CarsService
-from alu_helper.services.maps import MapsRepository, MapsService
-from alu_helper.services.races import RacesService, RacesRepository
-from alu_helper.services.settings import SettingsService, SettingsRepository
-from alu_helper.services.tracks import TracksRepository, TracksService
+from alu_gauntlet_helper.services.cars import CarsRepository, CarsService
+from alu_gauntlet_helper.services.maps import MapsRepository, MapsService
+from alu_gauntlet_helper.services.races import RacesService, RacesRepository
+from alu_gauntlet_helper.services.settings import SettingsService, SettingsRepository
+from alu_gauntlet_helper.services.tracks import TracksRepository, TracksService
 
 
 class AppContext:

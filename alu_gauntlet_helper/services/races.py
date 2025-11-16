@@ -2,9 +2,9 @@ from datetime import datetime
 
 from pydantic import BaseModel, validator, field_validator
 
-from alu_helper.database import connect
-from alu_helper.services.cars import CarsService, Car
-from alu_helper.services.tracks import TracksService, TrackView
+from alu_gauntlet_helper.database import connect
+from alu_gauntlet_helper.services.cars import CarsService, Car
+from alu_gauntlet_helper.services.tracks import TracksService, TrackView
 
 
 class Race(BaseModel):

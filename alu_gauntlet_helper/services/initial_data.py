@@ -1,6 +1,6 @@
-from alu_helper.app_context import APP_CONTEXT
-from alu_helper.services.cars import Car
-from alu_helper.services.tracks import TrackView
+from alu_gauntlet_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.services.cars import Car
+from alu_gauntlet_helper.services.tracks import TrackView
 
 
 def init_data():

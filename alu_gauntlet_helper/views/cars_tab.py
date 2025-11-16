@@ -4,9 +4,9 @@ from PyQt6.QtGui import QIntValidator
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
     QLabel
 
-from alu_helper.app_context import APP_CONTEXT
-from alu_helper.services.cars import Car
-from alu_helper.views.components import EditDialog, ValidatedLineEdit
+from alu_gauntlet_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.services.cars import Car
+from alu_gauntlet_helper.views.components import EditDialog, ValidatedLineEdit
 
 
 class CarDialog(EditDialog):

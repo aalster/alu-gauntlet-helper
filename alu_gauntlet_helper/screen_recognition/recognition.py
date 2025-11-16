@@ -4,7 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QCheckBox, QFormLayout, QLabel, QFileDialog
 
-from alu_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.app_context import APP_CONTEXT
 
 
 class AttrRange:

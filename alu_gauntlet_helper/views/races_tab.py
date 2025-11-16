@@ -4,11 +4,11 @@ from PyQt6.QtGui import QIntValidator
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
     QLabel, QCompleter, QDateTimeEdit, QTimeEdit
 
-from alu_helper.app_context import APP_CONTEXT
-from alu_helper.services.races import RaceView
-from alu_helper.services.tracks import TrackView
-from alu_helper.utils.utils import format_time, time_format_regex, parse_time
-from alu_helper.views.components import EditDialog, ValidatedLineEdit, ItemCompleter, InputDebounce
+from alu_gauntlet_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.services.races import RaceView
+from alu_gauntlet_helper.services.tracks import TrackView
+from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time
+from alu_gauntlet_helper.views.components import EditDialog, ValidatedLineEdit, ItemCompleter, InputDebounce
 
 
 class RaceDialog(EditDialog):
