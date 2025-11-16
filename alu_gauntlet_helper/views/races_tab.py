@@ -23,17 +23,17 @@ class RaceDialog(EditDialog):
 
         self.tracks_completer = ItemCompleter(
             self.track_edit.get_input(),
-            APP_CONTEXT.tracks_service.autocomplete,
-            lambda i: f"{i.map_name} - {i.name}",
-            False
+            autocomplete=APP_CONTEXT.tracks_service.autocomplete,
+            presentation=lambda i: f"{i.map_name} - {i.name}",
+            allow_custom_text=False
         )
         self.tracks_completer.set_selected_item(TrackView(id=item.track_id, name=item.track_name, map_name=item.map_name))
 
         self.cars_completer = ItemCompleter(
             self.car_edit.get_input(),
-            APP_CONTEXT.cars_service.autocomplete,
-            lambda i: i.name,
-            self.on_car_selected
+            autocomplete=APP_CONTEXT.cars_service.autocomplete,
+            presentation=lambda i: i.name,
+            selected_listener=self.on_car_selected
         )
 
         super().__init__(action, parent)

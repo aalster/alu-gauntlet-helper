@@ -17,8 +17,8 @@ class TrackDialog(EditDialog):
 
         self.maps_completer = ItemCompleter(
             self.map_edit.get_input(),
-            APP_CONTEXT.maps_service.autocomplete,
-            lambda i: i.name
+            autocomplete=APP_CONTEXT.maps_service.autocomplete,
+            presentation=lambda i: i.name
         )
 
         super().__init__(action, parent)

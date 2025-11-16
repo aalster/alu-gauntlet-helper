@@ -19,7 +19,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ALU Helper")
+        self.setWindowTitle("ALU Gauntlet Helper")
         self.setWindowIcon(QIcon(get_resource_path("logo.ico")))
         self.setMinimumSize(500, 600)
         self.restore_window_state()

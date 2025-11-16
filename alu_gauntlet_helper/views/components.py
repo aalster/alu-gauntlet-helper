@@ -23,7 +23,7 @@ class ValidatedLineEdit(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.input)
-        layout.addWidget(self.error_label)
+        # layout.addWidget(self.error_label)
 
 
     def get_input(self) -> QLineEdit:
