@@ -127,12 +127,13 @@ class ItemCompleter(QCompleter):
         self.setFilterMode(Qt.MatchFlag.MatchContains)
         self.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         self.activated.connect(self.on_completer_activated) # type: ignore
+        self.highlighted.connect(self.on_completer_activated) # type: ignore
 
         self.debounce_timer = QTimer(self)
         self.debounce_timer.setSingleShot(True)
         self.debounce_timer.timeout.connect(self.update_completer) # type: ignore
 
-        self.input_.textChanged.connect(self.on_text_changed)
+        self.input_.textEdited.connect(self.on_text_changed)
         if not allow_custom_text:
             self.input_.editingFinished.connect(self.on_editing_finished)
         self.input_.setCompleter(self)
@@ -176,8 +177,8 @@ class ItemCompleter(QCompleter):
 
         self._model.clear()
         for i in items:
-            item = QStandardItem(self.presentation(i))  # отображаемое имя
-            item.setData(i, Qt.ItemDataRole.UserRole)  # сам объект
+            item = QStandardItem(self.presentation(i))
+            item.setData(i, Qt.ItemDataRole.UserRole)
             self._model.appendRow(item)
 
         if items:
