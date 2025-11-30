@@ -4,4 +4,6 @@ build
 dist
 *.iml
 *.spec
+
 app.db
+data

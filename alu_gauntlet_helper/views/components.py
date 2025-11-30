@@ -3,9 +3,9 @@ from typing import Callable
 
 from PyQt6.QtCore import QRegularExpression, Qt, QTimer, QObject, QEvent, QSize
 from PyQt6.QtGui import QRegularExpressionValidator, QStandardItemModel, QStandardItem, QPixmap, QGuiApplication, \
-    QImage, QIcon, QAction
+    QImage, QIcon, QAction, QCursor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QDialog, QPushButton, QHBoxLayout, QLayout, \
-    QCompleter, QFileDialog, QToolButton, QApplication
+    QCompleter, QFileDialog, QToolButton, QApplication, QStyle
 
 from alu_gauntlet_helper.utils.utils import get_resource_path, pixmap_cover
 
@@ -214,14 +214,24 @@ class ClearOnEscEventFilter(QObject):
 CLEAR_ON_ESC_FILTER = ClearOnEscEventFilter()
 
 class ImageLineEdit(QWidget):
-    def __init__(self):
+    def __init__(self, image: QImage | None = None):
         super().__init__()
         self._image = None
 
         self.preview = QLabel()
-        self.preview.setFixedSize(64, 64)
+        self.preview.setFixedSize(80, 80)
         self.preview.setStyleSheet("border: 1px solid #aaa;")
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.clear_button = QPushButton(self.preview)
+        self.clear_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_LineEditClearButton))
+        self.clear_button.setFixedSize(QSize(20, 20))
+        self.clear_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.clear_button.setToolTip("Clear")
+        self.clear_button.setStyleSheet("border: none")
+        padding = 2
+        self.clear_button.move(self.preview.width() - self.clear_button.width() - padding, padding)
+        self.clear_button.clicked.connect(self.clear) # type: ignore
 
         self.line = QLineEdit()
         self.line.setReadOnly(True)
@@ -231,14 +241,13 @@ class ImageLineEdit(QWidget):
         self.select_button = QPushButton("Choose file")
         self.select_button.clicked.connect(self.pick_file) # type: ignore
 
-        self.clear_button = QPushButton("Clear")
-        self.clear_button.clicked.connect(self.clear) # type: ignore
-
         or_label = QLabel("Or")
         or_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        right_vbox = vbox([self.line, or_label, self.select_button, self.clear_button], spacing=0)
+        right_vbox = vbox([self.line, or_label, self.select_button], spacing=0)
         add_contents(QHBoxLayout(self), [self.preview, right_vbox])
+
+        self.set_image(image)
 
     def eventFilter(self, obj, event):
         if obj is self.line and event.type() == QEvent.Type.KeyPress:
@@ -252,11 +261,24 @@ class ImageLineEdit(QWidget):
         self.line.clear()
 
     def paste_image(self):
-        img = QGuiApplication.clipboard().image()
-        print(img.text())
+        clipboard = QGuiApplication.clipboard()
+        img = clipboard.image()
         if not img.isNull():
             self.set_image(img)
             self.line.setText("From clipboard")
+            return
+
+        md = clipboard.mimeData()
+        if md.hasUrls():
+            for url in md.urls():
+                try:
+                    img = QImage(url.toLocalFile())
+                    if not img.isNull():
+                        self.set_image(img)
+                        self.line.setText("From clipboard")
+                        return
+                except Exception:
+                    pass
 
     def pick_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "Choose Image", "", "Images (*.png *.jpg *.jpeg *.bmp)")
@@ -267,9 +289,11 @@ class ImageLineEdit(QWidget):
     def set_image(self, img: QImage | None):
         self._image = img
         if img:
-            self.preview.setPixmap(pixmap_cover(img, w=self.preview.width(), h=self.preview.height()))
+            self.preview.setPixmap(pixmap_cover(QPixmap.fromImage(img), w=self.preview.width(), h=self.preview.height()))
+            self.clear_button.setVisible(True)
         else:
             self.preview.clear()
+            self.clear_button.setVisible(False)
 
     def get_image(self) -> QImage | None:
         return self._image

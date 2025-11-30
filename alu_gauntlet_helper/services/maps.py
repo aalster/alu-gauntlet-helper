@@ -5,6 +5,7 @@ from pydantic import BaseModel
 class Map(BaseModel):
     id: int = 0
     name: str = ""
+    icon: str = ""
 
 class MapsRepository:
     @staticmethod
@@ -13,7 +14,11 @@ class MapsRepository:
 
     def add(self, item: Map) -> int:
         with connect() as conn:
-            return conn.execute("INSERT INTO maps (name) VALUES (:name)", item.model_dump()).lastrowid
+            return conn.execute("INSERT INTO maps (name, icon) VALUES (:name, :icon)", item.model_dump()).lastrowid
+
+    def update(self, item: Map):
+        with connect() as conn:
+            conn.execute("UPDATE maps SET name = :name, icon = :icon WHERE id = :id", item.model_dump())
 
     def get_by_name(self, name: str):
         with connect() as conn:
@@ -31,10 +36,6 @@ class MapsRepository:
 
             rows = conn.execute(sql + " ORDER BY name LIMIT 100", params).fetchall()
             return [self.parse(row) for row in rows]
-
-    def update(self, item: Map):
-        with connect() as conn:
-            conn.execute("UPDATE maps SET name = :name WHERE id = :id", item.model_dump())
 
     def get_by_ids(self, ids):
         ids_str = ", ".join(str(id) for id in ids)

@@ -1,5 +1,6 @@
 import os
 import sys
+import uuid
 from datetime import datetime, timezone
 
 from PyQt6 import QtCore
@@ -13,6 +14,14 @@ def get_resource_path(relative_path: str) -> str:
     else:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, "resources", relative_path)
+
+DATA_PATH_MAPS = "data/maps"
+
+def save_data_image(path: str, img: QImage, ext: str = "png") -> str:
+    os.makedirs(path, exist_ok=True)
+    result = os.path.join(path, uuid.uuid4().hex + "." + ext)
+    img.save(result)
+    return result
 
 LOCAL_TZ = datetime.now().astimezone().tzinfo
 
@@ -88,7 +97,7 @@ def create_badged_icon(base_icon: QIcon, radius = 24, color = QColor(255, 50, 50
 
     return QIcon(pixmap)
 
-def pixmap_cover(img: QImage, w: int, h: int) -> QPixmap:
+def pixmap_cover(img: QPixmap, w: int, h: int) -> QPixmap:
     iw, ih = img.width(), img.height()
     ratio_img = iw / ih
     ratio_target = w / h
@@ -100,7 +109,7 @@ def pixmap_cover(img: QImage, w: int, h: int) -> QPixmap:
         new_width = w
         new_height = int(new_width / ratio_img)
 
-    pix = QPixmap.fromImage(img).scaled(new_width, new_height, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    pix = img.scaled(new_width, new_height, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
 
     x = (new_width - w) // 2
     y = (new_height - h) // 2

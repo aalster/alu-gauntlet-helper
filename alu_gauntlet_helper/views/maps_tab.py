@@ -1,10 +1,12 @@
 # gui/maps_tab.py
 from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QPixmap, QImage, QFont
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
     QLabel, QFormLayout
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.maps import Map
+from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_MAPS, pixmap_cover
 from alu_gauntlet_helper.views.components import EditDialog, ValidatedLineEdit, CLEAR_ON_ESC_FILTER, ImageLineEdit
 
 
@@ -12,7 +14,8 @@ class MapDialog(EditDialog):
     def __init__(self, item: Map, action, parent=None):
         self.item = item
         self.name_edit = ValidatedLineEdit(item.name)
-        self.icon_edit = ImageLineEdit()
+        icon = QImage(item.icon) if item.icon else None
+        self.icon_edit = ImageLineEdit(icon)
 
         super().__init__(action, parent)
         self.setWindowTitle("Edit Map" if item.id else "Add Map")
@@ -26,11 +29,44 @@ class MapDialog(EditDialog):
 
     def prepare_item(self):
         name = self.name_edit.text()
+        icon = self.icon_edit.get_image()
+        icon_path = ""
+
         if not name:
             self.name_edit.set_error()
             return None
 
-        return Map(id=self.item.id, name=name)
+        if icon:
+            icon_path = save_data_image(DATA_PATH_MAPS, icon)
+
+        return Map(id=self.item.id, name=name, icon = icon_path)
+
+
+class MapListWidget(QWidget):
+    def __init__(self, item: Map, parent=None):
+        super().__init__(parent)
+        self.map_icon = QLabel()
+        self.map_icon.setFixedSize(64, 64)
+        self.map_icon.setStyleSheet("""
+            border: 1px solid #aaa;
+            background-color: #271A62;
+        """)
+        self.map_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        if item.icon:
+            self.map_icon.setPixmap(pixmap_cover(QPixmap(item.icon), w=self.map_icon.width(), h=self.map_icon.height()))
+        self.map_label = QLabel(item.name)
+
+        name_font = QFont()
+        name_font.setPointSize(self.font().pointSize() + 4)
+        self.map_label.setFont(name_font)
+
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(2, 2, 2, 2)
+        self.layout.setSpacing(8)
+        self.layout.addWidget(self.map_icon)
+        self.layout.addWidget(self.map_label, stretch=1)
+        self.setLayout(self.layout)
 
 class MapsTab(QWidget):
     def __init__(self):
@@ -68,9 +104,14 @@ class MapsTab(QWidget):
     def refresh(self):
         self.list_widget.clear()
         for i in APP_CONTEXT.maps_service.autocomplete(self.query.text()):
-            item = QListWidgetItem(i.name)
+            map_widget = MapListWidget(i)
+
+            item = QListWidgetItem(self.list_widget)
             item.setData(Qt.ItemDataRole.UserRole, i)
+            item.setSizeHint(map_widget.sizeHint())
+
             self.list_widget.addItem(item)
+            self.list_widget.setItemWidget(item, map_widget)
 
     def on_add(self):
         if MapDialog(item=Map(name=self.query.text().strip()), action=APP_CONTEXT.maps_service.save, parent=self).exec():
