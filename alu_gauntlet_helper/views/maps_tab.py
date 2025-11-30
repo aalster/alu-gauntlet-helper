@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLin
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.maps import Map
 from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_MAPS, pixmap_cover
-from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER
+from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -45,9 +45,9 @@ class MapDialog(EditDialog):
         return Map(id=self.item.id, name=name, icon = icon_path)
 
 
-class MapListWidget(QWidget):
+class MapListWidget(ListItemWidget):
     def __init__(self, item: Map, parent=None):
-        super().__init__(parent)
+        super().__init__(item, parent)
         self.map_icon = QLabel()
         self.map_icon.setFixedSize(64, 64)
         self.map_icon.setStyleSheet("""
@@ -107,14 +107,7 @@ class MapsTab(QWidget):
     def refresh(self):
         self.list_widget.clear()
         for i in APP_CONTEXT.maps_service.autocomplete(self.query.text()):
-            map_widget = MapListWidget(i)
-
-            item = QListWidgetItem(self.list_widget)
-            item.setData(Qt.ItemDataRole.UserRole, i)
-            item.setSizeHint(map_widget.sizeHint())
-
-            self.list_widget.addItem(item)
-            self.list_widget.setItemWidget(item, map_widget)
+            MapListWidget(i).add_to_list(self.list_widget)
 
     def on_add(self):
         if MapDialog(item=Map(name=self.query.text().strip()), action=APP_CONTEXT.maps_service.save, parent=self).exec():

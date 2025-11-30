@@ -2,7 +2,7 @@ from typing import Callable
 
 from PyQt6.QtCore import Qt, QTimer, QObject, QEvent
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLayout
+from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLayout, QWidget, QListWidget, QListWidgetItem
 
 from alu_gauntlet_helper.utils.utils import get_resource_path
 
@@ -34,6 +34,20 @@ class InputDebounce:
 
     def start(self):
         self.timer.start(self.debounce_time)
+
+
+class ListItemWidget(QWidget):
+    def __init__(self, item, parent=None):
+        super().__init__(parent)
+        self.item = item
+
+    def add_to_list(self, list_widget: QListWidget):
+        list_item = QListWidgetItem(list_widget)
+        list_item.setData(Qt.ItemDataRole.UserRole, self.item)
+        list_item.setSizeHint(self.sizeHint())
+
+        list_widget.addItem(list_item)
+        list_widget.setItemWidget(list_item, self)
 
 class ClearOnEscEventFilter(QObject):
     def eventFilter(self, obj, event):

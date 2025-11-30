@@ -8,7 +8,8 @@ from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.services.tracks import TrackView
 from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time
-from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, vbox, res_to_pixmap, hbox
+from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, vbox, res_to_pixmap, hbox, \
+    ListItemWidget
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
@@ -87,9 +88,9 @@ class RaceDialog(EditDialog):
                         time=time, bad_timing=bad_timing, note=note)
 
 
-class RaceListWidget(QWidget):
-    def __init__(self, race:RaceView, parent=None):
-        super().__init__(parent)
+class RaceListWidget(ListItemWidget):
+    def __init__(self, race: RaceView, parent=None):
+        super().__init__(race, parent)
         self.map_label = QLabel(race.map_name)
         self.track_label = QLabel(race.track_name)
         self.car_label = QLabel(race.car_name)
@@ -158,14 +159,7 @@ class RacesTab(QWidget):
         track_query = self.track_query.text().strip()
         car_query = self.car_query.text().strip()
         for i in APP_CONTEXT.races_service.get_all(track_query, car_query):
-            race_widget = RaceListWidget(i)
-
-            item = QListWidgetItem(self.list_widget)
-            item.setData(Qt.ItemDataRole.UserRole, i)
-            item.setSizeHint(race_widget.sizeHint())
-
-            self.list_widget.addItem(item)
-            self.list_widget.setItemWidget(item, race_widget)
+            RaceListWidget(i).add_to_list(self.list_widget)
 
     def on_add(self):
         if RaceDialog(item=RaceView(), action=APP_CONTEXT.races_service.save, parent=self).exec():
