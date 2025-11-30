@@ -1,25 +1,26 @@
 # gui/maps_tab.py
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
-    QLabel
+    QLabel, QFormLayout
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.maps import Map
-from alu_gauntlet_helper.views.components import EditDialog, ValidatedLineEdit, CLEAR_ON_ESC_FILTER
+from alu_gauntlet_helper.views.components import EditDialog, ValidatedLineEdit, CLEAR_ON_ESC_FILTER, ImageLineEdit
 
 
 class MapDialog(EditDialog):
     def __init__(self, item: Map, action, parent=None):
         self.item = item
         self.name_edit = ValidatedLineEdit(item.name)
+        self.icon_edit = ImageLineEdit()
 
         super().__init__(action, parent)
         self.setWindowTitle("Edit Map" if item.id else "Add Map")
 
     def prepare_layout(self):
-        form_layout = QVBoxLayout()
-        form_layout.addWidget(QLabel("Name:"))
-        form_layout.addWidget(self.name_edit)
+        form_layout = QFormLayout()
+        form_layout.addRow("Name:", self.name_edit)
+        form_layout.addRow("Icon:", self.icon_edit)
 
         return form_layout
 

@@ -1,15 +1,15 @@
 # gui/maps_tab.py
-from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtGui import QIntValidator, QIcon, QPixmap, QFont
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIntValidator, QFont
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
-    QLabel, QCompleter, QDateTimeEdit, QTimeEdit, QCheckBox, QTextEdit, QFormLayout, QStyle
+    QLabel, QCheckBox, QTextEdit, QFormLayout
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.services.tracks import TrackView
-from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time, get_resource_path
+from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time
 from alu_gauntlet_helper.views.components import EditDialog, ValidatedLineEdit, ItemCompleter, InputDebounce, \
-    ClearOnEscEventFilter, CLEAR_ON_ESC_FILTER, vbox, res_to_pixmap, hbox
+    CLEAR_ON_ESC_FILTER, vbox, res_to_pixmap, hbox
 
 
 class RaceDialog(EditDialog):
@@ -111,10 +111,10 @@ class RaceListWidget(QWidget):
             self.info_label.setToolTip(race.note)
 
         self.layout = QHBoxLayout(self)
-        self.layout.addLayout(vbox([self.map_label, self.track_label]), stretch=20)
-        self.layout.addLayout(vbox([self.car_label, self.rank_label]), stretch=20)
+        self.layout.addLayout(vbox([self.map_label, self.track_label], spacing=0), stretch=20)
+        self.layout.addLayout(vbox([self.car_label, self.rank_label], spacing=0), stretch=20)
         self.layout.addWidget(self.time_label, stretch=10)
-        self.layout.addLayout(hbox([self.bad_timing_label, self.info_label]), stretch=8)
+        self.layout.addLayout(hbox([self.bad_timing_label, self.info_label], spacing=0), stretch=8)
         self.layout.addWidget(self.created_at_label, stretch=10)
         self.setLayout(self.layout)
 

@@ -1,11 +1,10 @@
 import os
 import sys
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 
 from PyQt6 import QtCore
 from PyQt6.QtCore import QIODeviceBase, Qt, QPointF
-from PyQt6.QtGui import QIcon, QPainter, QColor
+from PyQt6.QtGui import QIcon, QPainter, QColor, QImage, QPixmap
 
 
 def get_resource_path(relative_path: str) -> str:
@@ -88,3 +87,21 @@ def create_badged_icon(base_icon: QIcon, radius = 24, color = QColor(255, 50, 50
     painter.end()
 
     return QIcon(pixmap)
+
+def pixmap_cover(img: QImage, w: int, h: int) -> QPixmap:
+    iw, ih = img.width(), img.height()
+    ratio_img = iw / ih
+    ratio_target = w / h
+
+    if ratio_img > ratio_target:
+        new_height = h
+        new_width = int(ratio_img * new_height)
+    else:
+        new_width = w
+        new_height = int(new_width / ratio_img)
+
+    pix = QPixmap.fromImage(img).scaled(new_width, new_height, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
+
+    x = (new_width - w) // 2
+    y = (new_height - h) // 2
+    return pix.copy(x, y, w, h)

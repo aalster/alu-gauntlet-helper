@@ -1,12 +1,13 @@
 import traceback
 from typing import Callable
 
-from PyQt6.QtCore import QRegularExpression, Qt, QTimer, QObject, QEvent
-from PyQt6.QtGui import QRegularExpressionValidator, QStandardItemModel, QStandardItem, QPixmap
+from PyQt6.QtCore import QRegularExpression, Qt, QTimer, QObject, QEvent, QSize
+from PyQt6.QtGui import QRegularExpressionValidator, QStandardItemModel, QStandardItem, QPixmap, QGuiApplication, \
+    QImage, QIcon, QAction
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLineEdit, QLabel, QDialog, QPushButton, QHBoxLayout, QLayout, \
-    QCompleter
+    QCompleter, QFileDialog, QToolButton, QApplication
 
-from alu_gauntlet_helper.utils.utils import get_resource_path
+from alu_gauntlet_helper.utils.utils import get_resource_path, pixmap_cover
 
 
 class ValidatedLineEdit(QWidget):
@@ -212,21 +213,89 @@ class ClearOnEscEventFilter(QObject):
 
 CLEAR_ON_ESC_FILTER = ClearOnEscEventFilter()
 
-def add_contents(layout, items, spacing=0):
-    # layout.setContentsMargins(0, 0, 0, 0)
-    layout.setSpacing(spacing)
+class ImageLineEdit(QWidget):
+    def __init__(self):
+        super().__init__()
+        self._image = None
+
+        self.preview = QLabel()
+        self.preview.setFixedSize(64, 64)
+        self.preview.setStyleSheet("border: 1px solid #aaa;")
+        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.line = QLineEdit()
+        self.line.setReadOnly(True)
+        self.line.setPlaceholderText("Paste from clipboard")
+        self.line.installEventFilter(self)
+
+        self.select_button = QPushButton("Choose file")
+        self.select_button.clicked.connect(self.pick_file) # type: ignore
+
+        self.clear_button = QPushButton("Clear")
+        self.clear_button.clicked.connect(self.clear) # type: ignore
+
+        or_label = QLabel("Or")
+        or_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        right_vbox = vbox([self.line, or_label, self.select_button, self.clear_button], spacing=0)
+        add_contents(QHBoxLayout(self), [self.preview, right_vbox])
+
+    def eventFilter(self, obj, event):
+        if obj is self.line and event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_V and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+                self.paste_image()
+                return True
+        return super().eventFilter(obj, event)
+
+    def clear(self):
+        self.set_image(None)
+        self.line.clear()
+
+    def paste_image(self):
+        img = QGuiApplication.clipboard().image()
+        print(img.text())
+        if not img.isNull():
+            self.set_image(img)
+            self.line.setText("From clipboard")
+
+    def pick_file(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Choose Image", "", "Images (*.png *.jpg *.jpeg *.bmp)")
+        if path:
+            self.set_image(QImage(path))
+            self.line.setText(path)
+
+    def set_image(self, img: QImage | None):
+        self._image = img
+        if img:
+            self.preview.setPixmap(pixmap_cover(img, w=self.preview.width(), h=self.preview.height()))
+        else:
+            self.preview.clear()
+
+    def get_image(self) -> QImage | None:
+        return self._image
+
+
+def add_contents(layout, items, spacing=None, alignment=None):
+    layout.setContentsMargins(0, 0, 0, 0)
+    if spacing is not None:
+        layout.setSpacing(spacing)
+
+    kwargs = {}
+    if alignment is not None:
+        kwargs['alignment'] = alignment
+
     for item in items:
         if isinstance(item, QLayout):
-            layout.addLayout(item)
+            layout.addLayout(item, **kwargs)
         else:
-            layout.addWidget(item)
+            layout.addWidget(item, **kwargs)
     return layout
 
-def vbox(items, spacing=0) -> QVBoxLayout:
-    return add_contents(QVBoxLayout(), items, spacing=spacing)
+def vbox(items, spacing=None, alignment=None) -> QVBoxLayout:
+    return add_contents(QVBoxLayout(), items, spacing=spacing, alignment=alignment)
 
-def hbox(items, spacing=0) -> QHBoxLayout:
-    return add_contents(QHBoxLayout(), items, spacing=spacing)
+def hbox(items, spacing=None, alignment=None) -> QHBoxLayout:
+    return add_contents(QHBoxLayout(), items, spacing=spacing, alignment=alignment)
 
 def res_to_pixmap(path: str, size: int | None = None):
     q_pixmap = QPixmap(get_resource_path(path))
