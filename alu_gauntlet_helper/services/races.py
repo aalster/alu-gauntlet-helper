@@ -49,13 +49,14 @@ class RacesRepository:
                    " LEFT JOIN cars c ON r.car_id = c.id")
             params = {}
 
+            sql += " WHERE 1 = 1"
             if track_query:
-                sql += " WHERE t.name LIKE :track_query OR m.name LIKE :track_query"
-                params = {"track_query": f"%{track_query}%"}
+                sql += " AND (t.name LIKE :track_query OR m.name LIKE :track_query)"
+                params['track_query'] = f"%{track_query}%"
 
             if car_query:
-                sql += " WHERE c.name LIKE :car_query"
-                params = {"car_query": f"%{car_query}%"}
+                sql += " AND c.name LIKE :car_query"
+                params['car_query'] = f"%{car_query}%"
 
             rows = conn.execute(sql + " ORDER BY r.created_at DESC LIMIT 100", params).fetchall()
             return [self.parse(row) for row in rows]
