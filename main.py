@@ -15,7 +15,7 @@ def main():
     window: MainWindow | None = None
 
     def show_window():
-        if not window is None:
+        if window is not None:
             window.show_window()
 
     lock = single_instance_lock(show_window)

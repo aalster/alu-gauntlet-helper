@@ -27,11 +27,12 @@ class TracksRepository:
                                {"map_id": map_id, "name": name}).fetchone()
             return self.parse(row)
 
-    def get_by_ids(self, ids):
-        ids_str = ", ".join(str(id) for id in ids)
-
+    def get_by_ids(self, ids: list[int]) -> list[Track]:
+        if not ids:
+            return []
+        placeholders = ", ".join("?" * len(ids))
         with connect() as conn:
-            rows = conn.execute(f"SELECT * FROM tracks WHERE id in ({ids_str})").fetchall()
+            rows = conn.execute(f"SELECT * FROM tracks WHERE id IN ({placeholders})", tuple(ids)).fetchall()
             return [self.parse(row) for row in rows]
 
     def autocomplete(self, query: str):

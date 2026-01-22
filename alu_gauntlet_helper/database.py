@@ -20,9 +20,18 @@ def init_db():
                      )
                      """)
         applied = {row[0] for row in conn.execute("SELECT id FROM migrations")}
-        for migration in sorted(list(MIGRATIONS_DIR.iterdir())):
+
+        if not MIGRATIONS_DIR.exists():
+            print(f"Migrations directory not found: {MIGRATIONS_DIR}")
+            return
+
+        for migration in sorted(MIGRATIONS_DIR.iterdir()):
             if migration.name not in applied:
-                with open(migration) as f:
-                    conn.executescript(f.read())
-                conn.execute("INSERT INTO migrations (id) VALUES (:migration)", {"migration": migration.name})
-                print(f"Applied migration {migration.name}")
+                try:
+                    with open(migration, encoding="utf-8") as f:
+                        conn.executescript(f.read())
+                    conn.execute("INSERT INTO migrations (id) VALUES (:migration)", {"migration": migration.name})
+                    print(f"Applied migration {migration.name}")
+                except Exception as e:
+                    print(f"Failed to apply migration {migration.name}: {e}")
+                    raise

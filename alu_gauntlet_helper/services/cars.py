@@ -39,11 +39,12 @@ class CarsRepository:
             rank_update = ", `rank` = :rank" if update_empty_rank or item.rank > 0 else ""
             conn.execute(f"UPDATE cars SET name = :name {rank_update} WHERE id = :id", item.model_dump())
 
-    def get_by_ids(self, ids):
-        ids_str = ", ".join(str(id) for id in ids)
-
+    def get_by_ids(self, ids: list[int]) -> list[Car]:
+        if not ids:
+            return []
+        placeholders = ", ".join("?" * len(ids))
         with connect() as conn:
-            rows = conn.execute(f"SELECT * FROM cars WHERE id in ({ids_str})").fetchall()
+            rows = conn.execute(f"SELECT * FROM cars WHERE id IN ({placeholders})", tuple(ids)).fetchall()
             return [self.parse(row) for row in rows]
 
 

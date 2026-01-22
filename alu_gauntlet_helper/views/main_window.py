@@ -56,7 +56,7 @@ class MainWindow(QMainWindow):
             show_action.triggered.connect(self.show_window) # type: ignore
             quit_action.triggered.connect(QApplication.quit) # type: ignore
 
-            tray_menu = QMenu()
+            tray_menu = QMenu(self)
             tray_menu.addAction(show_action)
             tray_menu.addAction(quit_action)
             self.tray_icon.setContextMenu(tray_menu)

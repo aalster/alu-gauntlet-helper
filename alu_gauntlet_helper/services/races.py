@@ -95,8 +95,10 @@ class RacesService:
     def save(self, item: RaceView):
         if item.track_id <= 0:
             item.track_id = self.tracks.save(TrackView(name=item.track_name, map_name=item.map_name))
-        if item.car_id <= 0 or item.rank > 0:
+        if item.car_id <= 0:
             item.car_id = self.cars.save(Car(name=item.car_name, rank=item.rank), False)
+        elif item.rank > 0:
+            self.cars.save(Car(id=item.car_id, name=item.car_name, rank=item.rank), False)
 
         if item.id <= 0:
             self.repo.add(item)

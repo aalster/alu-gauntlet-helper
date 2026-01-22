@@ -37,11 +37,12 @@ class MapsRepository:
             rows = conn.execute(sql + " ORDER BY name LIMIT 100", params).fetchall()
             return [self.parse(row) for row in rows]
 
-    def get_by_ids(self, ids):
-        ids_str = ", ".join(str(id) for id in ids)
-
+    def get_by_ids(self, ids: list[int]) -> list[Map]:
+        if not ids:
+            return []
+        placeholders = ", ".join("?" * len(ids))
         with connect() as conn:
-            rows = conn.execute(f"SELECT * FROM maps WHERE id in ({ids_str})").fetchall()
+            rows = conn.execute(f"SELECT * FROM maps WHERE id IN ({placeholders})", tuple(ids)).fetchall()
             return [self.parse(row) for row in rows]
 
 
