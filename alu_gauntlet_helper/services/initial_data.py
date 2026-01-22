@@ -4,7 +4,7 @@ from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.cars import Car
 from alu_gauntlet_helper.services.maps import Map
 from alu_gauntlet_helper.services.tracks import TrackView
-from alu_gauntlet_helper.utils.utils import copy_resource_to_data, DATA_PATH_MAPS
+from alu_gauntlet_helper.utils.utils import copy_resource_to_data, DATA_PATH_MAPS, DATA_PATH_CARS
 
 
 def init_data():
@@ -13,6 +13,9 @@ def init_data():
         icon_path = copy_resource_to_data(f"icons/maps/{icon_file}", os.path.join(DATA_PATH_MAPS, icon_file))
         APP_CONTEXT.maps_service.save(Map(name=name, icon=icon_path or ""))
     for car in cars:
+        icon_file = f"{car.name}.png"
+        icon_path = copy_resource_to_data(f"icons/cars/{icon_file}", os.path.join(DATA_PATH_CARS, icon_file))
+        car.icon = icon_path or ""
         APP_CONTEXT.cars_service.save(car)
     for track in tracks:
         APP_CONTEXT.tracks_service.save(track)

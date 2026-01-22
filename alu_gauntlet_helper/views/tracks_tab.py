@@ -1,11 +1,15 @@
-# gui/maps_tab.py
+# gui/tracks_tab.py
+import os
+
 from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QPixmap, QFont
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
     QLabel
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.tracks import TrackView
-from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER
+from alu_gauntlet_helper.utils.utils import pixmap_cover
+from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
@@ -56,6 +60,43 @@ class TrackDialog(EditDialog):
         return TrackView(id=self.item.id, map_id=map_id, map_name=map_name, name=name)
 
 
+class TrackListWidget(ListItemWidget):
+    def __init__(self, item: TrackView, parent=None):
+        super().__init__(item, parent)
+        self.map_icon = QLabel()
+        self.map_icon.setFixedSize(64, 64)
+        self.map_icon.setStyleSheet("""
+            border: 1px solid #aaa;
+            background-color: #271A62;
+        """)
+        self.map_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        if item.map_icon and os.path.exists(item.map_icon):
+            self.map_icon.setPixmap(pixmap_cover(QPixmap(item.map_icon), w=self.map_icon.width(), h=self.map_icon.height()))
+
+        self.map_label = QLabel(item.map_name)
+
+        self.track_label = QLabel(item.name)
+        name_font = QFont()
+        name_font.setPointSize(self.font().pointSize() + 4)
+        self.track_label.setFont(name_font)
+
+        text_layout = QVBoxLayout()
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(0)
+        text_layout.addStretch()
+        text_layout.addWidget(self.map_label)
+        text_layout.addWidget(self.track_label)
+        text_layout.addStretch()
+
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(2, 2, 2, 2)
+        self.layout.setSpacing(8)
+        self.layout.addWidget(self.map_icon)
+        self.layout.addLayout(text_layout, stretch=1)
+        self.setLayout(self.layout)
+
+
 class TracksTab(QWidget):
     def __init__(self):
         super().__init__()
@@ -92,9 +133,7 @@ class TracksTab(QWidget):
     def refresh(self):
         self.list_widget.clear()
         for t in APP_CONTEXT.tracks_service.autocomplete(self.query.text()):
-            item = QListWidgetItem(f"{t.id}: {t.map_name} - {t.name}")
-            item.setData(Qt.ItemDataRole.UserRole, t)
-            self.list_widget.addItem(item)
+            TrackListWidget(t).add_to_list(self.list_widget)
 
     def on_add(self):
         if TrackDialog(item=TrackView(name=self.query.text().strip()), action=APP_CONTEXT.tracks_service.save, parent=self).exec():

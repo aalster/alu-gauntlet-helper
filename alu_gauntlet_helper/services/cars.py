@@ -6,6 +6,7 @@ class Car(BaseModel):
     id: int = 0
     name: str = ""
     rank: int = 0
+    icon: str = ""
 
 class CarsRepository:
     @staticmethod
@@ -14,7 +15,7 @@ class CarsRepository:
 
     def add(self, item: Car) -> int:
         with connect() as conn:
-            return conn.execute("INSERT INTO cars(name, `rank`) VALUES (:name, :rank)", item.model_dump()).lastrowid
+            return conn.execute("INSERT INTO cars(name, `rank`, icon) VALUES (:name, :rank, :icon)", item.model_dump()).lastrowid
 
 
     def get_by_name(self, name: str):
@@ -37,7 +38,8 @@ class CarsRepository:
     def update(self, item: Car, update_empty_rank):
         with connect() as conn:
             rank_update = ", `rank` = :rank" if update_empty_rank or item.rank > 0 else ""
-            conn.execute(f"UPDATE cars SET name = :name {rank_update} WHERE id = :id", item.model_dump())
+            icon_update = ", icon = :icon" if item.icon else ""
+            conn.execute(f"UPDATE cars SET name = :name {rank_update}{icon_update} WHERE id = :id", item.model_dump())
 
     def get_by_ids(self, ids: list[int]) -> list[Car]:
         if not ids:

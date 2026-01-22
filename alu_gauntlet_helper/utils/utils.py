@@ -16,6 +16,7 @@ def get_resource_path(relative_path: str) -> str:
     return os.path.join(base_path, "resources", relative_path)
 
 DATA_PATH_MAPS = "data/maps"
+DATA_PATH_CARS = "data/cars"
 
 
 def copy_resource_to_data(res_path: str, data_path: str) -> str | None:

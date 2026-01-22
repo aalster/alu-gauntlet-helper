@@ -11,6 +11,7 @@ class Track(BaseModel):
 
 class TrackView(Track):
     map_name: str = ""
+    map_icon: str = ""
 
 class TracksRepository:
     @staticmethod
@@ -64,7 +65,8 @@ class TracksService:
             map_ = maps.get(i.map_id)
             result.append(TrackView(
                 **i.model_dump(),
-                map_name=map_.name if map_ else "Unknown Map"
+                map_name=map_.name if map_ else "Unknown Map",
+                map_icon=map_.icon if map_ else ""
             ))
         return result
 
