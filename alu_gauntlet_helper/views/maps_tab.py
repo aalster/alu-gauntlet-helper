@@ -1,4 +1,6 @@
 # gui/maps_tab.py
+import os
+
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QPixmap, QImage, QFont
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
@@ -17,7 +19,7 @@ class MapDialog(EditDialog):
     def __init__(self, item: Map, action, parent=None):
         self.item = item
         self.name_edit = ValidatedLineEdit(item.name)
-        icon = QImage(item.icon) if item.icon else None
+        icon = QImage(item.icon) if item.icon and os.path.exists(item.icon) else None
         self.icon_edit = ImageLineEdit(icon)
 
         super().__init__(action, parent)
@@ -56,7 +58,7 @@ class MapListWidget(ListItemWidget):
         """)
         self.map_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        if item.icon:
+        if item.icon and os.path.exists(item.icon):
             self.map_icon.setPixmap(pixmap_cover(QPixmap(item.icon), w=self.map_icon.width(), h=self.map_icon.height()))
         self.map_label = QLabel(item.name)
 

@@ -66,7 +66,7 @@ class MapsService:
             existing = self.repo.get_by_name(item.name)
             if not existing:
                 return self.repo.add(item)
-            item.id = existing.id
+            return existing.id
 
         self.repo.update(item)
         return item.id

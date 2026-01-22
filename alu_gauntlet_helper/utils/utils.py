@@ -17,6 +17,21 @@ def get_resource_path(relative_path: str) -> str:
 
 DATA_PATH_MAPS = "data/maps"
 
+
+def copy_resource_to_data(res_path: str, data_path: str) -> str | None:
+    """Copy resource file to data directory. Returns destination path or None if source not found."""
+    src = get_resource_path(res_path)
+    if not os.path.exists(src):
+        return None
+
+    os.makedirs(os.path.dirname(data_path), exist_ok=True)
+    if not os.path.exists(data_path):
+        import shutil
+        shutil.copy(src, data_path)
+
+    return data_path
+
+
 def save_data_image(path: str, img: QImage, ext: str = "png") -> str:
     os.makedirs(path, exist_ok=True)
     result = os.path.join(path, uuid.uuid4().hex + "." + ext)
