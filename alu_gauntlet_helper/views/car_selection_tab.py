@@ -3,20 +3,41 @@ from typing import Callable
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap, QFont
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QListWidget, QHBoxLayout, QLabel, QListWidgetItem, QScrollArea, QFrame
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QListWidget, QHBoxLayout, QLabel, QListWidgetItem, QScrollArea, QFrame, QPushButton, QDialog
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
-from alu_gauntlet_helper.services.races import CarSuggestion
+from alu_gauntlet_helper.services.races import CarSuggestion, Race
 from alu_gauntlet_helper.utils.utils import format_time, pixmap_cover
 from alu_gauntlet_helper.views.components.common import ListItemWidget
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 
 
+class RaceHistoryDialog(QDialog):
+    def __init__(self, car_name: str, races: list[Race], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Race History - {car_name}")
+        self.setMinimumSize(350, 250)
+
+        self.list_widget = QListWidget()
+        for race in races:
+            date_str = race.created_at.strftime("%Y-%m-%d %H:%M:%S") if race.created_at else "—"
+            rank_str = f"Rank {race.rank}" if race.rank else "—"
+            time_str = format_time(race.time)
+            item = QListWidgetItem(f"{date_str}    {rank_str}    {time_str}")
+            self.list_widget.addItem(item)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.list_widget)
+        self.setLayout(layout)
+
+
 class CarSuggestionWidget(ListItemWidget):
-    def __init__(self, item: CarSuggestion, parent=None):
+    def __init__(self, item: CarSuggestion, track_id: int, parent=None):
         super().__init__(item, parent)
         self.car_id = item.car_id
+        self.car_name = item.car_name
+        self.track_id = track_id
 
         self.car_icon = QLabel()
         self.car_icon.setFixedSize(48, 48)
@@ -38,9 +59,26 @@ class CarSuggestionWidget(ListItemWidget):
         self.time_label = QLabel(format_time(item.avg_time))
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        self.race_count_label = QLabel(f"({item.race_count})")
-        self.race_count_label.setStyleSheet("color: #888; font-size: 12px;")
-        self.race_count_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.race_count_button = QPushButton(f"{item.race_count} races")
+        self.race_count_button.setStyleSheet("""
+            QPushButton {
+                font-size: 11px;
+                padding: 2px 8px;
+                background-color: #3d3d5c;
+                border: 1px solid #5a5a8a;
+                border-radius: 3px;
+                color: #ccc;
+            }
+            QPushButton:hover {
+                background-color: #4a4a6a;
+                border-color: #7a7aaa;
+            }
+            QPushButton:pressed {
+                background-color: #2d2d4c;
+            }
+        """)
+        self.race_count_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.race_count_button.clicked.connect(self.show_race_history)
 
         left_layout = QVBoxLayout()
         left_layout.setContentsMargins(0, 0, 0, 0)
@@ -52,7 +90,7 @@ class CarSuggestionWidget(ListItemWidget):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
         right_layout.addWidget(self.time_label)
-        right_layout.addWidget(self.race_count_label)
+        right_layout.addWidget(self.race_count_button, alignment=Qt.AlignmentFlag.AlignRight)
 
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(2, 2, 2, 2)
@@ -62,12 +100,15 @@ class CarSuggestionWidget(ListItemWidget):
         self.layout.addLayout(right_layout)
         self.setLayout(self.layout)
 
+    def show_race_history(self):
+        races = APP_CONTEXT.races_service.get_recent_races_for_car_on_track(self.track_id, self.car_id)
+        RaceHistoryDialog(self.car_name, races, self).exec()
+
     def set_dimmed(self, dimmed: bool):
-        opacity = "0.35" if dimmed else "1.0"
-        self.setStyleSheet(f"opacity: {opacity};")
         self.car_label.setEnabled(not dimmed)
         self.time_label.setEnabled(not dimmed)
         self.car_icon.setEnabled(not dimmed)
+        self.race_count_button.setEnabled(not dimmed)
 
 
 class RaceColumn(QWidget):
@@ -166,7 +207,7 @@ class RaceColumn(QWidget):
             return
 
         for suggestion in suggestions:
-            CarSuggestionWidget(suggestion).add_to_list(self.list_widget)
+            CarSuggestionWidget(suggestion, self.selected_track.id).add_to_list(self.list_widget)
 
         self.update_dimming()
 

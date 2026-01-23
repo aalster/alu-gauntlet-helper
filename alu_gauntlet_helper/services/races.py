@@ -97,6 +97,17 @@ class RacesRepository:
             rows = conn.execute(sql, {"track_id": track_id}).fetchall()
             return [dict(row) for row in rows]
 
+    def get_recent_races_for_car_on_track(self, track_id: int, car_id: int, limit: int = 10) -> list[Race]:
+        with connect() as conn:
+            sql = """
+            SELECT * FROM races
+            WHERE track_id = :track_id AND car_id = :car_id AND time > 0
+            ORDER BY created_at DESC
+            LIMIT :limit
+            """
+            rows = conn.execute(sql, {"track_id": track_id, "car_id": car_id, "limit": limit}).fetchall()
+            return [self.parse(row) for row in rows]
+
 class RacesService:
     def __init__(self, repo: RacesRepository, tracks: TracksService, cars: CarsService):
         self.repo = repo
@@ -154,3 +165,6 @@ class RacesService:
                 race_count=s["race_count"]
             ))
         return result
+
+    def get_recent_races_for_car_on_track(self, track_id: int, car_id: int) -> list[Race]:
+        return self.repo.get_recent_races_for_car_on_track(track_id, car_id)
