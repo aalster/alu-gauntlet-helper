@@ -29,6 +29,15 @@ class RaceView(Race):
     car_name: str = ""
 
 
+class CarSuggestion(BaseModel):
+    car_id: int = 0
+    car_name: str = ""
+    car_rank: int = 0
+    car_icon: str = ""
+    avg_time: int = 0
+    race_count: int = 0
+
+
 class RacesRepository:
     @staticmethod
     def parse(row):
@@ -68,6 +77,26 @@ class RacesRepository:
                          " bad_timing = :bad_timing, note = :note"
                          " WHERE id = :id", item.model_dump())
 
+    def get_car_stats_for_track(self, track_id: int) -> list[dict]:
+        with connect() as conn:
+            sql = """
+            WITH ranked_races AS (
+                SELECT car_id, time,
+                       ROW_NUMBER() OVER (PARTITION BY car_id ORDER BY created_at DESC) as rn
+                FROM races
+                WHERE track_id = :track_id AND car_id > 0 AND time > 0
+            ),
+            last_10_races AS (
+                SELECT car_id, time FROM ranked_races WHERE rn <= 10
+            )
+            SELECT car_id, AVG(time) as avg_time, COUNT(*) as race_count
+            FROM last_10_races
+            GROUP BY car_id
+            ORDER BY avg_time ASC
+            """
+            rows = conn.execute(sql, {"track_id": track_id}).fetchall()
+            return [dict(row) for row in rows]
+
 class RacesService:
     def __init__(self, repo: RacesRepository, tracks: TracksService, cars: CarsService):
         self.repo = repo
@@ -104,3 +133,24 @@ class RacesService:
             self.repo.add(item)
         else:
             self.repo.update(item)
+
+    def get_car_suggestions_for_track(self, track_id: int) -> list[CarSuggestion]:
+        stats = self.repo.get_car_stats_for_track(track_id)
+        if not stats:
+            return []
+
+        car_ids = {s["car_id"] for s in stats}
+        cars = self.cars.get_by_ids(car_ids)
+
+        result = []
+        for s in stats:
+            car = cars.get(s["car_id"])
+            result.append(CarSuggestion(
+                car_id=s["car_id"],
+                car_name=car.name if car else "Unknown Car",
+                car_rank=car.rank if car else 0,
+                car_icon=car.icon if car else "",
+                avg_time=int(s["avg_time"]),
+                race_count=s["race_count"]
+            ))
+        return result
