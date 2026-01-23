@@ -73,7 +73,7 @@ class TracksService:
     def get_by_ids(self, ids: set[int]) -> dict[int, TrackView]:
         if not ids:
             return dict()
-        items = self.to_views(self.repo.get_by_ids(ids))
+        items = self.to_views(self.repo.get_by_ids(list(ids)))
         return {i.id: i for i in items}
 
     def autocomplete(self, query: str) -> list[TrackView]:

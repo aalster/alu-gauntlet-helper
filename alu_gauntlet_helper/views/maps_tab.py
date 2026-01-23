@@ -1,5 +1,6 @@
 # gui/maps_tab.py
 import os
+from typing import Callable
 
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QPixmap, QImage, QFont
@@ -16,7 +17,7 @@ from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLi
 
 
 class MapDialog(EditDialog):
-    def __init__(self, item: Map, action, parent=None):
+    def __init__(self, item: Map, action: Callable[[Map], int], parent=None):
         self.item = item
         self.name_edit = ValidatedLineEdit(item.name)
         icon = QImage(item.icon) if item.icon and os.path.exists(item.icon) else None

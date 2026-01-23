@@ -38,8 +38,7 @@ class CarsRepository:
     def update(self, item: Car, update_empty_rank):
         with connect() as conn:
             rank_update = ", `rank` = :rank" if update_empty_rank or item.rank > 0 else ""
-            icon_update = ", icon = :icon" if item.icon else ""
-            conn.execute(f"UPDATE cars SET name = :name {rank_update}{icon_update} WHERE id = :id", item.model_dump())
+            conn.execute(f"UPDATE cars SET name = :name, icon = :icon {rank_update} WHERE id = :id", item.model_dump())
 
     def get_by_ids(self, ids: list[int]) -> list[Car]:
         if not ids:
@@ -60,7 +59,7 @@ class CarsService:
     def get_by_ids(self, ids: set[int]) -> dict[int, Car]:
         if not ids:
             return dict()
-        items = self.repo.get_by_ids(ids)
+        items = self.repo.get_by_ids(list(ids))
         return {i.id: i for i in items}
 
     def save(self, item: Car, update_empty_rank = True) -> int:

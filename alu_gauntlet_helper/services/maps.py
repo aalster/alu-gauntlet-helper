@@ -59,7 +59,7 @@ class MapsService:
     def get_by_ids(self, ids: set[int]) -> dict[int, Map]:
         if not ids:
             return dict()
-        items = self.repo.get_by_ids(ids)
+        items = self.repo.get_by_ids(list(ids))
         return {m.id: m for m in items}
 
     def save(self, item: Map) -> int:

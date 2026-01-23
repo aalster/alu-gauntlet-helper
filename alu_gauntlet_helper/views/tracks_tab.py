@@ -1,5 +1,6 @@
 # gui/tracks_tab.py
 import os
+from typing import Callable
 
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QPixmap, QFont
@@ -16,7 +17,7 @@ from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
 
 
 class TrackDialog(EditDialog):
-    def __init__(self, item: TrackView, action, parent=None):
+    def __init__(self, item: TrackView, action: Callable[[TrackView], int], parent=None):
         self.item = item
 
         self.map_edit = ValidatedLineEdit(item.map_name)

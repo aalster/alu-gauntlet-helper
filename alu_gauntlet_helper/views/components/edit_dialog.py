@@ -1,10 +1,11 @@
 import traceback
+from typing import Any, Callable
 
 from PyQt6.QtWidgets import QVBoxLayout, QLabel, QDialog, QPushButton, QHBoxLayout, QLayout
 
 
 class EditDialog(QDialog):
-    def __init__(self, action, parent=None):
+    def __init__(self, action: Callable[[Any], int], parent=None):
         super().__init__(parent)
         self.action = action
         self.setModal(True)
