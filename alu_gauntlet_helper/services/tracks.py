@@ -36,14 +36,22 @@ class TracksRepository:
             rows = conn.execute(f"SELECT * FROM tracks WHERE id IN ({placeholders})", tuple(ids)).fetchall()
             return [self.parse(row) for row in rows]
 
-    def autocomplete(self, query: str):
+    def autocomplete(self, query: str, map_id: int | None = None):
         with (connect() as conn):
             sql = "SELECT t.* FROM tracks t LEFT JOIN maps m ON t.map_id = m.id"
+            conditions = []
             params = {}
 
             if query:
-                sql += " WHERE t.name LIKE :query OR m.name LIKE :query"
-                params = {"query": f"%{query}%"}
+                conditions.append("(t.name LIKE :query OR m.name LIKE :query)")
+                params["query"] = f"%{query}%"
+
+            if map_id:
+                conditions.append("t.map_id = :map_id")
+                params["map_id"] = map_id
+
+            if conditions:
+                sql += " WHERE " + " AND ".join(conditions)
 
             rows = conn.execute(sql + " ORDER BY t.name LIMIT 100", params).fetchall()
             return [self.parse(row) for row in rows]
@@ -76,8 +84,8 @@ class TracksService:
         items = self.to_views(self.repo.get_by_ids(list(ids)))
         return {i.id: i for i in items}
 
-    def autocomplete(self, query: str) -> list[TrackView]:
-        return self.to_views(self.repo.autocomplete(query.strip()))
+    def autocomplete(self, query: str, map_id: int | None = None) -> list[TrackView]:
+        return self.to_views(self.repo.autocomplete(query.strip(), map_id))
 
     def save(self, item: TrackView) -> int:
         if item.map_id <= 0:

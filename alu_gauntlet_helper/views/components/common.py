@@ -1,7 +1,7 @@
 from typing import Callable
 
-from PyQt6.QtCore import Qt, QTimer, QObject, QEvent
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, QRectF, QPointF
+from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QIcon
 from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLayout, QWidget, QListWidget, QListWidgetItem, \
     QToolButton, QLabel
 
@@ -137,6 +137,27 @@ def enable_clear_button(line_edit: QLineEdit):
         button.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
     line_edit.setMouseTracking(True)
     line_edit.installEventFilter(CLEAR_BUTTON_CURSOR_FILTER)
+
+
+def _search_pixmap(color: str, size: int = 16, dpr: float = 2.0) -> QPixmap:
+    pixmap = QPixmap(int(size * dpr), int(size * dpr))
+    pixmap.setDevicePixelRatio(dpr)
+    pixmap.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    pen = QPen(QColor(color))
+    pen.setWidthF(1.6)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+    painter.drawEllipse(QRectF(2.5, 2.5, 7.5, 7.5))
+    painter.drawLine(QPointF(10.2, 10.2), QPointF(13.2, 13.2))
+    painter.end()
+    return pixmap
+
+
+def enable_search_icon(line_edit: QLineEdit):
+    line_edit.addAction(QIcon(_search_pixmap(style.TEXT_MUTED)), QLineEdit.ActionPosition.LeadingPosition)
 
 
 def add_contents(layout, items, spacing=None, alignment=None):

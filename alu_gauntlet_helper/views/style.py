@@ -50,6 +50,19 @@ QTabWidget::pane {{
     border: none;
 }}
 
+QSplitter::handle {{
+    background: transparent;
+}}
+
+QSplitter::handle:horizontal {{
+    width: 8px;
+}}
+
+QSplitter::handle:hover {{
+    background: {BORDER};
+    border-radius: 3px;
+}}
+
 QTabBar::tab {{
     background: transparent;
     color: {TEXT_MUTED};

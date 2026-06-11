@@ -8,7 +8,6 @@ from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.utils.utils import get_resource_path, create_badged_icon
 from alu_gauntlet_helper.views.car_selection_tab import CarSelectionTab
 from alu_gauntlet_helper.views.cars_tab import CarsTab
-from alu_gauntlet_helper.views.maps_tab import MapsTab
 from alu_gauntlet_helper.views.races_tab import RacesTab
 from alu_gauntlet_helper.views.recognize_races_tab import RecognizeRacesTab
 from alu_gauntlet_helper.views.settings_tab import SettingsTab
@@ -30,7 +29,6 @@ class MainWindow(QMainWindow):
         self.car_selection_tab = CarSelectionTab()
         self.races_tab = RacesTab()
         self.tracks_tab = TracksTab()
-        self.maps_tab = MapsTab()
         self.cars_tab = CarsTab()
         self.settings_tab = SettingsTab(refresh_tray_icon=self.refresh_tray_icon)
 
@@ -40,9 +38,8 @@ class MainWindow(QMainWindow):
         # self.tabs.addTab(self.recognize_races_tab, "RECOGNIZE RACES")
         self.tabs.addTab(self.car_selection_tab, "CAR SELECTION")
         self.tabs.addTab(self.races_tab, "RACES")
-        self.tabs.addTab(self.tracks_tab, "TRACKS")
-        self.tabs.addTab(self.maps_tab, "MAPS")
         self.tabs.addTab(self.cars_tab, "CARS")
+        self.tabs.addTab(self.tracks_tab, "TRACKS")
         self.tabs.addTab(self.settings_tab, "SETTINGS")
 
     def refresh_tray_icon(self, show_tray_icon: bool):

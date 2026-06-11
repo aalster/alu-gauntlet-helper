@@ -12,7 +12,7 @@ from alu_gauntlet_helper.services.cars import Car
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_CARS, load_pixmap_cover, get_resource_path
 from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, vbox, \
-    enable_clear_button, RankClassBadge
+    enable_clear_button, enable_search_icon, RankClassBadge
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -120,9 +120,9 @@ class CarsTab(QWidget):
         super().__init__()
 
         self.query = QLineEdit()
+        enable_search_icon(self.query)
         enable_clear_button(self.query)
         self.query.installEventFilter(CLEAR_ON_ESC_FILTER)
-        self.query.setPlaceholderText("Filter by name")
         self.query.textChanged.connect(self.refresh_debounce) # type: ignore
 
         self.class_group = QButtonGroup(self)

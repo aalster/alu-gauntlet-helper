@@ -43,11 +43,10 @@ alu_gauntlet_helper/
 │   └── initial_data.py      # Seed data (maps, tracks; cars come from cars_sync)
 ├── views/                   # PyQt6 UI
 │   ├── style.py             # ALU game theme: palette constants + global QSS, applied in main.py
-│   ├── main_window.py       # Main window with 6 tabs + tray icon
+│   ├── main_window.py       # Main window with 5 tabs + tray icon
 │   ├── recognize_races_tab.py
 │   ├── races_tab.py
-│   ├── tracks_tab.py
-│   ├── maps_tab.py
+│   ├── tracks_tab.py        # Two panels: maps (left) + tracks (right)
 │   ├── cars_tab.py
 │   ├── settings_tab.py
 │   └── components/          # Reusable widgets (EditDialog, ValidatedLineEdit, etc.)

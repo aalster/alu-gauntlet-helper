@@ -11,7 +11,7 @@ from alu_gauntlet_helper.services.tracks import TrackView
 from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time, load_pixmap_cover, \
     format_relative_time
 from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, vbox, res_to_pixmap, hbox, \
-    ListItemWidget, enable_clear_button, RankClassBadge
+    ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
@@ -158,15 +158,17 @@ class RacesTab(QWidget):
         super().__init__()
 
         self.track_query = QLineEdit()
+        enable_search_icon(self.track_query)
         enable_clear_button(self.track_query)
         self.track_query.installEventFilter(CLEAR_ON_ESC_FILTER)
-        self.track_query.setPlaceholderText("Filter by track")
+        self.track_query.setPlaceholderText("Track")
         self.track_debounce = InputDebounce(self.track_query, on_change=self.refresh)
 
         self.car_query = QLineEdit()
+        enable_search_icon(self.car_query)
         enable_clear_button(self.car_query)
         self.car_query.installEventFilter(CLEAR_ON_ESC_FILTER)
-        self.car_query.setPlaceholderText("Filter by car")
+        self.car_query.setPlaceholderText("Car")
         self.car_debounce = InputDebounce(self.car_query, on_change=self.refresh)
 
         self.add_button = QPushButton("Add")
