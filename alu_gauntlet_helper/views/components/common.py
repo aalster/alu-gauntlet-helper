@@ -1,11 +1,11 @@
 from typing import Callable
 
 from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, QRectF, QPointF
-from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QIcon
+from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QIcon, QImageReader
 from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLayout, QWidget, QListWidget, QListWidgetItem, \
     QToolButton, QLabel
 
-from alu_gauntlet_helper.utils.utils import get_resource_path
+from alu_gauntlet_helper.utils.utils import get_resource_path, load_pixmap_cover
 from alu_gauntlet_helper.views import style
 
 
@@ -73,12 +73,22 @@ class RankClassBadge(QWidget):
         elif max_rank:
             rank_text = f"{max_rank:,}"
 
+        over_max = bool(rank and max_rank and rank > max_rank)
         if rank_text:
+            if over_max:
+                oc_label = QLabel(self)
+                oc_label.setPixmap(res_to_pixmap("icons/ocActive.webp", 14))
+                oc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                oc_label.setStyleSheet(
+                    f"background-color: {style.TEXT_DARK}; border-top-left-radius: 3px;"
+                    " border-bottom-left-radius: 3px; padding: 2px 0 2px 8px;")
+                layout.addWidget(oc_label)
             rank_label = QLabel(rank_text, self)
+            left_radius = "" if over_max else " border-top-left-radius: 3px; border-bottom-left-radius: 3px;"
             right_radius = "" if car_class else " border-top-right-radius: 3px; border-bottom-right-radius: 3px;"
             rank_label.setStyleSheet(
                 f"background-color: {style.TEXT_DARK}; color: {rank_color or style.TEXT}; font-weight: bold;"
-                f" border-top-left-radius: 3px; border-bottom-left-radius: 3px;{right_radius} padding: 2px 8px;")
+                f"{left_radius}{right_radius} padding: 2px 8px;")
             layout.addWidget(rank_label)
 
         if car_class:
@@ -88,6 +98,60 @@ class RankClassBadge(QWidget):
                 f"background-color: {style.TEXT}; color: {style.TEXT_DARK}; font-weight: bold;"
                 f" border-top-right-radius: 3px; border-bottom-right-radius: 3px;{left_radius} padding: 2px 7px;")
             layout.addWidget(class_label)
+
+
+class CarInfoWidget(QWidget):
+    """Car icon, brand/model and rank badge combined on a darkened plate.
+    Hovering shows the car image enlarged in a tooltip."""
+
+    PREVIEW_WIDTH = 360
+
+    def __init__(self, icon_path: str, brand: str, model: str, rank_badge: QWidget, parent=None):
+        super().__init__(parent)
+        # plain QWidget ignores QSS background without this attribute
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setObjectName("carInfoPlate")
+        self.setStyleSheet("#carInfoPlate { background-color: rgba(5, 12, 40, 130); border-radius: 6px; }")
+
+        self.icon_label = QLabel()
+        self.icon_label.setFixedSize(80, 40)
+        self.icon_label.setStyleSheet("border-radius: 4px; background-color: #271A62;")
+        self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        if icon_path:
+            pixmap = load_pixmap_cover(icon_path, w=self.icon_label.width(), h=self.icon_label.height())
+            if pixmap:
+                self.icon_label.setPixmap(pixmap)
+            preview = self._preview_html(icon_path)
+            if preview:
+                self.icon_label.setToolTip(preview)
+
+        self.brand_label = QLabel(brand.upper())
+        self.brand_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px; font-weight: bold;")
+        self.model_label = QLabel(model)
+        self.model_label.setStyleSheet("font-weight: bold;")
+
+        # brand left, rank badge right; the model line below uses the full width
+        brand_row = QHBoxLayout()
+        brand_row.setContentsMargins(0, 0, 0, 0)
+        brand_row.setSpacing(6)
+        brand_row.addWidget(self.brand_label)
+        brand_row.addStretch(1)
+        brand_row.addWidget(rank_badge)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(10)
+        layout.addWidget(self.icon_label)
+        layout.addLayout(vbox([brand_row, self.model_label], spacing=3), stretch=1)
+
+    @classmethod
+    def _preview_html(cls, icon_path: str) -> str:
+        size = QImageReader(icon_path).size()  # reads the header only, no full decode
+        if not size.isValid() or size.width() <= 0:
+            return ""
+        scale = min(cls.PREVIEW_WIDTH / size.width(), 1)
+        return (f'<img src="{icon_path.replace(chr(92), "/")}"'
+                f' width="{round(size.width() * scale)}" height="{round(size.height() * scale)}">')
 
 
 class ClearOnEscEventFilter(QObject):

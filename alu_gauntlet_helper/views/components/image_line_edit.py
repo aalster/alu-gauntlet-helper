@@ -1,9 +1,9 @@
-from PyQt6.QtCore import Qt, QEvent, QSize
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QPixmap, QGuiApplication, QImage, QCursor
-from PyQt6.QtWidgets import QWidget, QLineEdit, QLabel, QPushButton, QHBoxLayout, QFileDialog, QStyle
+from PyQt6.QtWidgets import QWidget, QLabel, QPushButton, QVBoxLayout, QFileDialog, QStyle
 
 from alu_gauntlet_helper.utils.utils import pixmap_cover
-from alu_gauntlet_helper.views.components.common import add_contents, vbox
+from alu_gauntlet_helper.views.components.common import add_contents
 
 
 class ImageLineEdit(QWidget):
@@ -12,7 +12,7 @@ class ImageLineEdit(QWidget):
         self._image = None
 
         self.preview = QLabel()
-        self.preview.setFixedSize(80, 80)
+        self.preview.setFixedSize(240, 120)
         self.preview.setStyleSheet("border-radius: 4px; background-color: #271A62;")
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -26,39 +26,29 @@ class ImageLineEdit(QWidget):
         self.clear_button.move(self.preview.width() - self.clear_button.width() - padding, padding)
         self.clear_button.clicked.connect(self.clear) # type: ignore
 
-        self.line = QLineEdit()
-        self.line.setReadOnly(True)
-        self.line.setPlaceholderText("Paste from clipboard")
-        self.line.installEventFilter(self)
-
         self.select_button = QPushButton("Choose file")
+        self.select_button.setObjectName("secondary")
         self.select_button.clicked.connect(self.pick_file) # type: ignore
 
-        or_label = QLabel("Or")
-        or_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.paste_button = QPushButton("Paste from clipboard")
+        self.paste_button.setObjectName("secondary")
+        self.paste_button.clicked.connect(self.paste_image) # type: ignore
 
-        right_vbox = vbox([self.line, or_label, self.select_button], spacing=0)
-        add_contents(QHBoxLayout(self), [self.preview, right_vbox])
+        self.select_button.setFixedWidth(self.preview.width())
+        self.paste_button.setFixedWidth(self.preview.width())
+        add_contents(QVBoxLayout(self), [self.preview, self.select_button, self.paste_button], spacing=6,
+                     alignment=Qt.AlignmentFlag.AlignLeft)
 
         self.set_image(image)
 
-    def eventFilter(self, obj, event):
-        if obj is self.line and event.type() == QEvent.Type.KeyPress:
-            if event.key() == Qt.Key.Key_V and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
-                self.paste_image()
-                return True
-        return super().eventFilter(obj, event)
-
     def clear(self):
         self.set_image(None)
-        self.line.clear()
 
     def paste_image(self):
         clipboard = QGuiApplication.clipboard()
         img = clipboard.image()
         if not img.isNull():
             self.set_image(img)
-            self.line.setText("From clipboard")
             return
 
         md = clipboard.mimeData()
@@ -68,7 +58,6 @@ class ImageLineEdit(QWidget):
                     img = QImage(url.toLocalFile())
                     if not img.isNull():
                         self.set_image(img)
-                        self.line.setText("From clipboard")
                         return
                 except Exception:
                     pass
@@ -77,7 +66,6 @@ class ImageLineEdit(QWidget):
         path, _ = QFileDialog.getOpenFileName(self, "Choose Image", "", "Images (*.png *.jpg *.jpeg *.bmp)")
         if path:
             self.set_image(QImage(path))
-            self.line.setText(path)
 
     def set_image(self, img: QImage | None):
         self._image = img

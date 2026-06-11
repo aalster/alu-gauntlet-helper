@@ -8,10 +8,9 @@ from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.services.tracks import TrackView
-from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time, load_pixmap_cover, \
-    format_relative_time
+from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time, format_relative_time
 from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, vbox, res_to_pixmap, hbox, \
-    ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge
+    ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge, CarInfoWidget
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
@@ -93,26 +92,10 @@ class RaceDialog(EditDialog):
 class RaceListWidget(ListItemWidget):
     def __init__(self, race: RaceView, parent=None):
         super().__init__(race, parent)
-        self.car_icon = QLabel()
-        self.car_icon.setFixedSize(80, 40)
-        self.car_icon.setStyleSheet("""
-            border-radius: 4px;
-            background-color: #271A62;
-        """)
-        self.car_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        if race.car_icon:
-            pixmap = load_pixmap_cover(race.car_icon, w=self.car_icon.width(), h=self.car_icon.height())
-            if pixmap:
-                self.car_icon.setPixmap(pixmap)
-
         self.map_label = QLabel(race.map_name)
         self.map_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px;")
         self.track_label = QLabel(race.track_name)
         self.track_label.setStyleSheet("font-weight: bold;")
-        self.brand_label = QLabel(race.car_brand.upper())
-        self.brand_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px; font-weight: bold;")
-        self.model_label = QLabel(race.car_model)
-        self.model_label.setStyleSheet("font-weight: bold;")
         rank_color = ""
         if race.rank and race.car_rank:
             if race.car_rank > race.rank:
@@ -121,6 +104,7 @@ class RaceListWidget(ListItemWidget):
                 rank_color = style.RANK_DOWN
         self.rank_badge = RankClassBadge(race.rank, race.car_max_rank if race.rank else 0, race.car_class,
                                          rank_color=rank_color)
+        self.car_info = CarInfoWidget(race.car_icon, race.car_brand, race.car_model, self.rank_badge)
 
         time_font = QFont()
         time_font.setBold(True)
@@ -144,10 +128,11 @@ class RaceListWidget(ListItemWidget):
             self.info_label.setToolTip(race.note)
 
         self.layout = QHBoxLayout(self)
+        # half the default vertical padding to keep race rows compact
+        margins = self.layout.contentsMargins()
+        self.layout.setContentsMargins(margins.left(), margins.top() // 2, margins.right(), margins.bottom() // 2)
         self.layout.addLayout(vbox([self.map_label, self.track_label], spacing=3), stretch=20)
-        self.layout.addWidget(self.car_icon)
-        brand_row = hbox([self.brand_label, self.rank_badge], spacing=6, alignment=Qt.AlignmentFlag.AlignLeft)
-        self.layout.addLayout(vbox([brand_row, self.model_label], spacing=3), stretch=20)
+        self.layout.addWidget(self.car_info, stretch=24)
         self.layout.addWidget(self.time_label, stretch=10)
         self.layout.addLayout(hbox([self.bad_timing_label, self.info_label], spacing=0), stretch=8)
         self.layout.addWidget(self.created_at_label, stretch=10)

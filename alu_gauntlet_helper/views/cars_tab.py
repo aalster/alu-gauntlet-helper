@@ -25,17 +25,35 @@ class CarDialog(EditDialog):
         self.model_edit = ValidatedLineEdit(item.model or item.name)
         self.rank_edit = ValidatedLineEdit(str(item.rank) if item.rank else "")
         self.rank_edit.get_input().setValidator(QIntValidator(0, 10000))
+        if item.max_rank:
+            rank_input = self.rank_edit.get_input()
+            max_rank_label = QLabel(f"/ {item.max_rank}", rank_input)
+            max_rank_label.setStyleSheet(f"color: {style.TEXT_MUTED}; background: transparent;")
+            overlay = QHBoxLayout(rank_input)
+            overlay.setContentsMargins(0, 0, 8, 0)
+            overlay.addWidget(max_rank_label, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            rank_input.setTextMargins(0, 0, max_rank_label.sizeHint().width() + 12, 0)
+        self.max_rank_button = QPushButton("MAX")
+        self.max_rank_button.setObjectName("secondary")
+        self.max_rank_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.max_rank_button.setEnabled(bool(item.max_rank))
+        self.max_rank_button.clicked.connect(lambda: self.rank_edit.set_text(str(self.item.max_rank))) # type: ignore
         icon = QImage(item.icon) if item.icon and os.path.exists(item.icon) else None
         self.icon_edit = ImageLineEdit(icon)
 
         super().__init__(action, parent)
         self.setWindowTitle("Edit Car" if item.id else "Add Car")
+        self.setMinimumHeight(400)
 
     def prepare_layout(self):
         form_layout = QFormLayout()
         form_layout.addRow("Brand:", self.brand_edit)
         form_layout.addRow("Model:", self.model_edit)
-        form_layout.addRow("Rank:", self.rank_edit)
+        rank_layout = QHBoxLayout()
+        rank_layout.setSpacing(6)
+        rank_layout.addWidget(self.rank_edit, stretch=1)
+        rank_layout.addWidget(self.max_rank_button)
+        form_layout.addRow("Rank:", rank_layout)
         form_layout.addRow("Icon:", self.icon_edit)
 
         return form_layout
