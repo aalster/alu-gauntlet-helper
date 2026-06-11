@@ -53,7 +53,9 @@ class CarSuggestionWidget(ListItemWidget):
 
         self.brand_label = QLabel(item.car_brand)
         self.brand_label.setStyleSheet("color: #888; font-size: 11px;")
-        self.brand_label.setVisible(bool(item.car_brand))
+        if not item.car_brand:
+            # hide() only - setVisible(True) on a not-yet-parented widget pops up a window
+            self.brand_label.hide()
 
         self.car_label = QLabel(item.car_model or item.car_name)
         self.car_label.setWordWrap(True)

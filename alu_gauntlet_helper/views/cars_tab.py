@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLin
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.cars import Car
+from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_CARS, load_pixmap_cover
 from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, vbox
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
@@ -57,14 +58,40 @@ class CarDialog(EditDialog):
                    rank=rank, max_rank=self.item.max_rank, favorite=self.item.favorite, icon=icon_path)
 
 
+class RankClassBadge(QWidget):
+    """Game-style badge: dark plate with the rank next to a white plate with the class letter."""
+    def __init__(self, rank_text: str, car_class: str, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        if rank_text:
+            rank_label = QLabel(rank_text, self)
+            right_radius = "" if car_class else " border-top-right-radius: 3px; border-bottom-right-radius: 3px;"
+            rank_label.setStyleSheet(
+                f"background-color: {style.TEXT_DARK}; color: {style.TEXT}; font-weight: bold; font-style: italic;"
+                f" border-top-left-radius: 3px; border-bottom-left-radius: 3px;{right_radius} padding: 2px 8px;")
+            layout.addWidget(rank_label)
+
+        if car_class:
+            class_label = QLabel(car_class, self)
+            left_radius = "" if rank_text else " border-top-left-radius: 3px; border-bottom-left-radius: 3px;"
+            class_label.setStyleSheet(
+                f"background-color: {style.TEXT}; color: {style.TEXT_DARK}; font-weight: bold;"
+                f" border-top-right-radius: 3px; border-bottom-right-radius: 3px;{left_radius} padding: 2px 7px;")
+            layout.addWidget(class_label)
+
+
 class CarListWidget(ListItemWidget):
     def __init__(self, item: Car, on_favorite: Callable[[int], None] | None = None, parent=None):
         super().__init__(item, parent)
         self.on_favorite = on_favorite
         self.car_icon = QLabel()
         self.car_icon.setFixedSize(128, 64)
-        self.car_icon.setStyleSheet("""
-            border: 1px solid #aaa;
+        self.car_icon.setStyleSheet(f"""
+            border: 1px solid {style.BORDER};
+            border-radius: 4px;
             background-color: #271A62;
         """)
         self.car_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -74,27 +101,24 @@ class CarListWidget(ListItemWidget):
             if pixmap:
                 self.car_icon.setPixmap(pixmap)
 
-        self.brand_label = QLabel(item.brand)
-        self.brand_label.setStyleSheet("color: #888;")
+        self.brand_label = QLabel(item.brand.upper())
+        self.brand_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 13px; font-weight: bold;")
 
-        self.model_label = QLabel(item.model or item.name)
+        self.model_label = QLabel((item.model or item.name).upper())
         name_font = QFont()
-        name_font.setPointSize(self.font().pointSize() + 4)
+        name_font.setPointSize(self.font().pointSize() + 3)
+        name_font.setBold(True)
+        name_font.setItalic(True)
         self.model_label.setFont(name_font)
-
-        self.class_label = QLabel(f"Class {item.car_class}" if item.car_class else "")
-        self.class_label.setAlignment(Qt.AlignmentFlag.AlignRight)
 
         rank_text = ""
         if item.rank and item.max_rank:
-            rank_text = f"Rank: {item.rank} / {item.max_rank}"
+            rank_text = f"{item.rank:,} / {item.max_rank:,}"
         elif item.rank:
-            rank_text = f"Rank: {item.rank}"
+            rank_text = f"{item.rank:,}"
         elif item.max_rank:
-            rank_text = f"Max rank: {item.max_rank}"
-        self.rank_label = QLabel(rank_text)
-        self.rank_label.setStyleSheet("color: #888;")
-        self.rank_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+            rank_text = f"{item.max_rank:,}"
+        self.rank_badge = RankClassBadge(rank_text, item.car_class)
 
         self.fav_button = QPushButton()
         self.fav_button.setFlat(True)
@@ -104,19 +128,20 @@ class CarListWidget(ListItemWidget):
         self.update_fav_button()
 
         self.layout = QHBoxLayout(self)
-        self.layout.setContentsMargins(2, 2, 2, 2)
-        self.layout.setSpacing(8)
+        self.layout.setContentsMargins(6, 6, 6, 6)
+        self.layout.setSpacing(10)
         self.layout.addWidget(self.car_icon)
         self.layout.addLayout(vbox([self.brand_label, self.model_label], spacing=0), stretch=1)
-        self.layout.addLayout(vbox([self.class_label, self.rank_label], spacing=0))
+        self.layout.addWidget(self.rank_badge, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.layout.addWidget(self.fav_button, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.setLayout(self.layout)
 
     def update_fav_button(self):
         favorite = self.item.favorite
         self.fav_button.setText("♥" if favorite else "♡")
-        color = "#e0245e" if favorite else "#888"
-        self.fav_button.setStyleSheet(f"QPushButton {{ color: {color}; font-size: 18px; border: none; }}")
+        color = style.FAVORITE if favorite else style.TEXT_FAINT
+        self.fav_button.setStyleSheet(
+            f"QPushButton {{ color: {color}; font-size: 18px; border: none; background: transparent; padding: 0; }}")
 
     def toggle_favorite(self):
         if self.on_favorite:

@@ -54,17 +54,20 @@ class MapListWidget(ListItemWidget):
         self.map_icon = QLabel()
         self.map_icon.setFixedSize(64, 64)
         self.map_icon.setStyleSheet("""
-            border: 1px solid #aaa;
+            border: 1px solid #33418F;
+            border-radius: 4px;
             background-color: #271A62;
         """)
         self.map_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         if item.icon and os.path.exists(item.icon):
             self.map_icon.setPixmap(pixmap_cover(QPixmap(item.icon), w=self.map_icon.width(), h=self.map_icon.height()))
-        self.map_label = QLabel(item.name)
+        self.map_label = QLabel(item.name.upper())
 
         name_font = QFont()
-        name_font.setPointSize(self.font().pointSize() + 4)
+        name_font.setPointSize(self.font().pointSize() + 3)
+        name_font.setBold(True)
+        name_font.setItalic(True)
         self.map_label.setFont(name_font)
 
         self.layout = QHBoxLayout(self)

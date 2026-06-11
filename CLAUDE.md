@@ -42,6 +42,7 @@ alu_gauntlet_helper/
 │   ├── cars_sync.py         # Cars sync from asec.tools (bundled JSON seed + daily remote refresh)
 │   └── initial_data.py      # Seed data (maps, tracks; cars come from cars_sync)
 ├── views/                   # PyQt6 UI
+│   ├── style.py             # ALU game theme: palette constants + global QSS, applied in main.py
 │   ├── main_window.py       # Main window with 6 tabs + tray icon
 │   ├── recognize_races_tab.py
 │   ├── races_tab.py

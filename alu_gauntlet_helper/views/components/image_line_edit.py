@@ -13,7 +13,7 @@ class ImageLineEdit(QWidget):
 
         self.preview = QLabel()
         self.preview.setFixedSize(80, 80)
-        self.preview.setStyleSheet("border: 1px solid #aaa;")
+        self.preview.setStyleSheet("border: 1px solid #33418F; border-radius: 4px; background-color: #271A62;")
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.clear_button = QPushButton(self.preview)
@@ -21,7 +21,7 @@ class ImageLineEdit(QWidget):
         self.clear_button.setFixedSize(QSize(20, 20))
         self.clear_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.clear_button.setToolTip("Clear")
-        self.clear_button.setStyleSheet("border: none")
+        self.clear_button.setStyleSheet("border: none; background: transparent; padding: 0;")
         padding = 2
         self.clear_button.move(self.preview.width() - self.clear_button.width() - padding, padding)
         self.clear_button.clicked.connect(self.clear) # type: ignore

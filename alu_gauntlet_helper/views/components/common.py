@@ -41,13 +41,19 @@ class ListItemWidget(QWidget):
         super().__init__(parent)
         self.item = item
 
+    # vertical space consumed by the QSS ::item chrome (margins + border), see style.APP_STYLE
+    ITEM_CHROME_HEIGHT = 16
+
     def add_to_list(self, list_widget: QListWidget):
         list_item = QListWidgetItem(list_widget)
         list_item.setData(Qt.ItemDataRole.UserRole, self.item)
-        list_item.setSizeHint(self.sizeHint())
 
-        list_widget.addItem(list_item)
         list_widget.setItemWidget(list_item, self)
+        # size hint only after the widget is polished, so QSS fonts are applied
+        self.ensurePolished()
+        hint = self.sizeHint()
+        hint.setHeight(hint.height() + self.ITEM_CHROME_HEIGHT)
+        list_item.setSizeHint(hint)
 
 class ClearOnEscEventFilter(QObject):
     def eventFilter(self, obj, event):

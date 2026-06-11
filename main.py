@@ -7,6 +7,7 @@ from alu_gauntlet_helper.services.cars_sync import update_cars_if_needed
 from alu_gauntlet_helper.services.initial_data import init_data
 from alu_gauntlet_helper.utils.single_instance_lock import single_instance_lock
 from alu_gauntlet_helper.views.main_window import MainWindow
+from alu_gauntlet_helper.views.style import apply_style
 from alu_gauntlet_helper.database import init_db
 
 
@@ -37,9 +38,7 @@ def main():
 
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
-    font = app.font()
-    font.setPointSize(10)
-    app.setFont(font)
+    apply_style(app)
 
     window = MainWindow()
     if window.tray_icon and settings.close_to_tray and (start_minimized or settings.start_minimized):

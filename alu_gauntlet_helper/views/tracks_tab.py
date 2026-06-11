@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLin
     QLabel
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.services.tracks import TrackView
 from alu_gauntlet_helper.utils.utils import pixmap_cover
 from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget
@@ -67,7 +68,8 @@ class TrackListWidget(ListItemWidget):
         self.map_icon = QLabel()
         self.map_icon.setFixedSize(64, 64)
         self.map_icon.setStyleSheet("""
-            border: 1px solid #aaa;
+            border: 1px solid #33418F;
+            border-radius: 4px;
             background-color: #271A62;
         """)
         self.map_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -76,15 +78,18 @@ class TrackListWidget(ListItemWidget):
             self.map_icon.setPixmap(pixmap_cover(QPixmap(item.map_icon), w=self.map_icon.width(), h=self.map_icon.height()))
 
         self.map_label = QLabel(item.map_name)
+        self.map_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 13px; font-weight: bold;")
 
-        self.track_label = QLabel(item.name)
+        self.track_label = QLabel(item.name.upper())
         name_font = QFont()
-        name_font.setPointSize(self.font().pointSize() + 4)
+        name_font.setPointSize(self.font().pointSize() + 3)
+        name_font.setBold(True)
+        name_font.setItalic(True)
         self.track_label.setFont(name_font)
 
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 0, 0, 0)
-        text_layout.setSpacing(0)
+        text_layout.setSpacing(3)
         text_layout.addStretch()
         text_layout.addWidget(self.map_label)
         text_layout.addWidget(self.track_label)

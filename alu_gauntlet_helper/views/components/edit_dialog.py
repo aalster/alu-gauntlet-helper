@@ -12,11 +12,12 @@ class EditDialog(QDialog):
         self.setMinimumSize(300, 180)
 
         self.error_label = QLabel()
-        self.error_label.setStyleSheet("color: red;")
+        self.error_label.setStyleSheet("color: #FF6B6B;")
 
         self.save_button = QPushButton("Ok")
         self.save_button.clicked.connect(self.accept)   # type: ignore
         self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.setObjectName("secondary")
         self.cancel_button.clicked.connect(self.reject) # type: ignore
 
         buttons_layout = QHBoxLayout()

@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLin
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import RaceView
+from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.services.tracks import TrackView
 from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time
 from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, vbox, res_to_pixmap, hbox, \
@@ -92,17 +93,24 @@ class RaceListWidget(ListItemWidget):
     def __init__(self, race: RaceView, parent=None):
         super().__init__(race, parent)
         self.map_label = QLabel(race.map_name)
+        self.map_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px;")
         self.track_label = QLabel(race.track_name)
+        self.track_label.setStyleSheet("font-weight: bold;")
         self.car_label = QLabel(race.car_name)
-        self.rank_label = QLabel(str(race.rank))
+        self.car_label.setStyleSheet("font-weight: bold;")
+        self.rank_label = QLabel(f"{race.rank:,}" if race.rank else "")
+        self.rank_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px;")
 
         time_font = QFont()
-        # time_font.setBold(True)
+        time_font.setBold(True)
+        time_font.setItalic(True)
         time_font.setPointSize(self.font().pointSize() + 4)
 
         self.time_label = QLabel(format_time(race.time))
         self.time_label.setFont(time_font)
+        self.time_label.setStyleSheet(f"color: {style.TIME_YELLOW};")
         self.created_at_label = QLabel(race.created_at.strftime("%d.%m.%Y %H:%M:%S"))
+        self.created_at_label.setStyleSheet(f"color: {style.TEXT_FAINT}; font-size: 12px;")
 
         self.bad_timing_label = QLabel()
         if race.bad_timing:
@@ -114,8 +122,8 @@ class RaceListWidget(ListItemWidget):
             self.info_label.setToolTip(race.note)
 
         self.layout = QHBoxLayout(self)
-        self.layout.addLayout(vbox([self.map_label, self.track_label], spacing=0), stretch=20)
-        self.layout.addLayout(vbox([self.car_label, self.rank_label], spacing=0), stretch=20)
+        self.layout.addLayout(vbox([self.map_label, self.track_label], spacing=3), stretch=20)
+        self.layout.addLayout(vbox([self.car_label, self.rank_label], spacing=3), stretch=20)
         self.layout.addWidget(self.time_label, stretch=10)
         self.layout.addLayout(hbox([self.bad_timing_label, self.info_label], spacing=0), stretch=8)
         self.layout.addWidget(self.created_at_label, stretch=10)
