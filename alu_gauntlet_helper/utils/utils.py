@@ -82,6 +82,30 @@ def parse_time(time: str) -> int:
     except ValueError:
         return 0
 
+def format_relative_time(dt: datetime) -> str:
+    """Format a datetime as a relative phrase like '2 days ago'."""
+    if not dt:
+        return ""
+    seconds = int((datetime.now(LOCAL_TZ) - dt).total_seconds())
+    if seconds < 60:
+        return "just now"
+
+    minutes, hours, days = seconds // 60, seconds // 3600, seconds // 86400
+    if minutes < 60:
+        return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+    if hours < 24:
+        return f"{hours} hour{'s' if hours > 1 else ''} ago"
+    if days < 7:
+        return f"{days} day{'s' if days > 1 else ''} ago"
+    if days < 30:
+        weeks = days // 7
+        return f"{weeks} week{'s' if weeks > 1 else ''} ago"
+    if days < 365:
+        months = days // 30
+        return f"{months} month{'s' if months > 1 else ''} ago"
+    years = days // 365
+    return f"{years} year{'s' if years > 1 else ''} ago"
+
 def format_time_delta(time_delta) -> str:
     total_minutes = int(time_delta.total_seconds() // 60)
     hours, minutes = divmod(total_minutes, 60)

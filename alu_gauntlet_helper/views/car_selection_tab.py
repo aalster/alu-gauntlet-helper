@@ -7,7 +7,8 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QListWidget, QHBoxLayout, QLab
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import CarSuggestion, Race
 from alu_gauntlet_helper.utils.utils import format_time, load_pixmap_cover
-from alu_gauntlet_helper.views.components.common import ListItemWidget
+from alu_gauntlet_helper.views import style
+from alu_gauntlet_helper.views.components.common import ListItemWidget, enable_clear_button
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 
@@ -41,7 +42,6 @@ class CarSuggestionWidget(ListItemWidget):
         self.car_icon = QLabel()
         self.car_icon.setFixedSize(96, 48)
         self.car_icon.setStyleSheet("""
-            border: 1px solid #aaa;
             background-color: #271A62;
         """)
         self.car_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -52,7 +52,7 @@ class CarSuggestionWidget(ListItemWidget):
                 self.car_icon.setPixmap(pixmap)
 
         self.brand_label = QLabel(item.car_brand)
-        self.brand_label.setStyleSheet("color: #888; font-size: 11px;")
+        self.brand_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 11px;")
         if not item.car_brand:
             # hide() only - setVisible(True) on a not-yet-parented widget pops up a window
             self.brand_label.hide()
@@ -68,7 +68,7 @@ class CarSuggestionWidget(ListItemWidget):
         if item.car_rank:
             rank_parts.append(f"Rank: {item.car_rank}")
         self.rank_label = QLabel(" · ".join(rank_parts))
-        self.rank_label.setStyleSheet("color: #888; font-size: 12px;")
+        self.rank_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px;")
 
         self.time_label = QLabel(format_time(item.avg_time))
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -132,7 +132,7 @@ class RaceColumn(QWidget):
         self.header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.track_edit = ValidatedLineEdit(placeholder="Select track...")
-        self.track_edit.get_input().setClearButtonEnabled(True)
+        enable_clear_button(self.track_edit.get_input())
         self.track_edit.get_input().textChanged.connect(self.on_track_text_changed)
         self.track_completer = ItemCompleter(
             self.track_edit.get_input(),
@@ -159,10 +159,13 @@ class RaceColumn(QWidget):
         item = QListWidgetItem()
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsSelectable)
         label = QLabel(text)
-        label.setStyleSheet("color: #888; font-style: italic;")
+        label.setStyleSheet(f"color: {style.TEXT_MUTED};")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setContentsMargins(8, 16, 8, 16)
-        item.setSizeHint(label.sizeHint())
+        label.ensurePolished()
+        hint = label.sizeHint()
+        hint.setHeight(hint.height() + ListItemWidget.ITEM_CHROME_HEIGHT)
+        item.setSizeHint(hint)
         self.list_widget.addItem(item)
         self.list_widget.setItemWidget(item, label)
 

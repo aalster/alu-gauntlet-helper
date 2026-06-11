@@ -27,6 +27,12 @@ class RaceView(Race):
     map_name: str = ""
     track_name: str = ""
     car_name: str = ""
+    car_brand: str = ""
+    car_model: str = ""
+    car_class: str = ""
+    car_rank: int = 0
+    car_max_rank: int = 0
+    car_icon: str = ""
 
 
 class CarSuggestion(BaseModel):
@@ -130,7 +136,13 @@ class RacesService:
                 **i.model_dump(),
                 map_name=track.map_name if track else "Unknown Map",
                 track_name=track.name if track else "Unknown Track",
-                car_name=car.name if car else "Unknown Car"
+                car_name=car.name if car else "Unknown Car",
+                car_brand=car.brand if car else "",
+                car_model=(car.model or car.name) if car else "Unknown Car",
+                car_class=car.car_class if car else "",
+                car_rank=car.rank if car else 0,
+                car_max_rank=car.max_rank if car else 0,
+                car_icon=car.icon if car else ""
             ))
         return result
 

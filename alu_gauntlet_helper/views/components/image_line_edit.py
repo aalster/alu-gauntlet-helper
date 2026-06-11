@@ -13,7 +13,7 @@ class ImageLineEdit(QWidget):
 
         self.preview = QLabel()
         self.preview.setFixedSize(80, 80)
-        self.preview.setStyleSheet("border: 1px solid #33418F; border-radius: 4px; background-color: #271A62;")
+        self.preview.setStyleSheet("border-radius: 4px; background-color: #271A62;")
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.clear_button = QPushButton(self.preview)

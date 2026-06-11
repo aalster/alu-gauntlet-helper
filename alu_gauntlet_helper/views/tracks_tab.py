@@ -11,7 +11,7 @@ from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.services.tracks import TrackView
 from alu_gauntlet_helper.utils.utils import pixmap_cover
-from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget
+from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, enable_clear_button
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
@@ -68,7 +68,6 @@ class TrackListWidget(ListItemWidget):
         self.map_icon = QLabel()
         self.map_icon.setFixedSize(64, 64)
         self.map_icon.setStyleSheet("""
-            border: 1px solid #33418F;
             border-radius: 4px;
             background-color: #271A62;
         """)
@@ -84,7 +83,6 @@ class TrackListWidget(ListItemWidget):
         name_font = QFont()
         name_font.setPointSize(self.font().pointSize() + 3)
         name_font.setBold(True)
-        name_font.setItalic(True)
         self.track_label.setFont(name_font)
 
         text_layout = QVBoxLayout()
@@ -108,7 +106,7 @@ class TracksTab(QWidget):
         super().__init__()
 
         self.query = QLineEdit()
-        self.query.setClearButtonEnabled(True)
+        enable_clear_button(self.query)
         self.query.installEventFilter(CLEAR_ON_ESC_FILTER)
         self.query.setPlaceholderText("Filter by name")
         self.query.textChanged.connect(self.refresh_debounce) # type: ignore

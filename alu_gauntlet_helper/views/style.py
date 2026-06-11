@@ -1,7 +1,9 @@
 """Asphalt Legends Unite inspired theme: deep blue gradients, navy cards,
-yellow CTAs and times, cyan accents, bold italic uppercase headings."""
-from PyQt6.QtGui import QFont, QPalette, QColor
+yellow CTAs and times, cyan accents, bold uppercase headings."""
+from PyQt6.QtGui import QPalette, QColor
 from PyQt6.QtWidgets import QApplication
+
+from alu_gauntlet_helper.utils.utils import get_resource_path
 
 BG_TOP = "#1554C0"
 BG_BOTTOM = "#082058"
@@ -22,6 +24,11 @@ TEXT_FAINT = "#6F7FB5"
 TEXT_DARK = "#10173F"
 ERROR = "#FF6B6B"
 FAVORITE = "#FF3B6B"
+RANK_UP = "#4CD964"
+RANK_DOWN = "#FF9F0A"
+
+CHECKMARK_ICON = get_resource_path("icons/check.svg").replace("\\", "/")
+CHEVRON_DOWN_ICON = get_resource_path("icons/chevron-down.svg").replace("\\", "/")
 
 APP_STYLE = f"""
 QMainWindow {{
@@ -47,7 +54,6 @@ QTabBar::tab {{
     background: transparent;
     color: {TEXT_MUTED};
     font-weight: bold;
-    font-style: italic;
     padding: 9px 16px;
     margin-right: 4px;
     border-bottom: 3px solid transparent;
@@ -155,6 +161,56 @@ QPushButton#secondary:hover {{
     border: 1px solid {CYAN};
 }}
 
+QPushButton#secondary:checked {{
+    background-color: {CARD_SELECTED};
+    border: 1px solid {CYAN};
+    color: {CYAN};
+}}
+
+QComboBox {{
+    background-color: {INPUT_BG};
+    border: 1px solid {BORDER};
+    border-radius: 4px;
+    padding: 6px 8px;
+    color: {TEXT};
+    combobox-popup: 0;
+}}
+
+QComboBox:hover, QComboBox:focus, QComboBox:on {{
+    border: 1px solid {CYAN};
+}}
+
+QComboBox::drop-down {{
+    border: none;
+    width: 24px;
+}}
+
+QComboBox::down-arrow {{
+    image: url({CHEVRON_DOWN_ICON});
+    width: 12px;
+    height: 12px;
+}}
+
+QComboBox QAbstractItemView {{
+    background-color: {INPUT_BG};
+    border: 1px solid {BORDER};
+    border-radius: 0;
+    padding: 0;
+    color: {TEXT};
+    outline: none;
+}}
+
+QComboBox QAbstractItemView::item {{
+    padding: 6px 10px;
+    border-radius: 0;
+    min-height: 26px;
+}}
+
+QComboBox QAbstractItemView::item:selected, QComboBox QAbstractItemView::item:hover {{
+    background-color: {CARD_SELECTED};
+    color: {TEXT};
+}}
+
 QCheckBox {{
     color: {TEXT};
     spacing: 8px;
@@ -179,6 +235,39 @@ QCheckBox::indicator:hover {{
 QCheckBox::indicator:checked {{
     background-color: {CYAN};
     border: 1px solid {CYAN};
+    image: url({CHECKMARK_ICON});
+}}
+
+QPushButton#segment {{
+    background-color: {INPUT_BG};
+    color: {TEXT_MUTED};
+    font-weight: bold;
+    border: 1px solid {BORDER};
+    border-left: none;
+    border-radius: 0;
+    padding: 7px 12px;
+}}
+
+QPushButton#segment[first="true"] {{
+    border-left: 1px solid {BORDER};
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+}}
+
+QPushButton#segment[last="true"] {{
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+}}
+
+QPushButton#segment:hover {{
+    background-color: {CARD_HOVER};
+    color: {TEXT};
+}}
+
+QPushButton#segment:checked {{
+    background-color: {CYAN};
+    color: {TEXT_DARK};
+    border-color: {CYAN};
 }}
 
 QScrollBar:vertical {{
@@ -255,9 +344,8 @@ QMenu::item:selected {{
 
 
 def apply_style(app: QApplication):
-    font = QFont()
-    font.setFamilies(["Bahnschrift", "Segoe UI"])
-    font.setPointSize(11)
+    font = app.font()
+    font.setPointSize(10)
     app.setFont(font)
 
     palette = app.palette()

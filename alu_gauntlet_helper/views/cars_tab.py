@@ -3,15 +3,16 @@ import os
 from typing import Callable
 
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtGui import QIntValidator, QImage, QFont
+from PyQt6.QtGui import QIntValidator, QImage, QFont, QIcon
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
-    QLabel, QFormLayout
+    QLabel, QFormLayout, QComboBox, QButtonGroup
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.cars import Car
 from alu_gauntlet_helper.views import style
-from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_CARS, load_pixmap_cover
-from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, vbox
+from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_CARS, load_pixmap_cover, get_resource_path
+from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, vbox, \
+    enable_clear_button, RankClassBadge
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -58,39 +59,13 @@ class CarDialog(EditDialog):
                    rank=rank, max_rank=self.item.max_rank, favorite=self.item.favorite, icon=icon_path)
 
 
-class RankClassBadge(QWidget):
-    """Game-style badge: dark plate with the rank next to a white plate with the class letter."""
-    def __init__(self, rank_text: str, car_class: str, parent=None):
-        super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        if rank_text:
-            rank_label = QLabel(rank_text, self)
-            right_radius = "" if car_class else " border-top-right-radius: 3px; border-bottom-right-radius: 3px;"
-            rank_label.setStyleSheet(
-                f"background-color: {style.TEXT_DARK}; color: {style.TEXT}; font-weight: bold; font-style: italic;"
-                f" border-top-left-radius: 3px; border-bottom-left-radius: 3px;{right_radius} padding: 2px 8px;")
-            layout.addWidget(rank_label)
-
-        if car_class:
-            class_label = QLabel(car_class, self)
-            left_radius = "" if rank_text else " border-top-left-radius: 3px; border-bottom-left-radius: 3px;"
-            class_label.setStyleSheet(
-                f"background-color: {style.TEXT}; color: {style.TEXT_DARK}; font-weight: bold;"
-                f" border-top-right-radius: 3px; border-bottom-right-radius: 3px;{left_radius} padding: 2px 7px;")
-            layout.addWidget(class_label)
-
-
 class CarListWidget(ListItemWidget):
     def __init__(self, item: Car, on_favorite: Callable[[int], None] | None = None, parent=None):
         super().__init__(item, parent)
         self.on_favorite = on_favorite
         self.car_icon = QLabel()
         self.car_icon.setFixedSize(128, 64)
-        self.car_icon.setStyleSheet(f"""
-            border: 1px solid {style.BORDER};
+        self.car_icon.setStyleSheet("""
             border-radius: 4px;
             background-color: #271A62;
         """)
@@ -108,17 +83,9 @@ class CarListWidget(ListItemWidget):
         name_font = QFont()
         name_font.setPointSize(self.font().pointSize() + 3)
         name_font.setBold(True)
-        name_font.setItalic(True)
         self.model_label.setFont(name_font)
 
-        rank_text = ""
-        if item.rank and item.max_rank:
-            rank_text = f"{item.rank:,} / {item.max_rank:,}"
-        elif item.rank:
-            rank_text = f"{item.rank:,}"
-        elif item.max_rank:
-            rank_text = f"{item.max_rank:,}"
-        self.rank_badge = RankClassBadge(rank_text, item.car_class)
+        self.rank_badge = RankClassBadge(item.rank, item.max_rank, item.car_class)
 
         self.fav_button = QPushButton()
         self.fav_button.setFlat(True)
@@ -141,7 +108,7 @@ class CarListWidget(ListItemWidget):
         self.fav_button.setText("♥" if favorite else "♡")
         color = style.FAVORITE if favorite else style.TEXT_FAINT
         self.fav_button.setStyleSheet(
-            f"QPushButton {{ color: {color}; font-size: 18px; border: none; background: transparent; padding: 0; }}")
+            f"QPushButton {{ color: {color}; font-size: 24px; border: none; background: transparent; padding: 0; }}")
 
     def toggle_favorite(self):
         if self.on_favorite:
@@ -153,10 +120,35 @@ class CarsTab(QWidget):
         super().__init__()
 
         self.query = QLineEdit()
-        self.query.setClearButtonEnabled(True)
+        enable_clear_button(self.query)
         self.query.installEventFilter(CLEAR_ON_ESC_FILTER)
         self.query.setPlaceholderText("Filter by name")
         self.query.textChanged.connect(self.refresh_debounce) # type: ignore
+
+        self.class_group = QButtonGroup(self)
+        self.class_layout = QHBoxLayout()
+        self.class_layout.setSpacing(0)
+        classes = ["All", "D", "C", "B", "A", "S"]
+        for index, car_class in enumerate(classes):
+            # parent keeps the button alive: QButtonGroup.addButton() doesn't take ownership
+            button = QPushButton(car_class, self)
+            button.setObjectName("segment")
+            button.setCheckable(True)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setProperty("first", index == 0)
+            button.setProperty("last", index == len(classes) - 1)
+            self.class_group.addButton(button)
+            self.class_layout.addWidget(button)
+        self.class_group.buttons()[0].setChecked(True)
+        self.class_group.buttonClicked.connect(self.refresh) # type: ignore
+
+        self.sort_combo = QComboBox()
+        sort_icon = QIcon(get_resource_path("icons/sort.svg"))
+        self.sort_combo.addItem(sort_icon, "Default")
+        self.sort_combo.addItem(sort_icon, "Max Rank")
+        self.sort_combo.setToolTip("Sort order")
+        self.sort_combo.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.sort_combo.currentIndexChanged.connect(self.refresh) # type: ignore
 
         self.add_button = QPushButton("Add")
         self.add_button.clicked.connect(self.on_add) # type: ignore
@@ -170,6 +162,8 @@ class CarsTab(QWidget):
 
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.query)
+        top_layout.addLayout(self.class_layout)
+        top_layout.addWidget(self.sort_combo)
         top_layout.addWidget(self.add_button)
 
         layout = QVBoxLayout()
@@ -183,7 +177,10 @@ class CarsTab(QWidget):
 
     def refresh(self):
         self.list_widget.clear()
-        for i in APP_CONTEXT.cars_service.autocomplete(self.query.text()):
+        car_class = self.class_group.checkedButton().text()
+        for i in APP_CONTEXT.cars_service.autocomplete(self.query.text(),
+                                                       by_max_rank=self.sort_combo.currentIndex() == 1,
+                                                       car_class="" if car_class == "All" else car_class):
             CarListWidget(i, on_favorite=self.on_favorite).add_to_list(self.list_widget)
 
     def on_favorite(self, car_id: int):

@@ -2,9 +2,11 @@ from typing import Callable
 
 from PyQt6.QtCore import Qt, QTimer, QObject, QEvent
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLayout, QWidget, QListWidget, QListWidgetItem
+from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLayout, QWidget, QListWidget, QListWidgetItem, \
+    QToolButton, QLabel
 
 from alu_gauntlet_helper.utils.utils import get_resource_path
+from alu_gauntlet_helper.views import style
 
 
 class FocusWatcher(QObject):
@@ -55,6 +57,39 @@ class ListItemWidget(QWidget):
         hint.setHeight(hint.height() + self.ITEM_CHROME_HEIGHT)
         list_item.setSizeHint(hint)
 
+class RankClassBadge(QWidget):
+    """Game-style badge: dark plate with the rank next to a white plate with the class letter."""
+    def __init__(self, rank: int, max_rank: int, car_class: str, rank_color: str = "", parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        rank_text = ""
+        if rank and max_rank and rank != max_rank:
+            rank_text = f"{rank:,} / {max_rank:,}"
+        elif rank:
+            rank_text = f"{rank:,}"
+        elif max_rank:
+            rank_text = f"{max_rank:,}"
+
+        if rank_text:
+            rank_label = QLabel(rank_text, self)
+            right_radius = "" if car_class else " border-top-right-radius: 3px; border-bottom-right-radius: 3px;"
+            rank_label.setStyleSheet(
+                f"background-color: {style.TEXT_DARK}; color: {rank_color or style.TEXT}; font-weight: bold;"
+                f" border-top-left-radius: 3px; border-bottom-left-radius: 3px;{right_radius} padding: 2px 8px;")
+            layout.addWidget(rank_label)
+
+        if car_class:
+            class_label = QLabel(car_class, self)
+            left_radius = "" if rank_text else " border-top-left-radius: 3px; border-bottom-left-radius: 3px;"
+            class_label.setStyleSheet(
+                f"background-color: {style.TEXT}; color: {style.TEXT_DARK}; font-weight: bold;"
+                f" border-top-right-radius: 3px; border-bottom-right-radius: 3px;{left_radius} padding: 2px 7px;")
+            layout.addWidget(class_label)
+
+
 class ClearOnEscEventFilter(QObject):
     def eventFilter(self, obj, event):
         if isinstance(obj, QLineEdit) and event.type() == QEvent.Type.KeyPress:
@@ -64,6 +99,44 @@ class ClearOnEscEventFilter(QObject):
         return super().eventFilter(obj, event)
 
 CLEAR_ON_ESC_FILTER = ClearOnEscEventFilter()
+
+
+class ClearButtonCursorFilter(QObject):
+    """Pointing-hand cursor + click handling for the clear button. The internal
+    QToolButton ignores its own cursor inside a styled QLineEdit, so the button is made
+    mouse-transparent and both hover and click are handled on the line edit itself."""
+    @staticmethod
+    def over_button(line_edit: QLineEdit, pos):
+        button = line_edit.findChild(QToolButton)
+        return button is not None and bool(line_edit.text()) and button.geometry().contains(pos)
+
+    def eventFilter(self, obj, event):
+        if isinstance(obj, QLineEdit):
+            if event.type() == QEvent.Type.MouseMove:
+                hovering = self.over_button(obj, event.position().toPoint())
+                obj.setCursor(Qt.CursorShape.PointingHandCursor if hovering else Qt.CursorShape.IBeamCursor)
+            elif event.type() == QEvent.Type.Leave:
+                obj.setCursor(Qt.CursorShape.IBeamCursor)
+            elif (event.type() == QEvent.Type.MouseButtonPress
+                  and event.button() == Qt.MouseButton.LeftButton
+                  and self.over_button(obj, event.position().toPoint())):
+                obj.clear()
+                obj.setCursor(Qt.CursorShape.IBeamCursor)
+                return True
+        return False
+
+CLEAR_BUTTON_CURSOR_FILTER = ClearButtonCursorFilter()
+
+
+def enable_clear_button(line_edit: QLineEdit):
+    line_edit.setClearButtonEnabled(True)
+    button = line_edit.findChild(QToolButton)
+    if button:
+        # the button swallows mouse events but ignores setCursor when the line edit is
+        # styled with QSS; let the line edit handle hover and click instead
+        button.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+    line_edit.setMouseTracking(True)
+    line_edit.installEventFilter(CLEAR_BUTTON_CURSOR_FILTER)
 
 
 def add_contents(layout, items, spacing=None, alignment=None):

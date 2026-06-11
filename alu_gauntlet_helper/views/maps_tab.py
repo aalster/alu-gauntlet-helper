@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLin
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.maps import Map
 from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_MAPS, pixmap_cover
-from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget
+from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, enable_clear_button
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -54,7 +54,6 @@ class MapListWidget(ListItemWidget):
         self.map_icon = QLabel()
         self.map_icon.setFixedSize(64, 64)
         self.map_icon.setStyleSheet("""
-            border: 1px solid #33418F;
             border-radius: 4px;
             background-color: #271A62;
         """)
@@ -67,7 +66,6 @@ class MapListWidget(ListItemWidget):
         name_font = QFont()
         name_font.setPointSize(self.font().pointSize() + 3)
         name_font.setBold(True)
-        name_font.setItalic(True)
         self.map_label.setFont(name_font)
 
         self.layout = QHBoxLayout(self)
@@ -82,7 +80,7 @@ class MapsTab(QWidget):
         super().__init__()
 
         self.query = QLineEdit()
-        self.query.setClearButtonEnabled(True)
+        enable_clear_button(self.query)
         self.query.installEventFilter(CLEAR_ON_ESC_FILTER)
         self.query.setPlaceholderText("Filter by name")
         self.query.textChanged.connect(self.refresh_debounce) # type: ignore

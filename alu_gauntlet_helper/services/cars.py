@@ -54,16 +54,30 @@ class CarsRepository:
             row = conn.execute("SELECT * FROM cars WHERE asec_id = :asec_id LIMIT 1", {"asec_id": asec_id}).fetchone()
             return self.parse(row)
 
-    def autocomplete(self, query: str):
+    def autocomplete(self, query: str, by_max_rank: bool = False, car_class: str = ""):
         with connect() as conn:
             sql = "SELECT * FROM cars"
+            conditions = []
             params = {}
 
             if query:
-                sql += " WHERE name LIKE :query"
-                params = {"query": f"%{query}%"}
+                conditions.append("name LIKE :query")
+                params["query"] = f"%{query}%"
 
-            rows = conn.execute(sql + " ORDER BY favorite DESC, `rank` DESC, name LIMIT 100", params).fetchall()
+            if car_class:
+                conditions.append("car_class = :car_class")
+                params["car_class"] = car_class
+
+            if conditions:
+                sql += " WHERE " + " AND ".join(conditions)
+
+            if by_max_rank:
+                sql += " ORDER BY max_rank DESC, name LIMIT 100"
+            else:
+                sql += (" ORDER BY favorite DESC,"
+                        " CASE WHEN `rank` > 0 THEN `rank` ELSE max_rank END DESC,"
+                        " name LIMIT 100")
+            rows = conn.execute(sql, params).fetchall()
             return [self.parse(row) for row in rows]
 
     def update(self, item: Car, update_empty_rank):
@@ -94,8 +108,8 @@ class CarsService:
     def __init__(self, repo: CarsRepository):
         self.repo = repo
 
-    def autocomplete(self, query: str = ""):
-        return self.repo.autocomplete(query.strip())
+    def autocomplete(self, query: str = "", by_max_rank: bool = False, car_class: str = ""):
+        return self.repo.autocomplete(query.strip(), by_max_rank, car_class)
 
     def get_by_ids(self, ids: set[int]) -> dict[int, Car]:
         if not ids:
