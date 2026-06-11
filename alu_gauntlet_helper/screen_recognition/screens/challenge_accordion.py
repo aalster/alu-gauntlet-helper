@@ -1,6 +1,3 @@
-import re
-
-import cv2
 import numpy as np
 
 from alu_gauntlet_helper.models import RaceCapture
@@ -11,18 +8,9 @@ from alu_gauntlet_helper.screen_recognition.regions import (
     AFTER_PLAYER_CAR, AFTER_PLAYER_RANK, AFTER_PLAYER_TIME, AFTER_TRACK_NAME,
     BEFORE_TRACK_NAME,
 )
-from alu_gauntlet_helper.screen_recognition.screens.base import ScreenExtractor
-
-RACE_HEADER_RE = re.compile(r"RACE\s*([1-5])")
-
-# Скан невеликих вертикальних зсувів — стійкість до інших співвідношень сторін
-# і відмінностей лейауту між пристроями.
-HEADER_DY_OFFSETS = [0.0, -0.03, 0.03]
-
-
-def encode_png(img: np.ndarray) -> bytes | None:
-    ok, buffer = cv2.imencode(".png", img)
-    return buffer.tobytes() if ok else None
+from alu_gauntlet_helper.screen_recognition.screens.base import (
+    HEADER_DY_OFFSETS, RACE_HEADER_RE, ScreenExtractor, encode_png,
+)
 
 
 class ChallengeAccordionExtractor(ScreenExtractor):

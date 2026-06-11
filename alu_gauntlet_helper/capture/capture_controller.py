@@ -10,6 +10,7 @@ from alu_gauntlet_helper.screen_recognition import ocr
 from alu_gauntlet_helper.screen_recognition.engine import RecognitionEngine
 from alu_gauntlet_helper.screen_recognition.matching import TrackResolver, build_car_matcher
 from alu_gauntlet_helper.screen_recognition.screens.challenge_accordion import ChallengeAccordionExtractor
+from alu_gauntlet_helper.screen_recognition.screens.race_result import RaceResultExtractor
 from alu_gauntlet_helper.views.overlay import OverlayWindow, build_overlay_lines
 
 OVERLAY_HIDE_DELAY_MS = 80
@@ -94,7 +95,12 @@ class CaptureController(QObject):
         # словники будуються на кожне захоплення — завжди свіжі дані з БД
         track_resolver = TrackResolver(APP_CONTEXT.tracks_service.get_all_views())
         car_matcher = build_car_matcher(APP_CONTEXT.cars_service.get_all())
-        return RecognitionEngine([ChallengeAccordionExtractor(track_resolver, car_matcher)])
+        # race_result першим: його перевірка-якір дешевша (1-3 OCR-виклики
+        # проти 15 сканів панелей у акордеона на чужому екрані)
+        return RecognitionEngine([
+            RaceResultExtractor(car_matcher),
+            ChallengeAccordionExtractor(track_resolver, car_matcher),
+        ])
 
     def _on_recognized(self, result):
         self._busy = False
