@@ -62,19 +62,7 @@ class CarSuggestionWidget(ListItemWidget):
         self.race_count_button = QPushButton(f"{item.race_count} races")
         self.race_count_button.setStyleSheet("""
             QPushButton {
-                font-size: 11px;
                 padding: 2px 8px;
-                background-color: #3d3d5c;
-                border: 1px solid #5a5a8a;
-                border-radius: 3px;
-                color: #ccc;
-            }
-            QPushButton:hover {
-                background-color: #4a4a6a;
-                border-color: #7a7aaa;
-            }
-            QPushButton:pressed {
-                background-color: #2d2d4c;
             }
         """)
         self.race_count_button.setCursor(Qt.CursorShape.PointingHandCursor)
