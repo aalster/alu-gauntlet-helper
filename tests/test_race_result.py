@@ -51,10 +51,12 @@ def test_race_result_player_data():
 
 @pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
 @pytest.mark.parametrize("fixture", [
-    "accordion_before_1.png", "accordion_after_4.png", "accordion_race1.png"])
-def test_accordion_screens_do_not_trigger(fixture):
-    """Екрани акордеона не мають хибно розпізнаватись як результат гонки:
-    у регіоні заголовка race_result там читається сміття без "RACE N"."""
+    "accordion_before_1.png", "accordion_after_4.png", "accordion_race1.png",
+    "challenge_complete_won.png"])
+def test_other_screens_do_not_trigger(fixture):
+    """Екрани акордеона і підсумку челенджа не мають хибно розпізнаватись як
+    результат гонки: у регіоні заголовка race_result там читається сміття
+    без "RACE N" (на підсумку — "CHALLENGE WON" без номера)."""
     if not (FIXTURES / fixture).exists():
         pytest.skip("немає фікстури")
     img = cv2.imread(str(FIXTURES / fixture))
