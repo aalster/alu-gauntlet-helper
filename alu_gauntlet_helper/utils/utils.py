@@ -3,9 +3,11 @@ import sys
 import uuid
 from datetime import datetime, timezone
 
+import math
+
 from PyQt6 import QtCore
-from PyQt6.QtCore import QIODeviceBase, Qt, QPointF
-from PyQt6.QtGui import QIcon, QPainter, QColor, QImage, QPixmap
+from PyQt6.QtCore import QIODeviceBase, Qt, QPointF, QSize
+from PyQt6.QtGui import QIcon, QPainter, QColor, QImage, QPixmap, QImageReader
 
 
 def get_resource_path(relative_path: str) -> str:
@@ -112,6 +114,29 @@ def create_badged_icon(base_icon: QIcon, radius = 24, color = QColor(255, 50, 50
     painter.end()
 
     return QIcon(pixmap)
+
+_pixmap_cache: dict[tuple[str, int, int], QPixmap] = {}
+
+def load_pixmap_cover(path: str, w: int, h: int) -> QPixmap | None:
+    """Load an image scaled and center-cropped to w*h, cached by (path, w, h)."""
+    key = (path, w, h)
+    cached = _pixmap_cache.get(key)
+    if cached is not None:
+        return cached
+
+    reader = QImageReader(path)
+    size = reader.size()
+    if size.isValid() and size.width() > 0 and size.height() > 0:
+        ratio = max(w / size.width(), h / size.height())
+        reader.setScaledSize(QSize(math.ceil(size.width() * ratio), math.ceil(size.height() * ratio)))
+    img = reader.read()
+    if img.isNull():
+        return None
+
+    pixmap = pixmap_cover(QPixmap.fromImage(img), w, h)
+    _pixmap_cache[key] = pixmap
+    return pixmap
+
 
 def pixmap_cover(img: QPixmap, w: int, h: int) -> QPixmap:
     iw, ih = img.width(), img.height()

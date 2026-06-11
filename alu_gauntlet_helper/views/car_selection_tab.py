@@ -1,13 +1,12 @@
-import os
 from typing import Callable
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QFont
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QListWidget, QHBoxLayout, QLabel, QListWidgetItem, QScrollArea, QFrame, QPushButton, QDialog
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import CarSuggestion, Race
-from alu_gauntlet_helper.utils.utils import format_time, pixmap_cover
+from alu_gauntlet_helper.utils.utils import format_time, load_pixmap_cover
 from alu_gauntlet_helper.views.components.common import ListItemWidget
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -40,15 +39,17 @@ class CarSuggestionWidget(ListItemWidget):
         self.track_id = track_id
 
         self.car_icon = QLabel()
-        self.car_icon.setFixedSize(48, 48)
+        self.car_icon.setFixedSize(96, 48)
         self.car_icon.setStyleSheet("""
             border: 1px solid #aaa;
             background-color: #271A62;
         """)
         self.car_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        if item.car_icon and os.path.exists(item.car_icon):
-            self.car_icon.setPixmap(pixmap_cover(QPixmap(item.car_icon), w=self.car_icon.width(), h=self.car_icon.height()))
+        if item.car_icon:
+            pixmap = load_pixmap_cover(item.car_icon, w=self.car_icon.width(), h=self.car_icon.height())
+            if pixmap:
+                self.car_icon.setPixmap(pixmap)
 
         self.brand_label = QLabel(item.car_brand)
         self.brand_label.setStyleSheet("color: #888; font-size: 11px;")
@@ -58,6 +59,8 @@ class CarSuggestionWidget(ListItemWidget):
         self.car_label.setWordWrap(True)
 
         rank_parts = []
+        if item.car_favorite:
+            rank_parts.append("♥")
         if item.car_class:
             rank_parts.append(f"Class {item.car_class}")
         if item.car_rank:

@@ -19,6 +19,7 @@ class Car(BaseModel):
     car_class: str = ""
     rank: int = 0
     max_rank: int = 0
+    favorite: bool = False
     icon: str = ""
 
 # Names from the old hardcoded seed list that differ from asec.tools naming,
@@ -38,8 +39,8 @@ class CarsRepository:
     def add(self, item: Car) -> int:
         with connect() as conn:
             return conn.execute(
-                "INSERT INTO cars(asec_id, name, brand, model, car_class, `rank`, max_rank, icon)"
-                " VALUES (:asec_id, :name, :brand, :model, :car_class, :rank, :max_rank, :icon)",
+                "INSERT INTO cars(asec_id, name, brand, model, car_class, `rank`, max_rank, favorite, icon)"
+                " VALUES (:asec_id, :name, :brand, :model, :car_class, :rank, :max_rank, :favorite, :icon)",
                 item.model_dump()).lastrowid
 
 
@@ -62,15 +63,19 @@ class CarsRepository:
                 sql += " WHERE name LIKE :query"
                 params = {"query": f"%{query}%"}
 
-            rows = conn.execute(sql + " ORDER BY `rank` DESC, name LIMIT 100", params).fetchall()
+            rows = conn.execute(sql + " ORDER BY favorite DESC, `rank` DESC, name LIMIT 100", params).fetchall()
             return [self.parse(row) for row in rows]
 
     def update(self, item: Car, update_empty_rank):
         with connect() as conn:
             rank_update = ", `rank` = :rank" if update_empty_rank or item.rank > 0 else ""
             conn.execute(f"UPDATE cars SET asec_id = :asec_id, name = :name, brand = :brand, model = :model,"
-                         f" car_class = :car_class, max_rank = :max_rank, icon = :icon {rank_update}"
+                         f" car_class = :car_class, max_rank = :max_rank, favorite = :favorite, icon = :icon {rank_update}"
                          f" WHERE id = :id", item.model_dump())
+
+    def toggle_favorite(self, car_id: int):
+        with connect() as conn:
+            conn.execute("UPDATE cars SET favorite = 1 - favorite WHERE id = :id", {"id": car_id})
 
     def update_rank(self, car_id: int, rank: int):
         with connect() as conn:
@@ -118,6 +123,9 @@ class CarsService:
 
     def update_rank(self, car_id: int, rank: int):
         self.repo.update_rank(car_id, rank)
+
+    def toggle_favorite(self, car_id: int):
+        self.repo.toggle_favorite(car_id)
 
     def sync_from_asec(self, entries: list[dict]):
         """Upsert cars from asec.tools carsList entries, matching by asec_id, then by name."""

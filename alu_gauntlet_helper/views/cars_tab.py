@@ -3,13 +3,13 @@ import os
 from typing import Callable
 
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtGui import QIntValidator, QPixmap, QImage, QFont
+from PyQt6.QtGui import QIntValidator, QImage, QFont
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
     QLabel, QFormLayout
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.cars import Car
-from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_CARS, pixmap_cover
+from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_CARS, load_pixmap_cover
 from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, vbox
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
@@ -54,22 +54,25 @@ class CarDialog(EditDialog):
 
         return Car(id=self.item.id, asec_id=self.item.asec_id, name=f"{brand} {model}".strip(),
                    brand=brand, model=model, car_class=self.item.car_class,
-                   rank=rank, max_rank=self.item.max_rank, icon=icon_path)
+                   rank=rank, max_rank=self.item.max_rank, favorite=self.item.favorite, icon=icon_path)
 
 
 class CarListWidget(ListItemWidget):
-    def __init__(self, item: Car, parent=None):
+    def __init__(self, item: Car, on_favorite: Callable[[int], None] | None = None, parent=None):
         super().__init__(item, parent)
+        self.on_favorite = on_favorite
         self.car_icon = QLabel()
-        self.car_icon.setFixedSize(64, 64)
+        self.car_icon.setFixedSize(128, 64)
         self.car_icon.setStyleSheet("""
             border: 1px solid #aaa;
             background-color: #271A62;
         """)
         self.car_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        if item.icon and os.path.exists(item.icon):
-            self.car_icon.setPixmap(pixmap_cover(QPixmap(item.icon), w=self.car_icon.width(), h=self.car_icon.height()))
+        if item.icon:
+            pixmap = load_pixmap_cover(item.icon, w=self.car_icon.width(), h=self.car_icon.height())
+            if pixmap:
+                self.car_icon.setPixmap(pixmap)
 
         self.brand_label = QLabel(item.brand)
         self.brand_label.setStyleSheet("color: #888;")
@@ -93,13 +96,31 @@ class CarListWidget(ListItemWidget):
         self.rank_label.setStyleSheet("color: #888;")
         self.rank_label.setAlignment(Qt.AlignmentFlag.AlignRight)
 
+        self.fav_button = QPushButton()
+        self.fav_button.setFlat(True)
+        self.fav_button.setFixedSize(32, 32)
+        self.fav_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.fav_button.clicked.connect(self.toggle_favorite) # type: ignore
+        self.update_fav_button()
+
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(2, 2, 2, 2)
         self.layout.setSpacing(8)
         self.layout.addWidget(self.car_icon)
         self.layout.addLayout(vbox([self.brand_label, self.model_label], spacing=0), stretch=1)
         self.layout.addLayout(vbox([self.class_label, self.rank_label], spacing=0))
+        self.layout.addWidget(self.fav_button, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.setLayout(self.layout)
+
+    def update_fav_button(self):
+        favorite = self.item.favorite
+        self.fav_button.setText("♥" if favorite else "♡")
+        color = "#e0245e" if favorite else "#888"
+        self.fav_button.setStyleSheet(f"QPushButton {{ color: {color}; font-size: 18px; border: none; }}")
+
+    def toggle_favorite(self):
+        if self.on_favorite:
+            self.on_favorite(self.item.id)
 
 
 class CarsTab(QWidget):
@@ -138,7 +159,11 @@ class CarsTab(QWidget):
     def refresh(self):
         self.list_widget.clear()
         for i in APP_CONTEXT.cars_service.autocomplete(self.query.text()):
-            CarListWidget(i).add_to_list(self.list_widget)
+            CarListWidget(i, on_favorite=self.on_favorite).add_to_list(self.list_widget)
+
+    def on_favorite(self, car_id: int):
+        APP_CONTEXT.cars_service.toggle_favorite(car_id)
+        self.refresh()
 
     def on_add(self):
         if CarDialog(item=Car(name=self.query.text().strip()), action=APP_CONTEXT.cars_service.save, parent=self).exec():

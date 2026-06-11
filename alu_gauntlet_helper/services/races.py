@@ -36,6 +36,7 @@ class CarSuggestion(BaseModel):
     car_model: str = ""
     car_class: str = ""
     car_rank: int = 0
+    car_favorite: bool = False
     car_icon: str = ""
     avg_time: int = 0
     race_count: int = 0
@@ -92,10 +93,11 @@ class RacesRepository:
             last_10_races AS (
                 SELECT car_id, time FROM ranked_races WHERE rn <= 10
             )
-            SELECT car_id, AVG(time) as avg_time, COUNT(*) as race_count
-            FROM last_10_races
-            GROUP BY car_id
-            ORDER BY avg_time ASC
+            SELECT lr.car_id, AVG(lr.time) as avg_time, COUNT(*) as race_count
+            FROM last_10_races lr
+            LEFT JOIN cars c ON c.id = lr.car_id
+            GROUP BY lr.car_id
+            ORDER BY c.favorite DESC, avg_time ASC
             """
             rows = conn.execute(sql, {"track_id": track_id}).fetchall()
             return [dict(row) for row in rows]
@@ -166,6 +168,7 @@ class RacesService:
                 car_model=car.model if car else "",
                 car_class=car.car_class if car else "",
                 car_rank=car.rank if car else 0,
+                car_favorite=car.favorite if car else False,
                 car_icon=car.icon if car else "",
                 avg_time=int(s["avg_time"]),
                 race_count=s["race_count"]
