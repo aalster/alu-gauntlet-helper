@@ -3,7 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, field_validator
 
 from alu_gauntlet_helper.database import connect
-from alu_gauntlet_helper.services.cars import CarsService, Car
+from alu_gauntlet_helper.services.cars import CarsService
 from alu_gauntlet_helper.services.tracks import TracksService, TrackView
 from alu_gauntlet_helper.utils.utils import parse_utc_datetime
 
@@ -32,6 +32,9 @@ class RaceView(Race):
 class CarSuggestion(BaseModel):
     car_id: int = 0
     car_name: str = ""
+    car_brand: str = ""
+    car_model: str = ""
+    car_class: str = ""
     car_rank: int = 0
     car_icon: str = ""
     avg_time: int = 0
@@ -136,9 +139,9 @@ class RacesService:
         if item.track_id <= 0:
             item.track_id = self.tracks.save(TrackView(name=item.track_name, map_name=item.map_name))
         if item.car_id <= 0:
-            item.car_id = self.cars.save(Car(name=item.car_name, rank=item.rank), False)
+            item.car_id = self.cars.get_or_create(item.car_name, item.rank)
         elif item.rank > 0:
-            self.cars.save(Car(id=item.car_id, name=item.car_name, rank=item.rank), False)
+            self.cars.update_rank(item.car_id, item.rank)
 
         if item.id <= 0:
             self.repo.add(item)
@@ -159,6 +162,9 @@ class RacesService:
             result.append(CarSuggestion(
                 car_id=s["car_id"],
                 car_name=car.name if car else "Unknown Car",
+                car_brand=car.brand if car else "",
+                car_model=car.model if car else "",
+                car_class=car.car_class if car else "",
                 car_rank=car.rank if car else 0,
                 car_icon=car.icon if car else "",
                 avg_time=int(s["avg_time"]),

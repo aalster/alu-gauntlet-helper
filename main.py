@@ -3,6 +3,7 @@ import sys
 from PyQt6.QtWidgets import QApplication
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.services.cars_sync import update_cars_if_needed
 from alu_gauntlet_helper.services.initial_data import init_data
 from alu_gauntlet_helper.utils.single_instance_lock import single_instance_lock
 from alu_gauntlet_helper.views.main_window import MainWindow
@@ -31,6 +32,8 @@ def main():
         init_data()
         settings.initial_data_loaded = True
         APP_CONTEXT.settings.save(settings)
+
+    update_cars_if_needed()
 
     app = QApplication(sys.argv)
     app.setStyle("Fusion")

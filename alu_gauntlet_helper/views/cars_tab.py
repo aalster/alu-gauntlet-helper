@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLin
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.cars import Car
 from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_CARS, pixmap_cover
-from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget
+from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, vbox
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -19,7 +19,8 @@ from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLi
 class CarDialog(EditDialog):
     def __init__(self, item: Car, action: Callable[[Car], int], parent=None):
         self.item = item
-        self.name_edit = ValidatedLineEdit(item.name)
+        self.brand_edit = ValidatedLineEdit(item.brand)
+        self.model_edit = ValidatedLineEdit(item.model or item.name)
         self.rank_edit = ValidatedLineEdit(str(item.rank) if item.rank else "")
         self.rank_edit.get_input().setValidator(QIntValidator(0, 10000))
         icon = QImage(item.icon) if item.icon and os.path.exists(item.icon) else None
@@ -30,26 +31,30 @@ class CarDialog(EditDialog):
 
     def prepare_layout(self):
         form_layout = QFormLayout()
-        form_layout.addRow("Name:", self.name_edit)
+        form_layout.addRow("Brand:", self.brand_edit)
+        form_layout.addRow("Model:", self.model_edit)
         form_layout.addRow("Rank:", self.rank_edit)
         form_layout.addRow("Icon:", self.icon_edit)
 
         return form_layout
 
     def prepare_item(self):
-        name = self.name_edit.text()
+        brand = self.brand_edit.text().strip()
+        model = self.model_edit.text().strip()
         rank = int(self.rank_edit.text()) if self.rank_edit.text() else 0
         icon = self.icon_edit.get_image()
         icon_path = ""
 
-        if not name:
-            self.name_edit.set_error()
+        if not model:
+            self.model_edit.set_error()
             return None
 
         if icon:
             icon_path = save_data_image(DATA_PATH_CARS, icon)
 
-        return Car(id=self.item.id, name=name, rank=rank, icon=icon_path)
+        return Car(id=self.item.id, asec_id=self.item.asec_id, name=f"{brand} {model}".strip(),
+                   brand=brand, model=model, car_class=self.item.car_class,
+                   rank=rank, max_rank=self.item.max_rank, icon=icon_path)
 
 
 class CarListWidget(ListItemWidget):
@@ -66,22 +71,34 @@ class CarListWidget(ListItemWidget):
         if item.icon and os.path.exists(item.icon):
             self.car_icon.setPixmap(pixmap_cover(QPixmap(item.icon), w=self.car_icon.width(), h=self.car_icon.height()))
 
-        self.car_label = QLabel(item.name)
+        self.brand_label = QLabel(item.brand)
+        self.brand_label.setStyleSheet("color: #888;")
+
+        self.model_label = QLabel(item.model or item.name)
         name_font = QFont()
         name_font.setPointSize(self.font().pointSize() + 4)
-        self.car_label.setFont(name_font)
+        self.model_label.setFont(name_font)
 
-        self.rank_label = QLabel(f"Rank: {item.rank}" if item.rank else "")
+        self.class_label = QLabel(f"Class {item.car_class}" if item.car_class else "")
+        self.class_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        rank_text = ""
+        if item.rank and item.max_rank:
+            rank_text = f"Rank: {item.rank} / {item.max_rank}"
+        elif item.rank:
+            rank_text = f"Rank: {item.rank}"
+        elif item.max_rank:
+            rank_text = f"Max rank: {item.max_rank}"
+        self.rank_label = QLabel(rank_text)
         self.rank_label.setStyleSheet("color: #888;")
-        self.rank_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.rank_label.setAlignment(Qt.AlignmentFlag.AlignRight)
 
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(2, 2, 2, 2)
         self.layout.setSpacing(8)
         self.layout.addWidget(self.car_icon)
-        self.layout.addWidget(self.car_label, alignment=Qt.AlignmentFlag.AlignVCenter)
-        self.layout.addStretch(1)
-        self.layout.addWidget(self.rank_label, alignment=Qt.AlignmentFlag.AlignVCenter)
+        self.layout.addLayout(vbox([self.brand_label, self.model_label], spacing=0), stretch=1)
+        self.layout.addLayout(vbox([self.class_label, self.rank_label], spacing=0))
         self.setLayout(self.layout)
 
 

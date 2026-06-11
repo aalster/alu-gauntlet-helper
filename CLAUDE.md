@@ -39,7 +39,8 @@ alu_gauntlet_helper/
 │   ├── cars.py              # Car, CarsRepository, CarsService
 │   ├── races.py             # Race, RaceView, RacesRepository, RacesService
 │   ├── settings.py          # Settings persistence
-│   └── initial_data.py      # Seed data (maps, cars, tracks)
+│   ├── cars_sync.py         # Cars sync from asec.tools (bundled JSON seed + daily remote refresh)
+│   └── initial_data.py      # Seed data (maps, tracks; cars come from cars_sync)
 ├── views/                   # PyQt6 UI
 │   ├── main_window.py       # Main window with 6 tabs + tray icon
 │   ├── recognize_races_tab.py
@@ -57,6 +58,8 @@ alu_gauntlet_helper/
 
 resources/
 ├── migrations/              # SQL migrations (001__init.sql, etc.)
+├── data/cars.json           # Bundled snapshot of asec.tools carsList (seed for first start)
+├── icons/cars/              # Car icons from img.asec.tools, named {asec_id}.webp
 └── icons/maps/              # Map icon images
 ```
 

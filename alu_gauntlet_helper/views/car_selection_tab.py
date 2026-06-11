@@ -50,10 +50,19 @@ class CarSuggestionWidget(ListItemWidget):
         if item.car_icon and os.path.exists(item.car_icon):
             self.car_icon.setPixmap(pixmap_cover(QPixmap(item.car_icon), w=self.car_icon.width(), h=self.car_icon.height()))
 
-        self.car_label = QLabel(item.car_name)
+        self.brand_label = QLabel(item.car_brand)
+        self.brand_label.setStyleSheet("color: #888; font-size: 11px;")
+        self.brand_label.setVisible(bool(item.car_brand))
+
+        self.car_label = QLabel(item.car_model or item.car_name)
         self.car_label.setWordWrap(True)
 
-        self.rank_label = QLabel(f"Rank: {item.car_rank}" if item.car_rank else "")
+        rank_parts = []
+        if item.car_class:
+            rank_parts.append(f"Class {item.car_class}")
+        if item.car_rank:
+            rank_parts.append(f"Rank: {item.car_rank}")
+        self.rank_label = QLabel(" · ".join(rank_parts))
         self.rank_label.setStyleSheet("color: #888; font-size: 12px;")
 
         self.time_label = QLabel(format_time(item.avg_time))
@@ -71,6 +80,7 @@ class CarSuggestionWidget(ListItemWidget):
         left_layout = QVBoxLayout()
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(0)
+        left_layout.addWidget(self.brand_label)
         left_layout.addWidget(self.car_label)
         left_layout.addWidget(self.rank_label)
 
@@ -93,6 +103,7 @@ class CarSuggestionWidget(ListItemWidget):
         RaceHistoryDialog(self.car_name, races, self).exec()
 
     def set_dimmed(self, dimmed: bool):
+        self.brand_label.setEnabled(not dimmed)
         self.car_label.setEnabled(not dimmed)
         self.time_label.setEnabled(not dimmed)
         self.car_icon.setEnabled(not dimmed)
