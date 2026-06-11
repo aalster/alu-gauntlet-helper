@@ -36,6 +36,9 @@ def main():
 
     update_cars_if_needed()
 
+    from alu_gauntlet_helper.screen_recognition.ocr import configure_tesseract
+    configure_tesseract(settings.tesseract_path)
+
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     apply_style(app)

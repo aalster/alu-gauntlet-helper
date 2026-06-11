@@ -103,6 +103,11 @@ class CarsRepository:
             rows = conn.execute(f"SELECT * FROM cars WHERE id IN ({placeholders})", tuple(ids)).fetchall()
             return [self.parse(row) for row in rows]
 
+    def get_all(self) -> list[Car]:
+        with connect() as conn:
+            rows = conn.execute("SELECT * FROM cars ORDER BY id").fetchall()
+            return [self.parse(row) for row in rows]
+
 
 class CarsService:
     def __init__(self, repo: CarsRepository):
@@ -116,6 +121,10 @@ class CarsService:
             return dict()
         items = self.repo.get_by_ids(list(ids))
         return {i.id: i for i in items}
+
+    def get_all(self) -> list[Car]:
+        """Усі авто — словник для розпізнавання."""
+        return self.repo.get_all()
 
     def save(self, item: Car, update_empty_rank = True) -> int:
         if item.id <= 0:

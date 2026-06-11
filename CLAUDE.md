@@ -32,7 +32,7 @@ main.py                      # Entry point: init DB → load settings → init_d
 alu_gauntlet_helper/
 ├── app_context.py           # Singleton service container (AppContext)
 ├── database.py              # SQLite connection + migration runner
-├── models.py                # Pydantic models (PageResult, RaceAddModel)
+├── models.py                # Pydantic models (PageResult, FieldGuess, RaceCapture, RecognitionResult)
 ├── services/                # Repository + Service pattern
 │   ├── maps.py              # Map, MapsRepository, MapsService
 │   ├── tracks.py            # Track, TrackView, TracksRepository, TracksService
@@ -43,15 +43,18 @@ alu_gauntlet_helper/
 │   └── initial_data.py      # Seed data (maps, tracks; cars come from cars_sync)
 ├── views/                   # PyQt6 UI
 │   ├── style.py             # ALU game theme: palette constants + global QSS, applied in main.py
-│   ├── main_window.py       # Main window with 5 tabs + tray icon
-│   ├── recognize_races_tab.py
+│   ├── main_window.py       # Main window with tabs + tray icon + CaptureController
+│   ├── capture_tab.py       # Capture session state + review/discard
+│   ├── capture_review_dialog.py  # Review captured races before saving
+│   ├── car_selection_tab.py # Manual car-vs-track picker (per-track car suggestions)
 │   ├── races_tab.py
 │   ├── tracks_tab.py        # Two panels: maps (left) + tracks (right)
 │   ├── cars_tab.py
 │   ├── settings_tab.py
+│   ├── overlay.py           # On-screen capture overlay
 │   └── components/          # Reusable widgets (EditDialog, ValidatedLineEdit, etc.)
-├── screen_recognition/
-│   └── recognition.py       # CV pipeline: edge detection → contours → OCR → parse
+├── capture/                 # Hotkeys, screen grab (mss), CaptureController
+├── screen_recognition/      # OCR (Tesseract), regions, matching, RecognitionEngine, screens/
 └── utils/
     ├── utils.py             # Helpers (time formatting, image processing, resource paths)
     └── single_instance_lock.py

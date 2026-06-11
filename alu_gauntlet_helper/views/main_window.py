@@ -5,11 +5,12 @@ from PyQt6.QtGui import QIcon, QAction, QDesktopServices
 from PyQt6.QtWidgets import QTabWidget, QMainWindow, QSystemTrayIcon, QMenu, QApplication, QStyle
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.capture.capture_controller import CaptureController
 from alu_gauntlet_helper.utils.utils import get_resource_path, create_badged_icon
+from alu_gauntlet_helper.views.capture_tab import CaptureTab
 from alu_gauntlet_helper.views.car_selection_tab import CarSelectionTab
 from alu_gauntlet_helper.views.cars_tab import CarsTab
 from alu_gauntlet_helper.views.races_tab import RacesTab
-from alu_gauntlet_helper.views.recognize_races_tab import RecognizeRacesTab
 from alu_gauntlet_helper.views.settings_tab import SettingsTab
 from alu_gauntlet_helper.views.tracks_tab import TracksTab
 
@@ -25,17 +26,25 @@ class MainWindow(QMainWindow):
         self.restore_window_state()
         self.refresh_tray_icon(APP_CONTEXT.settings.get().show_tray_icon)
 
-        # self.recognize_races_tab = RecognizeRacesTab()
+        self.capture_controller = CaptureController(self)
+        hotkey_ok = self.capture_controller.apply_settings()
+        if not hotkey_ok:
+            print("Failed to register capture hotkey")
+        # не в closeEvent: closeEvent спрацьовує і при згортанні в трей
+        QApplication.instance().aboutToQuit.connect(self.capture_controller.shutdown)
+
+        self.capture_tab = CaptureTab()
         self.car_selection_tab = CarSelectionTab()
         self.races_tab = RacesTab()
         self.tracks_tab = TracksTab()
         self.cars_tab = CarsTab()
-        self.settings_tab = SettingsTab(refresh_tray_icon=self.refresh_tray_icon)
+        self.settings_tab = SettingsTab(refresh_tray_icon=self.refresh_tray_icon,
+                                        apply_capture_settings=self.capture_controller.apply_settings)
 
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
         self.tabs.currentChanged.connect(self.tab_selected) # type: ignore
-        # self.tabs.addTab(self.recognize_races_tab, "RECOGNIZE RACES")
+        self.tabs.addTab(self.capture_tab, "CAPTURE")
         self.tabs.addTab(self.car_selection_tab, "CAR SELECTION")
         self.tabs.addTab(self.races_tab, "RACES")
         self.tabs.addTab(self.cars_tab, "CARS")

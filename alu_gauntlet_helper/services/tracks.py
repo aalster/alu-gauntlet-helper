@@ -36,6 +36,11 @@ class TracksRepository:
             rows = conn.execute(f"SELECT * FROM tracks WHERE id IN ({placeholders})", tuple(ids)).fetchall()
             return [self.parse(row) for row in rows]
 
+    def get_all(self) -> list[Track]:
+        with connect() as conn:
+            rows = conn.execute("SELECT * FROM tracks ORDER BY id").fetchall()
+            return [self.parse(row) for row in rows]
+
     def autocomplete(self, query: str, map_id: int | None = None):
         with (connect() as conn):
             sql = "SELECT t.* FROM tracks t LEFT JOIN maps m ON t.map_id = m.id"
@@ -83,6 +88,10 @@ class TracksService:
             return dict()
         items = self.to_views(self.repo.get_by_ids(list(ids)))
         return {i.id: i for i in items}
+
+    def get_all_views(self) -> list[TrackView]:
+        """Усі треки як TrackView (з map_name) — словник для розпізнавання."""
+        return self.to_views(self.repo.get_all())
 
     def autocomplete(self, query: str, map_id: int | None = None) -> list[TrackView]:
         return self.to_views(self.repo.autocomplete(query.strip(), map_id))

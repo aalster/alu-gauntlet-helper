@@ -12,6 +12,13 @@ class Settings(BaseModel):
     close_to_tray: bool = False
     start_minimized: bool = False
 
+    capture_hotkey: str = "f8"
+    overlay_hotkey: str = "f9"
+    tesseract_path: str = ""
+    capture_monitor: int = 1
+    save_captures: bool = False
+
+
 class SettingsRepository:
 
     def save(self, key: str, value: str):
@@ -26,10 +33,10 @@ class SettingsRepository:
 
 
 class SettingsService:
-    cache = None
 
     def __init__(self, repo: SettingsRepository):
         self.repo = repo
+        self.cache: Settings | None = None
 
     def save(self, settings: Settings):
         for key, value1 in self.get().model_dump().items():
