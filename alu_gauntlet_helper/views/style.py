@@ -81,6 +81,26 @@ QTabBar::tab:selected {{
     border-bottom: 3px solid {YELLOW};
 }}
 
+/* QListView (попапи автокомпліту) — перед QListWidget: у Qt QSS type-селектори
+   рівні за специфічністю, виграє останнє правило, тож QListWidget нижче має пріоритет */
+QListView {{
+    background-color: {INPUT_BG};
+    border: 1px solid {CYAN};
+    border-radius: 4px;
+    color: {TEXT};
+    outline: none;
+}}
+
+QListView::item {{
+    padding: 5px 8px;
+    border-radius: 3px;
+}}
+
+QListView::item:selected, QListView::item:hover {{
+    background-color: {CARD_SELECTED};
+    color: {TEXT};
+}}
+
 QListWidget {{
     background-color: rgba(5, 12, 40, 110);
     border: none;
@@ -103,24 +123,6 @@ QListWidget::item:hover {{
 QListWidget::item:selected {{
     background-color: {CARD_SELECTED};
     border: 1px solid {CYAN};
-}}
-
-QListView {{
-    background-color: {INPUT_BG};
-    border: 1px solid {CYAN};
-    border-radius: 4px;
-    color: {TEXT};
-    outline: none;
-}}
-
-QListView::item {{
-    padding: 5px 8px;
-    border-radius: 3px;
-}}
-
-QListView::item:selected, QListView::item:hover {{
-    background-color: {CARD_SELECTED};
-    color: {TEXT};
 }}
 
 QLineEdit, QTextEdit {{

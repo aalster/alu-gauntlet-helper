@@ -95,8 +95,11 @@ class RaceListWidget(ListItemWidget):
         super().__init__(race, parent)
         self.map_label = QLabel(race.map_name)
         self.map_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px;")
+        # лейбли розтягуються на висоту рядка, тому притискаємо тексти до центру
+        self.map_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
         self.track_label = QLabel(race.track_name)
         self.track_label.setStyleSheet("font-weight: bold;")
+        self.track_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         rank_color = ""
         if race.rank and race.car_rank:
             if race.car_rank > race.rank:
@@ -117,23 +120,24 @@ class RaceListWidget(ListItemWidget):
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.created_at_label = QLabel(format_relative_time(race.created_at))
         self.created_at_label.setStyleSheet(f"color: {style.TEXT_FAINT}; font-size: 12px;")
+        self.created_at_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.created_at_label.setToolTip(race.created_at.strftime("%d.%m.%Y %H:%M:%S"))
 
         self.bad_timing_label = QLabel()
         if race.bad_timing:
-            self.bad_timing_label.setPixmap(res_to_pixmap("icons/dislike.png", 18))
+            self.bad_timing_label.setPixmap(res_to_pixmap("icons/thumbs-down.svg", 18))
 
         self.info_label = QLabel()
         if race.note:
-            self.info_label.setPixmap(res_to_pixmap("icons/info.png", 18))
+            self.info_label.setPixmap(res_to_pixmap("icons/notepad-text.svg", 18))
             self.info_label.setToolTip(race.note)
 
         self.layout = QHBoxLayout(self)
         # half the default vertical padding to keep race rows compact
         margins = self.layout.contentsMargins()
         self.layout.setContentsMargins(margins.left(), margins.top() // 2, margins.right(), margins.bottom() // 2)
-        self.layout.addLayout(vbox([self.map_label, self.track_label], spacing=3), stretch=20)
-        self.layout.addWidget(self.car_info, stretch=24)
+        self.layout.addLayout(vbox([self.map_label, self.track_label], spacing=0), stretch=14)
+        self.layout.addWidget(self.car_info, stretch=30)
         self.layout.addWidget(self.time_label, stretch=10)
         self.layout.addLayout(hbox([self.bad_timing_label, self.info_label], spacing=0), stretch=8)
         self.layout.addWidget(self.created_at_label, stretch=10)

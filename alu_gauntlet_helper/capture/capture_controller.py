@@ -1,6 +1,8 @@
 import threading
 import traceback
 
+import cv2
+import numpy as np
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
@@ -67,14 +69,28 @@ class CaptureController(QObject):
         except Exception:
             traceback.print_exc()
             self._busy = False
-            self._set_status("Помилка скріншота")
+            self._set_status("Screenshot failed")
             return
 
         if settings.save_captures:
             save_capture(img)
 
         engine = self._build_engine()
-        self._set_status("Розпізнаю…")
+        self._set_status("Recognizing…")
+        threading.Thread(target=self._recognize_worker, args=(engine, img), daemon=True).start()
+
+    def recognize_file(self, path: str):
+        """Розпізнавання скріншота з файлу — той самий пайплайн, що й захоплення хоткеєм."""
+        if self._busy:
+            return
+        # cv2.imread мовчки падає на не-ASCII шляхах у Windows, тому imdecode
+        img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            self._set_status("Failed to load screenshot")
+            return
+        self._busy = True
+        engine = self._build_engine()
+        self._set_status("Recognizing…")
         threading.Thread(target=self._recognize_worker, args=(engine, img), daemon=True).start()
 
     def _recognize_worker(self, engine: RecognitionEngine, img):
@@ -108,7 +124,7 @@ class CaptureController(QObject):
     def _on_recognized(self, result):
         self._busy = False
         if result is None:
-            self._set_status("Екран не розпізнано")
+            self._set_status("Screen not recognized")
             return
         self._status = ""
         APP_CONTEXT.challenge_session.apply(result)  # listener оновить оверлей
@@ -129,7 +145,7 @@ class CaptureController(QObject):
 
         status = self._status
         if not status and session.is_complete():
-            status = "Готово — відкрий рев'ю у застосунку"
+            status = "Done — review in the app"
         self.overlay.set_lines(build_overlay_lines(effective, track_names, car_names, status))
         if not self.overlay.isVisible():
             self.overlay.show()

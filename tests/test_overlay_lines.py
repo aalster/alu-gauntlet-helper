@@ -3,10 +3,10 @@ from alu_gauntlet_helper.views.overlay import build_overlay_lines
 
 
 def test_empty_session():
-    lines = build_overlay_lines({}, {}, {}, status="чекаю")
+    lines = build_overlay_lines({}, {}, {}, status="waiting")
     assert lines[0] == "Gauntlet capture 0/5"
-    assert lines[1] == "1 — немає даних"
-    assert lines[-1] == "чекаю"
+    assert lines[1] == "1 — no data"
+    assert lines[-1] == "waiting"
 
 
 def test_complete_race_line():
@@ -19,7 +19,7 @@ def test_complete_race_line():
 def test_partial_race_marked():
     races = {2: EffectiveRace(time=21000)}
     lines = build_overlay_lines(races, {}, {})
-    assert lines[1] == "1 — немає даних"
+    assert lines[1] == "1 — no data"
     assert lines[2].startswith("2 ⚠")
     assert "00:21.000" in lines[2]
     assert "?" in lines[2]

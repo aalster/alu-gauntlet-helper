@@ -17,7 +17,7 @@ def build_overlay_lines(races: dict[int, EffectiveRace],
     for n in range(1, RACE_COUNT + 1):
         e = races.get(n)
         if e is None:
-            lines.append(f"{n} — немає даних")
+            lines.append(f"{n} — no data")
             continue
         track = track_names.get(e.track_id, "?") if e.track_id else "?"
         car = car_names.get(e.car_id, "?") if e.car_id else (e.car_name or "?")
