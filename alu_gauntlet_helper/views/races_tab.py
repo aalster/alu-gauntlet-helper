@@ -17,8 +17,9 @@ from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
 
 
 class RaceDialog(EditDialog):
-    def __init__(self, item: RaceView, action, parent=None):
+    def __init__(self, item: RaceView, action, parent=None, relaxed=False, title=""):
         self.item = item
+        self.relaxed = relaxed  # порожні трек/авто/час дозволені (capture-драфти)
 
         self.track_edit = ValidatedLineEdit(f"{item.map_name} - {item.track_name}" if item.track_name else "")
         self.car_edit = ValidatedLineEdit(item.car_name)
@@ -45,7 +46,7 @@ class RaceDialog(EditDialog):
         )
 
         super().__init__(action, parent)
-        self.setWindowTitle("Edit Race" if item.id else "Add Race")
+        self.setWindowTitle(title or ("Edit Race" if item.id else "Add Race"))
 
     def prepare_layout(self):
         form_layout = QFormLayout()
@@ -71,15 +72,15 @@ class RaceDialog(EditDialog):
         note = self.note_edit.toPlainText()
 
         error = False
-        if track_id <= 0:
+        if track_id <= 0 and not self.relaxed:
             self.track_edit.set_error()
             error = True
 
-        if not car_name:
+        if not car_name and not self.relaxed:
             self.car_edit.set_error()
             error = True
 
-        if not time:
+        if not time and not self.relaxed:
             self.time_edit.set_error()
             error = True
 

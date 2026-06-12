@@ -12,6 +12,7 @@ from alu_gauntlet_helper.screen_recognition.matching import TrackResolver, build
 from alu_gauntlet_helper.screen_recognition.screens.challenge_accordion import ChallengeAccordionExtractor
 from alu_gauntlet_helper.screen_recognition.screens.challenge_complete import ChallengeCompleteExtractor
 from alu_gauntlet_helper.screen_recognition.screens.race_result import RaceResultExtractor
+from alu_gauntlet_helper.services.challenge_session import RACE_COUNT
 from alu_gauntlet_helper.views.overlay import OverlayWindow, build_overlay_lines
 
 OVERLAY_HIDE_DELAY_MS = 80
@@ -120,14 +121,15 @@ class CaptureController(QObject):
 
     def _refresh_overlay(self):
         session = APP_CONTEXT.challenge_session
-        track_ids = {c.track.value for c in session.races.values() if c.track}
-        car_ids = {c.car.value for c in session.races.values() if c.car}
-        track_names = {t.id: t.name for t in APP_CONTEXT.tracks_service.get_by_ids(track_ids).values()}
+        effective = {n: e for n in range(1, RACE_COUNT + 1) if (e := session.effective(n)) is not None}
+        track_ids = {e.track_id for e in effective.values() if e.track_id}
+        car_ids = {e.car_id for e in effective.values() if e.car_id}
+        track_names = {t.id: f"{t.map_name} - {t.name}" for t in APP_CONTEXT.tracks_service.get_by_ids(track_ids).values()}
         car_names = {c.id: c.name for c in APP_CONTEXT.cars_service.get_by_ids(car_ids).values()}
 
         status = self._status
         if not status and session.is_complete():
             status = "Готово — відкрий рев'ю у застосунку"
-        self.overlay.set_lines(build_overlay_lines(session.races, track_names, car_names, status))
+        self.overlay.set_lines(build_overlay_lines(effective, track_names, car_names, status))
         if not self.overlay.isVisible():
             self.overlay.show()

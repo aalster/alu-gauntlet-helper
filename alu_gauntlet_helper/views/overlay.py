@@ -2,30 +2,27 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-from alu_gauntlet_helper.models import RaceCapture
+from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, EffectiveRace
 from alu_gauntlet_helper.utils.utils import format_time
 
-RACE_COUNT = 5
 MARGIN = 16
 
 
-def build_overlay_lines(races: dict[int, RaceCapture],
+def build_overlay_lines(races: dict[int, EffectiveRace],
                         track_names: dict[int, str],
                         car_names: dict[int, str],
                         status: str = "") -> list[str]:
-    complete = sum(
-        1 for c in races.values() if c.track and c.car and c.time
-    )
+    complete = sum(1 for e in races.values() if e.is_complete)
     lines = [f"Gauntlet capture {complete}/5"]
     for n in range(1, RACE_COUNT + 1):
-        capture = races.get(n)
-        if capture is None:
+        e = races.get(n)
+        if e is None:
             lines.append(f"{n} — немає даних")
             continue
-        track = track_names.get(capture.track.value, "?") if capture.track else "?"
-        car = car_names.get(capture.car.value, "?") if capture.car else "?"
-        time_str = format_time(capture.time) if capture.time else "?"
-        mark = "✓" if capture.track and capture.car and capture.time else "⚠"
+        track = track_names.get(e.track_id, "?") if e.track_id else "?"
+        car = car_names.get(e.car_id, "?") if e.car_id else (e.car_name or "?")
+        time_str = format_time(e.time) if e.time else "?"
+        mark = "✓" if e.is_complete else "⚠"
         lines.append(f"{n} {mark} {track} · {car} · {time_str}")
     if status:
         lines.append(status)

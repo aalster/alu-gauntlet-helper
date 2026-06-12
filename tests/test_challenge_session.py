@@ -1,5 +1,6 @@
 from alu_gauntlet_helper.models import FieldGuess, RaceCapture, RecognitionResult
-from alu_gauntlet_helper.services.challenge_session import ChallengeSessionService
+from alu_gauntlet_helper.services.challenge_session import ChallengeSessionService, EffectiveRace
+from alu_gauntlet_helper.services.races import RaceView
 
 
 def capture(n, track_score=None, car_score=None, rank=None, time=None):
@@ -75,3 +76,102 @@ def test_clear_and_listeners():
     s.clear()
     assert s.races == {}
     assert len(events) == 2  # apply + clear
+
+
+# --- drafts / effective -------------------------------------------------
+
+
+def draft(track_id=0, car_id=0, car_name="", rank=0, time=0, bad_timing=False, note=""):
+    return RaceView(track_id=track_id, car_id=car_id, car_name=car_name,
+                    rank=rank, time=time, bad_timing=bad_timing, note=note)
+
+
+def test_effective_none_without_data():
+    s = ChallengeSessionService()
+    assert s.effective(1) is None
+
+
+def test_effective_from_ocr_with_uncertainty_flags():
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, track_score=0.5, car_score=0.9, rank=3000, time=22797)))
+    e = s.effective(1)
+    assert e.track_id == 11 and e.track_uncertain is True
+    assert e.car_id == 21 and e.car_uncertain is False
+    assert e.rank == 3000 and e.time == 22797
+    assert e.bad_timing is False and e.note == ""
+
+
+def test_effective_draft_overrides_ocr():
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, track_score=0.5, car_score=0.5, time=22797)))
+    s.set_draft(1, draft(track_id=77, car_id=88, time=20000, bad_timing=True, note="crash"))
+    e = s.effective(1)
+    assert e.track_id == 77 and e.track_uncertain is False
+    assert e.car_id == 88 and e.car_uncertain is False
+    assert e.time == 20000
+    assert e.bad_timing is True and e.note == "crash"
+
+
+def test_effective_empty_draft_field_falls_back_to_ocr():
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, track_score=0.9, time=22797)))
+    s.set_draft(1, draft(car_id=88))  # трек і час у драфті порожні
+    e = s.effective(1)
+    assert e.track_id == 11  # просвічує OCR
+    assert e.time == 22797
+    assert e.car_id == 88
+
+
+def test_effective_custom_car_name_from_draft():
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, car_score=0.5)))
+    s.set_draft(1, draft(car_name="Custom Car"))
+    e = s.effective(1)
+    assert e.car_id == 0 and e.car_name == "Custom Car"
+    assert e.car_uncertain is False  # авто задане руками, OCR не використовується
+
+
+def test_effective_draft_without_capture():
+    s = ChallengeSessionService()
+    s.set_draft(3, draft(track_id=5, car_id=6, time=30000))
+    e = s.effective(3)
+    assert e.track_id == 5 and e.car_id == 6 and e.time == 30000
+    assert e.is_complete
+
+
+def test_effective_is_complete_property():
+    e1 = EffectiveRace(track_id=1, car_id=2, time=1000)
+    e2 = EffectiveRace(track_id=1, car_name="Custom", time=1000)
+    e3 = EffectiveRace(track_id=1, car_id=2)  # без часу
+    assert e1.is_complete and e2.is_complete and not e3.is_complete
+
+
+def test_set_draft_notifies_listeners():
+    s = ChallengeSessionService()
+    events = []
+    s.add_listener(lambda: events.append(1))
+    s.set_draft(1, draft(time=1000))
+    assert events == [1]
+
+
+def test_clear_resets_drafts():
+    s = ChallengeSessionService()
+    s.set_draft(1, draft(time=1000))
+    s.clear()
+    assert s.drafts == {}
+    assert s.effective(1) is None
+
+
+def test_is_complete_uses_drafts():
+    s = ChallengeSessionService()
+    for n in range(1, 5):
+        s.apply(result(capture(n, track_score=0.9, car_score=0.9, time=20000)))
+    assert not s.is_complete()
+    s.set_draft(5, draft(track_id=5, car_id=6, time=30000))
+    assert s.is_complete()
+
+
+def test_effective_has_car_property():
+    assert not EffectiveRace().has_car
+    assert EffectiveRace(car_id=2).has_car
+    assert EffectiveRace(car_name="Custom").has_car
