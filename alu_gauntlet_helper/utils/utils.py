@@ -17,6 +17,14 @@ def get_resource_path(relative_path: str) -> str:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, "resources", relative_path)
 
+
+def app_dir_if_frozen() -> str | None:
+    """Тека exe для PyInstaller-збірки; None при запуску з сирців."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return None
+
+
 DATA_PATH_MAPS = "data/maps"
 DATA_PATH_CARS = "data/cars"
 

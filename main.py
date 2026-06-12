@@ -1,3 +1,4 @@
+import os
 import sys
 
 from PyQt6.QtWidgets import QApplication
@@ -6,12 +7,19 @@ from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.cars_sync import update_cars_if_needed
 from alu_gauntlet_helper.services.initial_data import init_data
 from alu_gauntlet_helper.utils.single_instance_lock import single_instance_lock
+from alu_gauntlet_helper.utils.utils import app_dir_if_frozen
 from alu_gauntlet_helper.views.main_window import MainWindow
 from alu_gauntlet_helper.views.style import apply_style
 from alu_gauntlet_helper.database import init_db
 
 
 def main():
+    app_dir = app_dir_if_frozen()
+    if app_dir:
+        # cwd = тека застосунку: всі відносні шляхи (app.db, data/, іконки в БД)
+        # розв'язуються відносно exe; після цього cwd ніде не змінювати
+        os.chdir(app_dir)
+
     start_minimized = "--minimized" in sys.argv
 
     window: MainWindow | None = None

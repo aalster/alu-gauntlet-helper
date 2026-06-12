@@ -4,6 +4,9 @@ build
 dist
 *.iml
 *.spec
+!main.spec
 
 app.db
 data
+installer/tesseract
+installer/innosetup

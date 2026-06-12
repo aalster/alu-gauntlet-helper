@@ -1,6 +1,8 @@
 import os
 import re
 import shutil
+import subprocess
+import sys
 
 import cv2
 import numpy as np
@@ -12,14 +14,25 @@ DEFAULT_TESSERACT_PATHS = [
     r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
 ]
 
+
+def _bundled_tesseract() -> str:
+    """Шлях до Tesseract, що йде в комплекті з інсталятором; "" поза frozen-збіркою."""
+    if getattr(sys, "frozen", False):
+        return os.path.join(os.path.dirname(sys.executable), "tesseract", "tesseract.exe")
+    return ""
+
+
 NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
 TIME_RE = re.compile(r"(\d{1,2})\s*:\s*(\d{2})\s*[.,]\s*(\d{2,3})")  # {2,3}: OCR інколи губить цифру мс
 RANK_RE = re.compile(r"(\d)\s*[,.]?\s*(\d{3})")  # [,.]? необов'язковий: OCR інколи губить кому в "4,045"
 
 
 def configure_tesseract(path: str = "") -> bool:
-    """Виставляє tesseract_cmd: явний шлях → PATH → типові локації. True, якщо знайдено."""
+    """Виставляє tesseract_cmd: явний шлях → бандл → PATH → типові локації. True, якщо знайдено."""
     candidates = [path] if path else []
+    bundled = _bundled_tesseract()
+    if bundled:
+        candidates.append(bundled)
     which = shutil.which("tesseract")
     if which:
         candidates.append(which)
@@ -32,10 +45,27 @@ def configure_tesseract(path: str = "") -> bool:
     return False
 
 
+_availability_cache: dict[str, bool] = {}
+
+
 def is_available() -> bool:
+    """Чи запускається поточний tesseract_cmd. Результат кешується на шлях.
+
+    Власна перевірка замість pytesseract.get_tesseract_version(): та спавнить
+    консольний процес без прихованого вікна, і у windowed-збірці на кожну
+    перевірку блимає вікно консолі."""
+    cmd = pytesseract.pytesseract.tesseract_cmd
+    if cmd not in _availability_cache:
+        _availability_cache[cmd] = _probe_tesseract(cmd)
+    return _availability_cache[cmd]
+
+
+def _probe_tesseract(cmd: str) -> bool:
+    kwargs = {}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     try:
-        pytesseract.get_tesseract_version()
-        return True
+        return subprocess.run([cmd, "--version"], capture_output=True, timeout=10, **kwargs).returncode == 0
     except Exception:
         return False
 

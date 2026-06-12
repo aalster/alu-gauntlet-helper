@@ -2,7 +2,6 @@ from PyQt6.QtWidgets import (QCheckBox, QFormLayout, QHBoxLayout, QLabel,
                              QLineEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
-from alu_gauntlet_helper.screen_recognition import ocr
 
 
 class SettingsTab(QWidget):
@@ -64,11 +63,7 @@ class SettingsTab(QWidget):
         self.tesseract_path.setText(settings.tesseract_path)
         self.capture_monitor.setValue(settings.capture_monitor)
         self.save_captures.setChecked(settings.save_captures)
-        self.refresh_capture_status()
-
-    def refresh_capture_status(self):
-        tesseract = "знайдено" if ocr.is_available() else "НЕ знайдено — вкажи шлях"
-        self.capture_status.setText(f"Tesseract: {tesseract}")
+        self.capture_status.setText("")
 
     def on_tray_changed(self):
         self.close_to_tray.setEnabled(self.show_tray_icon.isChecked())

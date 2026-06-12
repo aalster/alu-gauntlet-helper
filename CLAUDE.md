@@ -21,8 +21,8 @@ python main.py
 # Run minimized to tray
 python main.py --minimized
 
-# Build executable
-pyinstaller --onefile --windowed --add-data "resources;resources" --icon=resources/logo.ico --name "ALU Gauntlet Helper" main.py
+# Build installer (PyInstaller onedir + Inno Setup), see installer/README.md
+powershell -File scripts/build_installer.ps1
 ```
 
 ## Architecture
@@ -72,3 +72,4 @@ resources/
 - **Migrations**: SQL files in `resources/migrations/` applied automatically by `database.py`
 - **Resource paths**: Use `get_resource_path()` for PyInstaller compatibility
 - **Data storage**: User data (icons, etc.) goes to `data/` directory, not `resources/`
+- **Data location**: frozen-збірка робить `os.chdir(<тека exe>)` на старті — `app.db` і `data/` живуть поруч з exe; cwd після старту не змінювати
