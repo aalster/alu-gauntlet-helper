@@ -163,17 +163,26 @@ class CaptureTab(QWidget):
         tracks = APP_CONTEXT.tracks_service.get_by_ids(track_ids)
         cars = APP_CONTEXT.cars_service.get_by_ids(car_ids)
 
-        self.list_widget.clear()
-        any_checked = False
-        all_checked_complete = True
         for n in range(1, RACE_COUNT + 1):
             e = effective.get(n)
             track = tracks.get(e.track_id) if e and e.track_id else None
             car = cars.get(e.car_id) if e and e.car_id else None
-            checked = self._is_checked(n, e)
-            CaptureRaceRow(n, e, track, car, checked,
-                           self.on_checkbox_toggled, self.open_edit).add_to_list(self.list_widget)
-            if checked:
+            row = CaptureRaceRow(n, e, track, car, self._is_checked(n, e),
+                                 self.on_checkbox_toggled, self.open_edit)
+            # рядки оновлюються на місці, без clear() — список не блимає і не стрибає
+            if self.list_widget.count() < n:
+                row.add_to_list(self.list_widget)
+            else:
+                row.replace_in_list(self.list_widget, n - 1)
+
+        self._update_buttons(effective)
+
+    def _update_buttons(self, effective: dict[int, EffectiveRace]):
+        any_checked = False
+        all_checked_complete = True
+        for n in range(1, RACE_COUNT + 1):
+            e = effective.get(n)
+            if self._is_checked(n, e):
                 any_checked = True
                 if e is None or not e.is_complete:
                     all_checked_complete = False
@@ -183,7 +192,7 @@ class CaptureTab(QWidget):
 
     def on_checkbox_toggled(self, n: int, checked: bool):
         self.manual_checks[n] = checked  # після ручного кліку автологіка для гонки вимикається
-        self.refresh()
+        self._update_buttons(self._effective_map())  # сам чекбокс уже клікнуто — список не чіпаємо
 
     def load_screenshot(self):
         path, _ = QFileDialog.getOpenFileName(

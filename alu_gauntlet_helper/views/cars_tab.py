@@ -12,7 +12,7 @@ from alu_gauntlet_helper.services.cars import Car
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_CARS, load_pixmap_cover, get_resource_path
 from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, vbox, \
-    enable_clear_button, enable_search_icon, RankClassBadge
+    enable_clear_button, enable_search_icon, RankClassBadge, preserved_scroll
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -47,14 +47,14 @@ class CarDialog(EditDialog):
 
     def prepare_layout(self):
         form_layout = QFormLayout()
-        form_layout.addRow("Brand:", self.brand_edit)
-        form_layout.addRow("Model:", self.model_edit)
+        form_layout.addRow("Brand", self.brand_edit)
+        form_layout.addRow("Model", self.model_edit)
         rank_layout = QHBoxLayout()
         rank_layout.setSpacing(6)
         rank_layout.addWidget(self.rank_edit, stretch=1)
         rank_layout.addWidget(self.max_rank_button)
-        form_layout.addRow("Rank:", rank_layout)
-        form_layout.addRow("Icon:", self.icon_edit)
+        form_layout.addRow("Rank", rank_layout)
+        form_layout.addRow("Icon", self.icon_edit)
 
         return form_layout
 
@@ -131,6 +131,9 @@ class CarListWidget(ListItemWidget):
     def toggle_favorite(self):
         if self.on_favorite:
             self.on_favorite(self.item.id)
+            # рядок оновлюється на місці — список не перебудовується і не міняє порядок
+            self.item.favorite = not self.item.favorite
+            self.update_fav_button()
 
 
 class CarsTab(QWidget):
@@ -158,7 +161,7 @@ class CarsTab(QWidget):
             self.class_group.addButton(button)
             self.class_layout.addWidget(button)
         self.class_group.buttons()[0].setChecked(True)
-        self.class_group.buttonClicked.connect(self.refresh) # type: ignore
+        self.class_group.buttonClicked.connect(self.on_filter_changed) # type: ignore
 
         self.sort_combo = QComboBox()
         sort_icon = QIcon(get_resource_path("icons/sort.svg"))
@@ -166,7 +169,7 @@ class CarsTab(QWidget):
         self.sort_combo.addItem(sort_icon, "Max Rank")
         self.sort_combo.setToolTip("Sort order")
         self.sort_combo.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.sort_combo.currentIndexChanged.connect(self.refresh) # type: ignore
+        self.sort_combo.currentIndexChanged.connect(self.on_filter_changed) # type: ignore
 
         self.add_button = QPushButton("Add")
         self.add_button.clicked.connect(self.on_add) # type: ignore
@@ -176,7 +179,7 @@ class CarsTab(QWidget):
 
         self.debounce_timer = QTimer()
         self.debounce_timer.setSingleShot(True)
-        self.debounce_timer.timeout.connect(self.refresh) # type: ignore
+        self.debounce_timer.timeout.connect(self.on_filter_changed) # type: ignore
 
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.query)
@@ -194,16 +197,22 @@ class CarsTab(QWidget):
         self.debounce_timer.start(300)
 
     def refresh(self):
-        self.list_widget.clear()
-        car_class = self.class_group.checkedButton().text()
-        for i in APP_CONTEXT.cars_service.autocomplete(self.query.text(),
-                                                       by_max_rank=self.sort_combo.currentIndex() == 1,
-                                                       car_class="" if car_class == "All" else car_class):
-            CarListWidget(i, on_favorite=self.on_favorite).add_to_list(self.list_widget)
+        with preserved_scroll(self.list_widget):
+            self.list_widget.clear()
+            car_class = self.class_group.checkedButton().text()
+            for i in APP_CONTEXT.cars_service.autocomplete(self.query.text(),
+                                                           by_max_rank=self.sort_combo.currentIndex() == 1,
+                                                           car_class="" if car_class == "All" else car_class):
+                CarListWidget(i, on_favorite=self.on_favorite).add_to_list(self.list_widget)
+
+    def on_filter_changed(self, *_):
+        self.refresh()
+        self.list_widget.scrollToTop()  # фільтр змінився — результати з початку
 
     def on_favorite(self, car_id: int):
+        # без refresh(), щоб порядок не стрибав; пересортування — при повторному відкритті
+        # вкладки (main_window.tab_selected робить refresh на кожне перемикання)
         APP_CONTEXT.cars_service.toggle_favorite(car_id)
-        self.refresh()
 
     def on_add(self):
         if CarDialog(item=Car(name=self.query.text().strip()), action=APP_CONTEXT.cars_service.save, parent=self).exec():

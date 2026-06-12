@@ -103,7 +103,7 @@ QListView::item:selected, QListView::item:hover {{
 
 QListWidget {{
     background-color: rgba(5, 12, 40, 110);
-    border: none;
+    border: 1px solid {BORDER};
     border-radius: 8px;
     padding: 4px;
     outline: none;
@@ -180,6 +180,22 @@ QPushButton#secondary:checked {{
     background-color: {CARD_SELECTED};
     border: 1px solid {CYAN};
     color: {CYAN};
+}}
+
+QPushButton#iconToggle {{
+    background-color: {INPUT_BG};
+    border: 1px solid {BORDER};
+    border-radius: 4px;
+    padding: 0;
+}}
+
+QPushButton#iconToggle:hover {{
+    border: 1px solid {CYAN};
+}}
+
+QPushButton#iconToggle:checked {{
+    background-color: {CARD_SELECTED};
+    border: 1px solid {CYAN};
 }}
 
 QComboBox {{

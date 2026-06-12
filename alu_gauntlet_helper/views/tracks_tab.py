@@ -13,7 +13,7 @@ from alu_gauntlet_helper.services.maps import Map
 from alu_gauntlet_helper.services.tracks import TrackView
 from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_MAPS, pixmap_cover
 from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, enable_clear_button, \
-    enable_search_icon
+    enable_search_icon, preserved_scroll
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -32,8 +32,8 @@ class MapDialog(EditDialog):
 
     def prepare_layout(self):
         form_layout = QFormLayout()
-        form_layout.addRow("Name:", self.name_edit)
-        form_layout.addRow("Icon:", self.icon_edit)
+        form_layout.addRow("Name", self.name_edit)
+        form_layout.addRow("Icon", self.icon_edit)
 
         return form_layout
 
@@ -98,9 +98,9 @@ class TrackDialog(EditDialog):
 
     def prepare_layout(self):
         form_layout = QVBoxLayout()
-        form_layout.addWidget(QLabel("Map:"))
+        form_layout.addWidget(QLabel("Map"))
         form_layout.addWidget(self.map_edit)
-        form_layout.addWidget(QLabel("Name:"))
+        form_layout.addWidget(QLabel("Name"))
         form_layout.addWidget(self.name_edit)
 
         return form_layout
@@ -187,7 +187,7 @@ class MapsPanel(QWidget):
 
         self.debounce_timer = QTimer()
         self.debounce_timer.setSingleShot(True)
-        self.debounce_timer.timeout.connect(self.refresh) # type: ignore
+        self.debounce_timer.timeout.connect(self.on_search) # type: ignore
 
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.query)
@@ -204,9 +204,10 @@ class MapsPanel(QWidget):
         self.debounce_timer.start(300)
 
     def refresh(self):
-        self.list_widget.clear()
-        for i in APP_CONTEXT.maps_service.autocomplete(self.query.text()):
-            MapListWidget(i).add_to_list(self.list_widget)
+        with preserved_scroll(self.list_widget):
+            self.list_widget.clear()
+            for i in APP_CONTEXT.maps_service.autocomplete(self.query.text()):
+                MapListWidget(i).add_to_list(self.list_widget)
 
         # restore selection after the list is rebuilt
         for row in range(self.list_widget.count()):
@@ -214,6 +215,10 @@ class MapsPanel(QWidget):
             if list_item.data(Qt.ItemDataRole.UserRole).id == self.selected_map_id:
                 list_item.setSelected(True)
                 break
+
+    def on_search(self):
+        self.refresh()
+        self.list_widget.scrollToTop()  # фільтр змінився — результати з початку
 
     def on_item_clicked(self, item: QListWidgetItem):
         map_ = item.data(Qt.ItemDataRole.UserRole)
@@ -258,7 +263,7 @@ class TracksPanel(QWidget):
 
         self.debounce_timer = QTimer()
         self.debounce_timer.setSingleShot(True)
-        self.debounce_timer.timeout.connect(self.refresh) # type: ignore
+        self.debounce_timer.timeout.connect(self.on_search) # type: ignore
 
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.query)
@@ -276,12 +281,17 @@ class TracksPanel(QWidget):
 
     def set_map_filter(self, map_id: int | None):
         self.map_id = map_id
-        self.refresh()
+        self.on_search()
 
     def refresh(self):
-        self.list_widget.clear()
-        for t in APP_CONTEXT.tracks_service.autocomplete(self.query.text(), self.map_id):
-            TrackListWidget(t).add_to_list(self.list_widget)
+        with preserved_scroll(self.list_widget):
+            self.list_widget.clear()
+            for t in APP_CONTEXT.tracks_service.autocomplete(self.query.text(), self.map_id):
+                TrackListWidget(t).add_to_list(self.list_widget)
+
+    def on_search(self):
+        self.refresh()
+        self.list_widget.scrollToTop()  # фільтр змінився — результати з початку
 
     def on_add(self):
         item = TrackView(name=self.query.text().strip())

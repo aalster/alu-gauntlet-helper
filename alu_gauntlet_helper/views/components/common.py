@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from typing import Callable
 
 from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, QRectF, QPointF
@@ -23,6 +24,17 @@ class FocusWatcher(QObject):
             self.on_focus_out()
         return False
 
+@contextmanager
+def preserved_scroll(list_widget: QListWidget):
+    """Перебудова списку всередині блока не скидає вертикальний скрол."""
+    bar = list_widget.verticalScrollBar()
+    value = bar.value()
+    yield
+    # без doItemsLayout діапазон скролбара ще нульовий і value обріжеться
+    list_widget.doItemsLayout()
+    bar.setValue(value)
+
+
 class InputDebounce:
     def __init__(self, input_: QLineEdit, on_change: Callable, debounce_time: int = 300):
         self.input_ = input_
@@ -47,9 +59,16 @@ class ListItemWidget(QWidget):
     ITEM_CHROME_HEIGHT = 16
 
     def add_to_list(self, list_widget: QListWidget):
-        list_item = QListWidgetItem(list_widget)
+        self._attach(list_widget, QListWidgetItem(list_widget))
+
+    def replace_in_list(self, list_widget: QListWidget, index: int):
+        """Підміняє віджет наявного рядка — список не перебудовується і не блимає."""
+        self._attach(list_widget, list_widget.item(index))
+
+    def _attach(self, list_widget: QListWidget, list_item: QListWidgetItem):
         list_item.setData(Qt.ItemDataRole.UserRole, self.item)
 
+        # setItemWidget сам видаляє попередній віджет рядка
         list_widget.setItemWidget(list_item, self)
         # size hint only after the widget is polished, so QSS fonts are applied
         self.ensurePolished()

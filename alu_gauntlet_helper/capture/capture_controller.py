@@ -35,7 +35,7 @@ class CaptureController(QObject):
         self._status = ""
 
         self._capture_requested.connect(self._on_capture_requested)
-        self._overlay_toggle_requested.connect(self.overlay.toggle)
+        self._overlay_toggle_requested.connect(self.toggle_overlay)
         self._recognized.connect(self._on_recognized)
         APP_CONTEXT.challenge_session.add_listener(self._refresh_overlay)
 
@@ -131,6 +131,14 @@ class CaptureController(QObject):
 
     # --- оверлей ---------------------------------------------------------
 
+    def toggle_overlay(self):
+        if self.overlay.isVisible():
+            self.overlay.hide()
+        else:
+            # перше ручне відкриття: оверлей ще порожній, тож спершу наповнюємо
+            # рядками з сесії ("N — no data", коли даних немає); _refresh_overlay сам покаже вікно
+            self._refresh_overlay()
+
     def _set_status(self, status: str):
         self._status = status
         self._refresh_overlay()
@@ -146,6 +154,8 @@ class CaptureController(QObject):
         status = self._status
         if not status and session.is_complete():
             status = "Done — review in the app"
-        self.overlay.set_lines(build_overlay_lines(effective, track_names, car_names, status))
+        settings = APP_CONTEXT.settings.get()
+        hint = f"{settings.capture_hotkey.upper()} capture · {settings.overlay_hotkey.upper()} hide"
+        self.overlay.set_lines(build_overlay_lines(effective, track_names, car_names, status, hotkey_hint=hint))
         if not self.overlay.isVisible():
             self.overlay.show()

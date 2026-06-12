@@ -1,16 +1,17 @@
 # gui/maps_tab.py
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIntValidator, QFont
+from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtGui import QIntValidator, QFont, QIcon
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
-    QLabel, QCheckBox, QTextEdit, QFormLayout
+    QLabel, QTextEdit, QFormLayout
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.services.tracks import TrackView
-from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time, format_relative_time
+from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time, format_relative_time, \
+    get_resource_path
 from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, vbox, res_to_pixmap, hbox, \
-    ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge, CarInfoWidget
+    ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge, CarInfoWidget, preserved_scroll
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
@@ -26,8 +27,15 @@ class RaceDialog(EditDialog):
         self.rank_edit = ValidatedLineEdit(str(item.rank) if item.rank else "")
         self.rank_edit.get_input().setValidator(QIntValidator(0, 10000))
         self.time_edit = ValidatedLineEdit(format_time(item.time), placeholder="mm:ss.xxx", regex=time_format_regex)
-        self.bad_timing_checkbox = QCheckBox("Bad timing")
-        self.bad_timing_checkbox.setChecked(item.bad_timing)
+        self.bad_timing_button = QPushButton()
+        self.bad_timing_button.setObjectName("iconToggle")
+        self.bad_timing_button.setIcon(QIcon(get_resource_path("icons/thumbs-down.svg")))
+        self.bad_timing_button.setIconSize(QSize(18, 18))
+        self.bad_timing_button.setCheckable(True)
+        self.bad_timing_button.setChecked(item.bad_timing)
+        self.bad_timing_button.setToolTip("Bad timing")
+        self.bad_timing_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.bad_timing_button.setFixedSize(30, 30)
         self.note_edit = QTextEdit(item.note)
 
         self.tracks_completer = ItemCompleter(
@@ -50,12 +58,11 @@ class RaceDialog(EditDialog):
 
     def prepare_layout(self):
         form_layout = QFormLayout()
-        form_layout.addRow("Track:", self.track_edit)
-        form_layout.addRow("Car:", self.car_edit)
-        form_layout.addRow("Rank:", self.rank_edit)
-        form_layout.addRow("Time:", self.time_edit)
-        form_layout.addWidget(self.bad_timing_checkbox)
-        form_layout.addRow("Note:", self.note_edit)
+        form_layout.addRow("Track", self.track_edit)
+        form_layout.addRow("Car", self.car_edit)
+        form_layout.addRow("Rank", self.rank_edit)
+        form_layout.addRow("Time", hbox([self.time_edit, self.bad_timing_button], spacing=6))
+        form_layout.addRow("Note", self.note_edit)
 
         return form_layout
 
@@ -68,7 +75,7 @@ class RaceDialog(EditDialog):
         car_name = self.car_edit.text()
         rank = int(self.rank_edit.text()) if self.rank_edit.text() else 0
         time = parse_time(self.time_edit.text())
-        bad_timing = self.bad_timing_checkbox.isChecked()
+        bad_timing = self.bad_timing_button.isChecked()
         note = self.note_edit.toPlainText()
 
         error = False
@@ -152,14 +159,14 @@ class RacesTab(QWidget):
         enable_clear_button(self.track_query)
         self.track_query.installEventFilter(CLEAR_ON_ESC_FILTER)
         self.track_query.setPlaceholderText("Track")
-        self.track_debounce = InputDebounce(self.track_query, on_change=self.refresh)
+        self.track_debounce = InputDebounce(self.track_query, on_change=self.on_search)
 
         self.car_query = QLineEdit()
         enable_search_icon(self.car_query)
         enable_clear_button(self.car_query)
         self.car_query.installEventFilter(CLEAR_ON_ESC_FILTER)
         self.car_query.setPlaceholderText("Car")
-        self.car_debounce = InputDebounce(self.car_query, on_change=self.refresh)
+        self.car_debounce = InputDebounce(self.car_query, on_change=self.on_search)
 
         self.add_button = QPushButton("Add")
         self.add_button.clicked.connect(self.on_add) # type: ignore
@@ -179,11 +186,16 @@ class RacesTab(QWidget):
         self.refresh()
 
     def refresh(self):
-        self.list_widget.clear()
-        track_query = self.track_query.text().strip()
-        car_query = self.car_query.text().strip()
-        for i in APP_CONTEXT.races_service.get_all(track_query, car_query):
-            RaceListWidget(i).add_to_list(self.list_widget)
+        with preserved_scroll(self.list_widget):
+            self.list_widget.clear()
+            track_query = self.track_query.text().strip()
+            car_query = self.car_query.text().strip()
+            for i in APP_CONTEXT.races_service.get_all(track_query, car_query):
+                RaceListWidget(i).add_to_list(self.list_widget)
+
+    def on_search(self):
+        self.refresh()
+        self.list_widget.scrollToTop()  # фільтр змінився — результати з початку
 
     def on_add(self):
         if RaceDialog(item=RaceView(), action=APP_CONTEXT.races_service.save, parent=self).exec():

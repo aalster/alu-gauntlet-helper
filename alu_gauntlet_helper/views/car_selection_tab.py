@@ -8,7 +8,7 @@ from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import CarSuggestion, Race
 from alu_gauntlet_helper.utils.utils import format_time, load_pixmap_cover
 from alu_gauntlet_helper.views import style
-from alu_gauntlet_helper.views.components.common import ListItemWidget, enable_clear_button
+from alu_gauntlet_helper.views.components.common import ListItemWidget, enable_clear_button, preserved_scroll
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 
@@ -231,8 +231,10 @@ class RaceColumn(QWidget):
                 item.setSelected(is_selected_here)
 
     def refresh(self):
+        # оновлення з перемикання вкладки — без скидання скролу колонки
         if self.selected_track:
-            self.refresh_suggestions()
+            with preserved_scroll(self.list_widget):
+                self.refresh_suggestions()
 
     def clear_selection_for_car(self, car_id: int):
         if self.selected_car_id == car_id:

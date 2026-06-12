@@ -11,7 +11,8 @@ MARGIN = 16
 def build_overlay_lines(races: dict[int, EffectiveRace],
                         track_names: dict[int, str],
                         car_names: dict[int, str],
-                        status: str = "") -> list[str]:
+                        status: str = "",
+                        hotkey_hint: str = "") -> list[str]:
     complete = sum(1 for e in races.values() if e.is_complete)
     lines = [f"Gauntlet capture {complete}/5"]
     for n in range(1, RACE_COUNT + 1):
@@ -24,6 +25,8 @@ def build_overlay_lines(races: dict[int, EffectiveRace],
         time_str = format_time(e.time) if e.time else "?"
         mark = "✓" if e.is_complete else "⚠"
         lines.append(f"{n} {mark} {track} · {car} · {time_str}")
+    if hotkey_hint:
+        lines.append(hotkey_hint)
     if status:
         lines.append(status)
     return lines
@@ -68,6 +71,3 @@ class OverlayWindow(QWidget):
         screen = screens[self._screen_index - 1] if 0 < self._screen_index <= len(screens) else QGuiApplication.primaryScreen()
         geo = screen.availableGeometry()
         self.move(geo.right() - self.width() - MARGIN, geo.top() + MARGIN)
-
-    def toggle(self):
-        self.setVisible(not self.isVisible())

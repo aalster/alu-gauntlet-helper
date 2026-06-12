@@ -36,3 +36,9 @@ def test_unresolved_names_show_question_marks_but_race_stays_complete():
     races = {1: EffectiveRace(track_id=99, car_id=98, time=22797)}
     lines = build_overlay_lines(races, {}, {})
     assert lines[1] == "1 ✓ ? · ? · 00:22.797"
+
+
+def test_status_is_last_line_after_hotkey_hint():
+    lines = build_overlay_lines({}, {}, {}, status="waiting", hotkey_hint="F9 capture · F10 hide")
+    assert lines[-2] == "F9 capture · F10 hide"
+    assert lines[-1] == "waiting"
