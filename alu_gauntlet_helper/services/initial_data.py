@@ -3,7 +3,7 @@ import os
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.maps import Map
 from alu_gauntlet_helper.services.tracks import TrackView
-from alu_gauntlet_helper.utils.utils import copy_resource_to_data, DATA_PATH_MAPS
+from alu_gauntlet_helper.utils.utils import copy_resource_to_data, DATA_PATH_MAPS, DATA_PATH_TRACKS
 
 
 def init_data():
@@ -13,7 +13,27 @@ def init_data():
         icon_path = copy_resource_to_data(f"icons/maps/{icon_file}", os.path.join(DATA_PATH_MAPS, icon_file))
         APP_CONTEXT.maps_service.save(Map(name=name, icon=icon_path or ""))
     for track in tracks:
+        track.icon = _bundled_track_icon(track.map_name, track.name)
         APP_CONTEXT.tracks_service.save(track)
+
+
+def _bundled_track_icon(map_name: str, track_name: str) -> str:
+    icon_file = f"{map_name} - {track_name}.png"
+    return copy_resource_to_data(f"icons/tracks/routes/{icon_file}", os.path.join(DATA_PATH_TRACKS, icon_file)) or ""
+
+
+def sync_track_icons():
+    """Кожен старт: підтягує іконку маршруту з бандла для треків без власної іконки.
+
+    Не додає й не воскрешає видалені треки і не чіпає вже встановлені (зокрема правки користувача).
+    """
+    for track in APP_CONTEXT.tracks_service.get_all_views():
+        if track.icon:
+            continue
+        icon_path = _bundled_track_icon(track.map_name, track.name)
+        if icon_path:
+            track.icon = icon_path
+            APP_CONTEXT.tracks_service.repo.update(track)
 
 
 map_names = [

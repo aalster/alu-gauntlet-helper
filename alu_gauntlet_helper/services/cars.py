@@ -104,6 +104,24 @@ class CarsRepository:
             rows = conn.execute("SELECT * FROM cars ORDER BY id").fetchall()
             return [self.parse(row) for row in rows]
 
+    def bulk_sync(self, updates: list[Car], inserts: list[Car]):
+        """Усі апсерти синку в одній транзакції (один commit замість одного на авто).
+
+        rank/favorite не чіпаємо — бандл їх не містить, зберігаємо наявні значення."""
+        if not updates and not inserts:
+            return
+        with connect() as conn:
+            for item in updates:
+                conn.execute(
+                    "UPDATE cars SET asec_id = :asec_id, name = :name, brand = :brand, model = :model,"
+                    " car_class = :car_class, max_rank = :max_rank, icon = :icon WHERE id = :id",
+                    item.model_dump())
+            for item in inserts:
+                conn.execute(
+                    "INSERT INTO cars(asec_id, name, brand, model, car_class, `rank`, max_rank, favorite, icon)"
+                    " VALUES (:asec_id, :name, :brand, :model, :car_class, :rank, :max_rank, :favorite, :icon)",
+                    item.model_dump())
+
 
 class CarsService(Observable):
     def __init__(self, repo: CarsRepository):
@@ -155,39 +173,66 @@ class CarsService(Observable):
         self._notify()
 
     def sync_from_asec(self, entries: list[dict]):
-        """Upsert cars from asec.tools carsList entries, matching by asec_id, then by name."""
+        """Upsert cars from asec.tools carsList entries, matching by asec_id, then by name.
+
+        Виконується на кожному старті. Читаємо всі авто один раз, пишемо лише змінені
+        рядки й однією транзакцією — теплий старт (бандл не змінився) не робить жодного запису."""
+        existing = self.repo.get_all()
+        by_asec = {c.asec_id: c for c in existing if c.asec_id}
+        by_name = {c.name.lower(): c for c in existing}
+
+        updates: list[Car] = []
+        inserts: list[Car] = []
         for entry in entries:
             try:
-                self._sync_entry(entry)
+                planned = self._plan_entry(entry, by_asec, by_name)
+                if planned is None:
+                    continue
+                kind, car = planned
+                (updates if kind == "update" else inserts).append(car)
             except Exception as e:
                 print(f"Failed to sync car {entry}: {e}")
 
-    def _sync_entry(self, entry: dict):
+        self.repo.bulk_sync(updates, inserts)
+
+    def _plan_entry(self, entry: dict, by_asec: dict[int, Car], by_name: dict[str, Car]):
+        """Повертає ("update"/"insert", Car) або None, якщо запис не потрібен (немає даних чи без змін)."""
         asec_id = entry.get("id") or 0
         brand = (entry.get("brand") or "").strip()
         model = (entry.get("model") or "").strip()
         name = f"{brand} {model}".strip()
         if not asec_id or not name:
-            return
+            return None
 
-        car = self.repo.get_by_asec_id(asec_id) or self.repo.get_by_name(name)
+        car = by_asec.get(asec_id) or by_name.get(name.lower())
         if not car and name in LEGACY_NAMES:
-            car = self.repo.get_by_name(LEGACY_NAMES[name])
+            car = by_name.get(LEGACY_NAMES[name].lower())
 
         icon = self._resolve_icon(asec_id)
+        car_class = entry.get("car_class") or ""
+        max_rank = entry.get("max_rank") or 0
+
         if car:
+            new_icon = icon or car.icon
+            if (car.asec_id == asec_id and car.name == name and car.brand == brand
+                    and car.model == model and car.car_class == car_class
+                    and car.max_rank == max_rank and car.icon == new_icon):
+                return None  # без змін — не пишемо
             car.asec_id = asec_id
             car.name = name
             car.brand = brand
             car.model = model
-            car.car_class = entry.get("car_class") or ""
-            car.max_rank = entry.get("max_rank") or 0
-            car.icon = icon or car.icon
-            self.repo.update(car, False)
-        else:
-            self.repo.add(Car(asec_id=asec_id, name=name, brand=brand, model=model,
-                              car_class=entry.get("car_class") or "", max_rank=entry.get("max_rank") or 0,
-                              icon=icon))
+            car.car_class = car_class
+            car.max_rank = max_rank
+            car.icon = new_icon
+            return "update", car
+
+        new_car = Car(asec_id=asec_id, name=name, brand=brand, model=model,
+                      car_class=car_class, max_rank=max_rank, icon=icon)
+        # реєструємо, щоб дублікати в межах одного бандла не призвели до подвійного insert
+        by_asec[asec_id] = new_car
+        by_name[name.lower()] = new_car
+        return "insert", new_car
 
     @staticmethod
     def _resolve_icon(asec_id: int) -> str:

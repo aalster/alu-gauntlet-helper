@@ -119,6 +119,16 @@ class RankClassBadge(QWidget):
             layout.addWidget(class_label)
 
 
+def image_preview_html(icon_path: str, width: int = 360) -> str:
+    """Rich-text <img> для hover-тултипа, масштабований до `width` (без збільшення)."""
+    size = QImageReader(icon_path).size()  # reads the header only, no full decode
+    if not size.isValid() or size.width() <= 0:
+        return ""
+    scale = min(width / size.width(), 1)
+    return (f'<img src="{icon_path.replace(chr(92), "/")}"'
+            f' width="{round(size.width() * scale)}" height="{round(size.height() * scale)}">')
+
+
 class CarInfoWidget(QWidget):
     """Car icon, brand/model and rank badge combined on a darkened plate.
     Hovering shows the car image enlarged in a tooltip."""
@@ -139,7 +149,7 @@ class CarInfoWidget(QWidget):
             pixmap = load_pixmap_cover(icon_path, w=self.icon_label.width(), h=self.icon_label.height())
             if pixmap:
                 self.icon_label.setPixmap(pixmap)
-            preview = self._preview_html(icon_path)
+            preview = image_preview_html(icon_path, self.PREVIEW_WIDTH)
             if preview:
                 self.icon_label.setToolTip(preview)
 
@@ -161,15 +171,6 @@ class CarInfoWidget(QWidget):
         layout.setSpacing(10)
         layout.addWidget(self.icon_label)
         layout.addLayout(vbox([brand_row, self.model_label], spacing=3), stretch=1)
-
-    @classmethod
-    def _preview_html(cls, icon_path: str) -> str:
-        size = QImageReader(icon_path).size()  # reads the header only, no full decode
-        if not size.isValid() or size.width() <= 0:
-            return ""
-        scale = min(cls.PREVIEW_WIDTH / size.width(), 1)
-        return (f'<img src="{icon_path.replace(chr(92), "/")}"'
-                f' width="{round(size.width() * scale)}" height="{round(size.height() * scale)}">')
 
 
 class ClearOnEscEventFilter(QObject):

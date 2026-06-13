@@ -26,7 +26,9 @@ class Race(BaseModel):
 
 class RaceView(Race):
     map_name: str = ""
+    map_icon: str = ""
     track_name: str = ""
+    track_icon: str = ""
     car_name: str = ""
     car_brand: str = ""
     car_model: str = ""
@@ -136,7 +138,9 @@ class RacesService(Observable):
             result.append(RaceView(
                 **i.model_dump(),
                 map_name=track.map_name if track else "Unknown Map",
+                map_icon=track.map_icon if track else "",
                 track_name=track.name if track else "Unknown Track",
+                track_icon=track.icon if track else "",
                 car_name=car.name if car else "Unknown Car",
                 car_brand=car.brand if car else "",
                 car_model=(car.model or car.name) if car else "Unknown Car",

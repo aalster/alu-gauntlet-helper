@@ -12,7 +12,7 @@ from alu_gauntlet_helper.services.cars import Car
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_CARS, load_pixmap_cover, get_resource_path
 from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, vbox, \
-    enable_clear_button, enable_search_icon, RankClassBadge, preserved_scroll
+    enable_clear_button, enable_search_icon, RankClassBadge, preserved_scroll, image_preview_html
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -93,6 +93,9 @@ class CarListWidget(ListItemWidget):
             pixmap = load_pixmap_cover(item.icon, w=self.car_icon.width(), h=self.car_icon.height())
             if pixmap:
                 self.car_icon.setPixmap(pixmap)
+            preview = image_preview_html(item.icon)
+            if preview:
+                self.car_icon.setToolTip(preview)
 
         self.brand_label = QLabel(item.brand.upper())
         self.brand_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 13px; font-weight: bold;")

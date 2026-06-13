@@ -62,7 +62,8 @@ resources/
 ├── migrations/              # SQL migrations (001__init.sql, etc.)
 ├── data/cars.json           # Bundled snapshot of asec.tools carsList (synced into DB on every start)
 ├── icons/cars/              # Car icons from img.asec.tools, named {asec_id}.webp
-└── icons/maps/              # Map icon images
+├── icons/maps/              # Map icon images, named {map name}.png
+└── icons/tracks/routes/     # Track route icons, named {map name} - {track name}.png (prep: docs/cropping-route-icons.md)
 ```
 
 ## Key Patterns

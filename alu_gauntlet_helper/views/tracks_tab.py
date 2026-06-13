@@ -11,9 +11,9 @@ from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.services.maps import Map
 from alu_gauntlet_helper.services.tracks import TrackView
-from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_MAPS, pixmap_cover
+from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_MAPS, DATA_PATH_TRACKS, pixmap_cover
 from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, enable_clear_button, \
-    enable_search_icon, preserved_scroll
+    enable_search_icon, preserved_scroll, image_preview_html
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -86,6 +86,8 @@ class TrackDialog(EditDialog):
 
         self.map_edit = ValidatedLineEdit(item.map_name)
         self.name_edit = ValidatedLineEdit(item.name)
+        icon = QImage(item.icon) if item.icon and os.path.exists(item.icon) else None
+        self.icon_edit = ImageLineEdit(icon)
 
         self.maps_completer = ItemCompleter(
             self.map_edit.get_input(),
@@ -102,6 +104,8 @@ class TrackDialog(EditDialog):
         form_layout.addWidget(self.map_edit)
         form_layout.addWidget(QLabel("Name"))
         form_layout.addWidget(self.name_edit)
+        form_layout.addWidget(QLabel("Icon"))
+        form_layout.addWidget(self.icon_edit)
 
         return form_layout
 
@@ -109,6 +113,8 @@ class TrackDialog(EditDialog):
         map_id = self.maps_completer.get_selected_item().id if self.maps_completer.get_selected_item() else 0
         map_name = self.map_edit.text()
         name = self.name_edit.text()
+        icon = self.icon_edit.get_image()
+        icon_path = ""
 
         error = False
         if not map_name:
@@ -122,22 +128,28 @@ class TrackDialog(EditDialog):
         if error:
             return None
 
-        return TrackView(id=self.item.id, map_id=map_id, map_name=map_name, name=name)
+        if icon:
+            icon_path = save_data_image(DATA_PATH_TRACKS, icon)
+
+        return TrackView(id=self.item.id, map_id=map_id, map_name=map_name, name=name, icon=icon_path)
 
 
 class TrackListWidget(ListItemWidget):
     def __init__(self, item: TrackView, parent=None):
         super().__init__(item, parent)
-        self.map_icon = QLabel()
-        self.map_icon.setFixedSize(64, 64)
-        self.map_icon.setStyleSheet("""
+        self.track_icon = QLabel()
+        self.track_icon.setFixedSize(64, 64)
+        self.track_icon.setStyleSheet("""
             border-radius: 4px;
             background-color: #271A62;
         """)
-        self.map_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.track_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        if item.map_icon and os.path.exists(item.map_icon):
-            self.map_icon.setPixmap(pixmap_cover(QPixmap(item.map_icon), w=self.map_icon.width(), h=self.map_icon.height()))
+        if item.icon and os.path.exists(item.icon):
+            self.track_icon.setPixmap(pixmap_cover(QPixmap(item.icon), w=self.track_icon.width(), h=self.track_icon.height()))
+            preview = image_preview_html(item.icon)
+            if preview:
+                self.track_icon.setToolTip(preview)
 
         self.map_label = QLabel(item.map_name)
         self.map_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 13px; font-weight: bold;")
@@ -159,7 +171,7 @@ class TrackListWidget(ListItemWidget):
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(2, 2, 2, 2)
         self.layout.setSpacing(8)
-        self.layout.addWidget(self.map_icon)
+        self.layout.addWidget(self.track_icon)
         self.layout.addLayout(text_layout, stretch=1)
         self.setLayout(self.layout)
 

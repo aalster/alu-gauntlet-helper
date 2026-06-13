@@ -1,11 +1,12 @@
 import os
 import sys
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.cars_sync import sync_bundled_cars
-from alu_gauntlet_helper.services.initial_data import init_data
+from alu_gauntlet_helper.services.initial_data import init_data, sync_track_icons
 from alu_gauntlet_helper.utils.single_instance_lock import single_instance_lock
 from alu_gauntlet_helper.utils.utils import app_dir_if_frozen
 from alu_gauntlet_helper.views.main_window import MainWindow
@@ -42,6 +43,7 @@ def main():
         settings.initial_data_loaded = True
         APP_CONTEXT.settings.save(settings)
 
+    sync_track_icons()
     sync_bundled_cars()
 
     from alu_gauntlet_helper.screen_recognition.ocr import configure_tesseract
@@ -49,6 +51,9 @@ def main():
 
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
+    # без фейду/анімації при появі тултипів
+    app.setEffectEnabled(Qt.UIEffect.UI_FadeTooltip, False)
+    app.setEffectEnabled(Qt.UIEffect.UI_AnimateTooltip, False)
     apply_style(app)
 
     window = MainWindow()

@@ -26,6 +26,7 @@ def app_dir_if_frozen() -> str | None:
 
 
 DATA_PATH_MAPS = "data/maps"
+DATA_PATH_TRACKS = "data/tracks"
 DATA_PATH_CARS = "data/cars"
 
 

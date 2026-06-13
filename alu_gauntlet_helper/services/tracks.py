@@ -9,6 +9,7 @@ class Track(BaseModel):
     id: int = 0
     map_id: int = 0
     name: str = ""
+    icon: str = ""
 
 class TrackView(Track):
     map_name: str = ""
@@ -21,7 +22,8 @@ class TracksRepository:
 
     def add(self, item: Track):
         with connect() as conn:
-            return conn.execute("INSERT INTO tracks (map_id, name) VALUES (:map_id, :name)", item.model_dump()).lastrowid
+            return conn.execute("INSERT INTO tracks (map_id, name, icon) VALUES (:map_id, :name, :icon)",
+                                item.model_dump(include={"map_id", "name", "icon"})).lastrowid
 
     def get_by_name(self, map_id: int, name: str):
         with connect() as conn:
@@ -64,7 +66,8 @@ class TracksRepository:
 
     def update(self, item: Track):
         with connect() as conn:
-            conn.execute("UPDATE tracks SET map_id = :map_id, name = :name WHERE id = :id", item.model_dump())
+            conn.execute("UPDATE tracks SET map_id = :map_id, name = :name, icon = :icon WHERE id = :id",
+                         item.model_dump(include={"id", "map_id", "name", "icon"}))
 
 class TracksService(Observable):
     def __init__(self, repo: TracksRepository, maps: MapsService):
@@ -108,6 +111,9 @@ class TracksService(Observable):
                 self._notify()
                 return new_id
             item.id = existing.id
+            # сід не затирає вже встановлену іконку (правки користувача зберігаються)
+            if existing.icon:
+                item.icon = existing.icon
 
         self.repo.update(item)
         self._notify()
