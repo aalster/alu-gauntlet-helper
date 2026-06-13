@@ -131,7 +131,9 @@ class TrackDialog(EditDialog):
         if icon:
             icon_path = save_data_image(DATA_PATH_TRACKS, icon)
 
-        return TrackView(id=self.item.id, map_id=map_id, map_name=map_name, name=name, icon=icon_path)
+        # одне зображення для обох полів: повна іконка == превʼю (того самого файлу)
+        return TrackView(id=self.item.id, map_id=map_id, map_name=map_name, name=name,
+                         icon=icon_path, icon_preview=icon_path)
 
 
 class TrackListWidget(ListItemWidget):
@@ -145,8 +147,10 @@ class TrackListWidget(ListItemWidget):
         """)
         self.track_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
+        thumb = item.icon_preview if item.icon_preview and os.path.exists(item.icon_preview) else item.icon
+        if thumb and os.path.exists(thumb):
+            self.track_icon.setPixmap(pixmap_cover(QPixmap(thumb), w=self.track_icon.width(), h=self.track_icon.height()))
         if item.icon and os.path.exists(item.icon):
-            self.track_icon.setPixmap(pixmap_cover(QPixmap(item.icon), w=self.track_icon.width(), h=self.track_icon.height()))
             preview = image_preview_html(item.icon)
             if preview:
                 self.track_icon.setToolTip(preview)

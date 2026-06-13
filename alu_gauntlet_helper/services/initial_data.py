@@ -14,6 +14,7 @@ def init_data():
         APP_CONTEXT.maps_service.save(Map(name=name, icon=icon_path or ""))
     for track in tracks:
         track.icon = _bundled_track_icon(track.map_name, track.name)
+        track.icon_preview = _bundled_track_preview(track.map_name, track.name)
         APP_CONTEXT.tracks_service.save(track)
 
 
@@ -22,17 +23,33 @@ def _bundled_track_icon(map_name: str, track_name: str) -> str:
     return copy_resource_to_data(f"icons/tracks/routes/{icon_file}", os.path.join(DATA_PATH_TRACKS, icon_file)) or ""
 
 
+def _bundled_track_preview(map_name: str, track_name: str) -> str:
+    icon_file = f"{map_name} - {track_name}.png"
+    # окрема підтека, щоб імʼя превʼю не конфліктувало з повною іконкою в data/tracks
+    return copy_resource_to_data(f"icons/tracks/routes_preview/{icon_file}",
+                                 os.path.join(DATA_PATH_TRACKS, "preview", icon_file)) or ""
+
+
 def sync_track_icons():
-    """Кожен старт: підтягує іконку маршруту з бандла для треків без власної іконки.
+    """Кожен старт: підтягує іконку та превʼю маршруту з бандла для треків без власної.
 
     Не додає й не воскрешає видалені треки і не чіпає вже встановлені (зокрема правки користувача).
     """
     for track in APP_CONTEXT.tracks_service.get_all_views():
-        if track.icon:
+        if track.icon and track.icon_preview:
             continue
-        icon_path = _bundled_track_icon(track.map_name, track.name)
-        if icon_path:
-            track.icon = icon_path
+        changed = False
+        if not track.icon:
+            icon_path = _bundled_track_icon(track.map_name, track.name)
+            if icon_path:
+                track.icon = icon_path
+                changed = True
+        if not track.icon_preview:
+            preview_path = _bundled_track_preview(track.map_name, track.name)
+            if preview_path:
+                track.icon_preview = preview_path
+                changed = True
+        if changed:
             APP_CONTEXT.tracks_service.repo.update(track)
 
 

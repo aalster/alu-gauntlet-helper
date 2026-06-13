@@ -1,8 +1,8 @@
 from contextlib import contextmanager
 from typing import Callable
 
-from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, QRectF, QPointF
-from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QIcon, QImageReader
+from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, QRectF, QPointF, QBuffer, QIODevice
+from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QIcon, QImageReader, QImage
 from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLayout, QWidget, QListWidget, QListWidgetItem, \
     QToolButton, QLabel
 
@@ -120,13 +120,32 @@ class RankClassBadge(QWidget):
 
 
 def image_preview_html(icon_path: str, width: int = 360) -> str:
-    """Rich-text <img> для hover-тултипа, масштабований до `width` (без збільшення)."""
-    size = QImageReader(icon_path).size()  # reads the header only, no full decode
+    """Rich-text <img> для hover-тултипа, масштабований до `width` (без збільшення).
+
+    Масштабуємо самі через SmoothTransformation і вшиваємо як data-URI: якщо
+    віддати рушію тултипа повний PNG з width/height, він стискає його швидким
+    (nearest-neighbor) трансформом — тонкі лінії треку виглядають рваними.
+    """
+    reader = QImageReader(icon_path)
+    size = reader.size()  # reads the header only, no full decode
     if not size.isValid() or size.width() <= 0:
         return ""
     scale = min(width / size.width(), 1)
-    return (f'<img src="{icon_path.replace(chr(92), "/")}"'
-            f' width="{round(size.width() * scale)}" height="{round(size.height() * scale)}">')
+    target_w = round(size.width() * scale)
+    target_h = round(size.height() * scale)
+
+    image = reader.read()
+    if image.isNull():
+        return ""
+    if scale < 1:
+        image = image.scaled(target_w, target_h, Qt.AspectRatioMode.IgnoreAspectRatio,
+                             Qt.TransformationMode.SmoothTransformation)
+
+    buffer = QBuffer()
+    buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    image.save(buffer, "PNG")
+    b64 = bytes(buffer.data().toBase64()).decode("ascii")
+    return f'<img src="data:image/png;base64,{b64}" width="{target_w}" height="{target_h}">'
 
 
 class CarInfoWidget(QWidget):

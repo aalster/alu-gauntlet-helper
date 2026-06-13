@@ -10,6 +10,7 @@ class Track(BaseModel):
     map_id: int = 0
     name: str = ""
     icon: str = ""
+    icon_preview: str = ""
 
 class TrackView(Track):
     map_name: str = ""
@@ -22,8 +23,10 @@ class TracksRepository:
 
     def add(self, item: Track):
         with connect() as conn:
-            return conn.execute("INSERT INTO tracks (map_id, name, icon) VALUES (:map_id, :name, :icon)",
-                                item.model_dump(include={"map_id", "name", "icon"})).lastrowid
+            return conn.execute(
+                "INSERT INTO tracks (map_id, name, icon, icon_preview) "
+                "VALUES (:map_id, :name, :icon, :icon_preview)",
+                item.model_dump(include={"map_id", "name", "icon", "icon_preview"})).lastrowid
 
     def get_by_name(self, map_id: int, name: str):
         with connect() as conn:
@@ -66,8 +69,10 @@ class TracksRepository:
 
     def update(self, item: Track):
         with connect() as conn:
-            conn.execute("UPDATE tracks SET map_id = :map_id, name = :name, icon = :icon WHERE id = :id",
-                         item.model_dump(include={"id", "map_id", "name", "icon"}))
+            conn.execute(
+                "UPDATE tracks SET map_id = :map_id, name = :name, icon = :icon, "
+                "icon_preview = :icon_preview WHERE id = :id",
+                item.model_dump(include={"id", "map_id", "name", "icon", "icon_preview"}))
 
 class TracksService(Observable):
     def __init__(self, repo: TracksRepository, maps: MapsService):
@@ -114,6 +119,8 @@ class TracksService(Observable):
             # сід не затирає вже встановлену іконку (правки користувача зберігаються)
             if existing.icon:
                 item.icon = existing.icon
+            if existing.icon_preview:
+                item.icon_preview = existing.icon_preview
 
         self.repo.update(item)
         self._notify()
