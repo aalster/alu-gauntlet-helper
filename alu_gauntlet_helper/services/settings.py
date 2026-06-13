@@ -4,7 +4,6 @@ from pydantic import BaseModel
 
 class Settings(BaseModel):
     initial_data_loaded: bool = False
-    cars_updated_at: str = ""
     window_geometry: str = ""
     window_state: str = ""
 

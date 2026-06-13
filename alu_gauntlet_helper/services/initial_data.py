@@ -1,18 +1,17 @@
 import os
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
-from alu_gauntlet_helper.services.cars_sync import load_bundled_cars
 from alu_gauntlet_helper.services.maps import Map
 from alu_gauntlet_helper.services.tracks import TrackView
 from alu_gauntlet_helper.utils.utils import copy_resource_to_data, DATA_PATH_MAPS
 
 
 def init_data():
+    """Одноразовий сід карт і треків; авто синхронізуються з бандла на кожному старті."""
     for name in map_names:
         icon_file = f"{name}.png"
         icon_path = copy_resource_to_data(f"icons/maps/{icon_file}", os.path.join(DATA_PATH_MAPS, icon_file))
         APP_CONTEXT.maps_service.save(Map(name=name, icon=icon_path or ""))
-    APP_CONTEXT.cars_service.sync_from_asec(load_bundled_cars())
     for track in tracks:
         APP_CONTEXT.tracks_service.save(track)
 

@@ -1,13 +1,8 @@
 import os
-import urllib.request
 
 from alu_gauntlet_helper.database import connect
 from alu_gauntlet_helper.utils.utils import copy_resource_to_data, DATA_PATH_CARS
 from pydantic import BaseModel
-
-ASEC_ICON_URL = "https://img.asec.tools/{asec_id}.webp"
-USER_AGENT = "ALU-Gauntlet-Helper"
-ICON_FETCH_TIMEOUT_SECONDS = 15
 
 
 class Car(BaseModel):
@@ -187,24 +182,12 @@ class CarsService:
 
     @staticmethod
     def _resolve_icon(asec_id: int) -> str:
-        """Icon from data dir, falling back to bundled resources, then to img.asec.tools."""
+        """Іконка з data-теки або копія з бандлених ресурсів; "" якщо в бандлі немає.
+
+        Оновлення іконок у бандлі — вручну, див. docs/updating-cars-data.md."""
         icon_file = f"{asec_id}.webp"
         dest = os.path.join(DATA_PATH_CARS, icon_file)
         if os.path.exists(dest):
             return dest
 
-        copied = copy_resource_to_data(f"icons/cars/{icon_file}", dest)
-        if copied:
-            return copied
-
-        try:
-            request = urllib.request.Request(ASEC_ICON_URL.format(asec_id=asec_id), headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(request, timeout=ICON_FETCH_TIMEOUT_SECONDS) as response:
-                data = response.read()
-            os.makedirs(DATA_PATH_CARS, exist_ok=True)
-            with open(dest, "wb") as f:
-                f.write(data)
-            return dest
-        except Exception as e:
-            print(f"Failed to download icon for car {asec_id}: {e}")
-            return ""
+        return copy_resource_to_data(f"icons/cars/{icon_file}", dest) or ""

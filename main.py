@@ -4,7 +4,7 @@ import sys
 from PyQt6.QtWidgets import QApplication
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
-from alu_gauntlet_helper.services.cars_sync import update_cars_if_needed
+from alu_gauntlet_helper.services.cars_sync import sync_bundled_cars
 from alu_gauntlet_helper.services.initial_data import init_data
 from alu_gauntlet_helper.utils.single_instance_lock import single_instance_lock
 from alu_gauntlet_helper.utils.utils import app_dir_if_frozen
@@ -42,7 +42,7 @@ def main():
         settings.initial_data_loaded = True
         APP_CONTEXT.settings.save(settings)
 
-    update_cars_if_needed()
+    sync_bundled_cars()
 
     from alu_gauntlet_helper.screen_recognition.ocr import configure_tesseract
     configure_tesseract(settings.tesseract_path)
