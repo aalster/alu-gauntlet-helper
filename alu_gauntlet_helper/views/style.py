@@ -46,6 +46,45 @@ QLabel {{
     background: transparent;
 }}
 
+/* Рядки списків гонок/захоплення — стилі тут, а не inline на кожному з ~100 віджетів */
+QLabel#rowMapLabel {{
+    color: {TEXT_MUTED};
+    font-size: 12px;
+}}
+
+QLabel#rowTrackLabel {{
+    font-weight: bold;
+}}
+
+QLabel#rowTimeLabel {{
+    color: {TIME_YELLOW};
+}}
+
+QLabel#rowCreatedLabel {{
+    color: {TEXT_FAINT};
+    font-size: 12px;
+}}
+
+#carInfoPlate {{
+    background-color: rgba(5, 12, 40, 130);
+    border-radius: 6px;
+}}
+
+QLabel#carIconLabel {{
+    border-radius: 4px;
+    background-color: #271A62;
+}}
+
+QLabel#carBrandLabel {{
+    color: {TEXT_MUTED};
+    font-size: 12px;
+    font-weight: bold;
+}}
+
+QLabel#carModelLabel {{
+    font-weight: bold;
+}}
+
 QTabWidget::pane {{
     border: none;
 }}

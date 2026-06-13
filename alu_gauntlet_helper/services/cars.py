@@ -1,6 +1,7 @@
 import os
 
 from alu_gauntlet_helper.database import connect
+from alu_gauntlet_helper.services.observable import Observable
 from alu_gauntlet_helper.utils.utils import copy_resource_to_data, DATA_PATH_CARS
 from pydantic import BaseModel
 
@@ -104,7 +105,7 @@ class CarsRepository:
             return [self.parse(row) for row in rows]
 
 
-class CarsService:
+class CarsService(Observable):
     def __init__(self, repo: CarsRepository):
         self.repo = repo
 
@@ -125,10 +126,13 @@ class CarsService:
         if item.id <= 0:
             existing = self.repo.get_by_name(item.name)
             if not existing:
-                return self.repo.add(item)
+                new_id = self.repo.add(item)
+                self._notify()
+                return new_id
             item.id = existing.id
 
         self.repo.update(item, update_empty_rank)
+        self._notify()
         return item.id
 
     def get_or_create(self, name: str, rank: int = 0) -> int:
@@ -136,14 +140,19 @@ class CarsService:
         if existing:
             if rank > 0 and rank != existing.rank:
                 self.repo.update_rank(existing.id, rank)
+                self._notify()
             return existing.id
-        return self.repo.add(Car(name=name, model=name, rank=rank))
+        new_id = self.repo.add(Car(name=name, model=name, rank=rank))
+        self._notify()
+        return new_id
 
     def update_rank(self, car_id: int, rank: int):
         self.repo.update_rank(car_id, rank)
+        self._notify()
 
     def toggle_favorite(self, car_id: int):
         self.repo.toggle_favorite(car_id)
+        self._notify()
 
     def sync_from_asec(self, entries: list[dict]):
         """Upsert cars from asec.tools carsList entries, matching by asec_id, then by name."""

@@ -127,14 +127,13 @@ class CarInfoWidget(QWidget):
 
     def __init__(self, icon_path: str, brand: str, model: str, rank_badge: QWidget, parent=None):
         super().__init__(parent)
-        # plain QWidget ignores QSS background without this attribute
+        # plain QWidget ignores QSS background without this attribute; стилі — у глобальному QSS
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setObjectName("carInfoPlate")
-        self.setStyleSheet("#carInfoPlate { background-color: rgba(5, 12, 40, 130); border-radius: 6px; }")
 
         self.icon_label = QLabel()
+        self.icon_label.setObjectName("carIconLabel")
         self.icon_label.setFixedSize(80, 40)
-        self.icon_label.setStyleSheet("border-radius: 4px; background-color: #271A62;")
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if icon_path:
             pixmap = load_pixmap_cover(icon_path, w=self.icon_label.width(), h=self.icon_label.height())
@@ -145,9 +144,9 @@ class CarInfoWidget(QWidget):
                 self.icon_label.setToolTip(preview)
 
         self.brand_label = QLabel(brand.upper())
-        self.brand_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px; font-weight: bold;")
+        self.brand_label.setObjectName("carBrandLabel")
         self.model_label = QLabel(model)
-        self.model_label.setStyleSheet("font-weight: bold;")
+        self.model_label.setObjectName("carModelLabel")
 
         # brand left, rank badge right; the model line below uses the full width
         brand_row = QHBoxLayout()

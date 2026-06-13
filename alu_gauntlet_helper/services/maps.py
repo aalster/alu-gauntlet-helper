@@ -1,6 +1,8 @@
 from alu_gauntlet_helper.database import connect
 from pydantic import BaseModel
 
+from alu_gauntlet_helper.services.observable import Observable
+
 
 class Map(BaseModel):
     id: int = 0
@@ -46,7 +48,7 @@ class MapsRepository:
             return [self.parse(row) for row in rows]
 
 
-class MapsService:
+class MapsService(Observable):
     def __init__(self, repo: MapsRepository):
         self.repo = repo
 
@@ -66,8 +68,11 @@ class MapsService:
         if item.id <= 0:
             existing = self.repo.get_by_name(item.name)
             if not existing:
-                return self.repo.add(item)
+                new_id = self.repo.add(item)
+                self._notify()
+                return new_id
             return existing.id
 
         self.repo.update(item)
+        self._notify()
         return item.id

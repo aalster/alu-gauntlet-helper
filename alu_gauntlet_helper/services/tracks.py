@@ -2,6 +2,7 @@ from alu_gauntlet_helper.database import connect
 from pydantic import BaseModel
 
 from alu_gauntlet_helper.services.maps import MapsService, Map
+from alu_gauntlet_helper.services.observable import Observable
 
 
 class Track(BaseModel):
@@ -65,7 +66,7 @@ class TracksRepository:
         with connect() as conn:
             conn.execute("UPDATE tracks SET map_id = :map_id, name = :name WHERE id = :id", item.model_dump())
 
-class TracksService:
+class TracksService(Observable):
     def __init__(self, repo: TracksRepository, maps: MapsService):
         self.repo = repo
         self.maps = maps
@@ -103,8 +104,11 @@ class TracksService:
         if item.id <= 0:
             existing = self.repo.get_by_name(item.map_id, item.name)
             if not existing:
-                return self.repo.add(item)
+                new_id = self.repo.add(item)
+                self._notify()
+                return new_id
             item.id = existing.id
 
         self.repo.update(item)
+        self._notify()
         return item.id

@@ -32,12 +32,12 @@ class CaptureRaceRow(ListItemWidget):
         self.checkbox.clicked.connect(lambda c: on_toggle(race_number, c))
 
         self.map_label = QLabel(track.map_name if track else "")
-        self.map_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px;")
+        self.map_label.setObjectName("rowMapLabel")
         track_text = ""
         if track:
             track_text = (WARN_ICON if e.track_uncertain else "") + track.name
         self.track_label = QLabel(track_text)
-        self.track_label.setStyleSheet("font-weight: bold;")
+        self.track_label.setObjectName("rowTrackLabel")
 
         if e is not None:
             if e.rank:
@@ -58,7 +58,7 @@ class CaptureRaceRow(ListItemWidget):
         time_font.setPointSize(self.font().pointSize() + 4)
 
         self.time_label = QLabel(format_time(e.time) if e is not None and e.time else "")
-        self.time_label.setStyleSheet(f"color: {style.TIME_YELLOW};")
+        self.time_label.setObjectName("rowTimeLabel")
         self.time_label.setFont(time_font)
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 

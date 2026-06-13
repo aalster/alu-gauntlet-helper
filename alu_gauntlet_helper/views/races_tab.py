@@ -101,11 +101,11 @@ class RaceListWidget(ListItemWidget):
     def __init__(self, race: RaceView, parent=None):
         super().__init__(race, parent)
         self.map_label = QLabel(race.map_name)
-        self.map_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px;")
+        self.map_label.setObjectName("rowMapLabel")
         # лейбли розтягуються на висоту рядка, тому притискаємо тексти до центру
         self.map_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
         self.track_label = QLabel(race.track_name)
-        self.track_label.setStyleSheet("font-weight: bold;")
+        self.track_label.setObjectName("rowTrackLabel")
         self.track_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         rank_color = ""
         if race.rank and race.car_rank:
@@ -122,11 +122,11 @@ class RaceListWidget(ListItemWidget):
         time_font.setPointSize(self.font().pointSize() + 4)
 
         self.time_label = QLabel(format_time(race.time))
+        self.time_label.setObjectName("rowTimeLabel")
         self.time_label.setFont(time_font)
-        self.time_label.setStyleSheet(f"color: {style.TIME_YELLOW};")
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.created_at_label = QLabel(format_relative_time(race.created_at))
-        self.created_at_label.setStyleSheet(f"color: {style.TEXT_FAINT}; font-size: 12px;")
+        self.created_at_label.setObjectName("rowCreatedLabel")
         self.created_at_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.created_at_label.setToolTip(race.created_at.strftime("%d.%m.%Y %H:%M:%S"))
 
@@ -183,24 +183,40 @@ class RacesTab(QWidget):
         layout.addLayout(top_layout)
         layout.addWidget(self.list_widget)
         self.setLayout(layout)
-        self.refresh()
+
+        # перебудова списку дорога (100 композитних рядків), тому робимо її лише коли дані
+        # реально змінились. Сервіси гонок/авто/треків/мап сигналять про мутації.
+        self._dirty = False
+        self._rebuild()
+        for svc in (APP_CONTEXT.races_service, APP_CONTEXT.cars_service,
+                    APP_CONTEXT.tracks_service, APP_CONTEXT.maps_service):
+            svc.add_listener(self._mark_dirty)
+
+    def _mark_dirty(self):
+        self._dirty = True
 
     def refresh(self):
+        # викликається при кожному перемиканні на вкладку — перебудова лише за потреби
+        if self._dirty:
+            self._rebuild()
+
+    def _rebuild(self):
         with preserved_scroll(self.list_widget):
             self.list_widget.clear()
             track_query = self.track_query.text().strip()
             car_query = self.car_query.text().strip()
             for i in APP_CONTEXT.races_service.get_all(track_query, car_query):
                 RaceListWidget(i).add_to_list(self.list_widget)
+        self._dirty = False
 
     def on_search(self):
-        self.refresh()
-        self.list_widget.scrollToTop()  # фільтр змінився — результати з початку
+        self._rebuild()  # фільтр змінився — перебудова обов'язкова
+        self.list_widget.scrollToTop()  # результати з початку
 
     def on_add(self):
         if RaceDialog(item=RaceView(), action=APP_CONTEXT.races_service.save, parent=self).exec():
-            self.refresh()
+            self._rebuild()
 
     def on_edit(self, item: QListWidgetItem):
         if RaceDialog(item=item.data(Qt.ItemDataRole.UserRole), action=APP_CONTEXT.races_service.save, parent=self).exec():
-            self.refresh()
+            self._rebuild()

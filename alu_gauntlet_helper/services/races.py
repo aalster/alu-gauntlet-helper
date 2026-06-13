@@ -4,6 +4,7 @@ from pydantic import BaseModel, field_validator
 
 from alu_gauntlet_helper.database import connect
 from alu_gauntlet_helper.services.cars import CarsService
+from alu_gauntlet_helper.services.observable import Observable
 from alu_gauntlet_helper.services.tracks import TracksService, TrackView
 from alu_gauntlet_helper.utils.utils import parse_utc_datetime
 
@@ -119,7 +120,7 @@ class RacesRepository:
             rows = conn.execute(sql, {"track_id": track_id, "car_id": car_id, "limit": limit}).fetchall()
             return [self.parse(row) for row in rows]
 
-class RacesService:
+class RacesService(Observable):
     def __init__(self, repo: RacesRepository, tracks: TracksService, cars: CarsService):
         self.repo = repo
         self.tracks = tracks
@@ -161,6 +162,7 @@ class RacesService:
             self.repo.add(item)
         else:
             self.repo.update(item)
+        self._notify()
 
     def get_car_suggestions_for_track(self, track_id: int) -> list[CarSuggestion]:
         stats = self.repo.get_car_stats_for_track(track_id)
