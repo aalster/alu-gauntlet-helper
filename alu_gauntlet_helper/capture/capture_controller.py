@@ -1,3 +1,4 @@
+import queue
 import threading
 import traceback
 
@@ -32,8 +33,15 @@ class CaptureController(QObject):
         super().__init__(parent)
         self.overlay = OverlayWindow()
         self.hotkeys = GlobalHotkeyService()
-        self._busy = False
+        self._busy = False  # True лише поки оверлей сховано й триває граб
         self._status = ""
+        self._in_flight = 0  # скрінів у черзі/на розпізнаванні (лише UI-потік)
+
+        # Один довгоживучий воркер серіалізує OCR: грабити можна під час
+        # розпізнавання попередніх кадрів, але самі розпізнавання — по одному.
+        self._queue: queue.Queue = queue.Queue()
+        self._worker = threading.Thread(target=self._recognition_loop, daemon=True)
+        self._worker.start()
 
         self._capture_requested.connect(self._on_capture_requested)
         self._overlay_toggle_requested.connect(self.toggle_overlay)
@@ -53,6 +61,7 @@ class CaptureController(QObject):
     def shutdown(self):
         APP_CONTEXT.challenge_session.remove_listener(self._refresh_overlay)
         self.hotkeys.unregister_all()
+        self._queue.put(None)  # sentinel — зупиняє воркер
 
     # --- захоплення -----------------------------------------------------
 
@@ -80,38 +89,46 @@ class CaptureController(QObject):
         if settings.save_captures:
             save_capture(img)
 
-        engine = self._build_engine()
-        self._set_status("Recognizing…")
-        threading.Thread(target=self._recognize_worker, args=(engine, img), daemon=True).start()
+        # граб завершено — оверлей можна повертати й приймати наступні F8,
+        # розпізнавання поставленого в чергу кадру триватиме у фоні
+        self._busy = False
+        self._enqueue(self._build_engine(), img)
 
     def recognize_file(self, path: str):
         """Розпізнавання скріншота з файлу — той самий пайплайн, що й захоплення хоткеєм."""
-        if self._busy:
-            return
         # cv2.imread мовчки падає на не-ASCII шляхах у Windows, тому imdecode
         img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
         if img is None:
             self._set_status("Failed to load screenshot")
             return
-        self._busy = True
-        engine = self._build_engine()
-        self._set_status("Recognizing…")
-        threading.Thread(target=self._recognize_worker, args=(engine, img), daemon=True).start()
+        self._enqueue(self._build_engine(), img)
 
-    def _recognize_worker(self, engine: RecognitionEngine, img):
-        result = None
-        try:
-            if not ocr.is_available():
-                print("Tesseract is not available")
-            else:
-                result = engine.recognize(img)
-        except Exception:
-            traceback.print_exc()
-        try:
-            self._recognized.emit(result)
-        except RuntimeError:
-            # QObject знищено під час завершення застосунку
-            pass
+    def _enqueue(self, engine: RecognitionEngine, img):
+        """Ставить кадр у чергу розпізнавання й оновлює лічильник/оверлей (UI-потік)."""
+        self._in_flight += 1
+        self._queue.put((engine, img))
+        self._refresh_overlay()
+
+    def _recognition_loop(self):
+        """Фоновий воркер: розпізнає кадри з черги по одному, у порядку захоплення."""
+        while True:
+            item = self._queue.get()
+            if item is None:  # sentinel зі shutdown
+                break
+            engine, img = item
+            result = None
+            try:
+                if not ocr.is_available():
+                    print("Tesseract is not available")
+                else:
+                    result = engine.recognize(img)
+            except Exception:
+                traceback.print_exc()
+            try:
+                self._recognized.emit(result)
+            except RuntimeError:
+                # QObject знищено під час завершення застосунку
+                pass
 
     @staticmethod
     def _build_engine() -> RecognitionEngine:
@@ -129,8 +146,10 @@ class CaptureController(QObject):
         ])
 
     def _on_recognized(self, result):
-        self._busy = False
+        self._in_flight = max(0, self._in_flight - 1)
         if result is None:
+            # _set_status сам зробить refresh; "Recognizing" далі має пріоритет,
+            # поки лишаються кадри в роботі
             self._set_status("Screen not recognized")
             return
         self._status = ""
@@ -158,7 +177,14 @@ class CaptureController(QObject):
         track_names = {t.id: f"{t.map_name} - {t.name}" for t in APP_CONTEXT.tracks_service.get_by_ids(track_ids).values()}
         car_names = {c.id: c.name for c in APP_CONTEXT.cars_service.get_by_ids(car_ids).values()}
 
-        status = self._status
+        # поки є кадри в роботі — "Recognizing"/"Recognizing (N)" має пріоритет;
+        # транзитні повідомлення (помилки, "not recognized") показуються, коли черга порожня
+        if self._in_flight == 1:
+            status = "Recognizing"
+        elif self._in_flight > 1:
+            status = f"Recognizing ({self._in_flight})"
+        else:
+            status = self._status
         if not status and session.is_complete():
             status = "Done — review in the app"
         settings = APP_CONTEXT.settings.get()
