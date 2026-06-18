@@ -43,6 +43,12 @@ def main():
         settings.initial_data_loaded = True
         APP_CONTEXT.settings.save(settings)
 
+    # Монітор міг зникнути між запусками (відключили екран) — скидаємо на 1
+    from alu_gauntlet_helper.capture.screen_grab import monitor_count
+    if not 1 <= settings.capture_monitor <= monitor_count():
+        settings.capture_monitor = 1
+        APP_CONTEXT.settings.save(settings)
+
     sync_track_icons()
     sync_bundled_cars()
 

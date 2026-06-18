@@ -1,7 +1,10 @@
-from PyQt6.QtWidgets import (QCheckBox, QFormLayout, QHBoxLayout, QLabel,
-                             QLineEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget)
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QFormLayout, QHBoxLayout,
+                             QLabel, QPushButton, QVBoxLayout, QWidget)
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.capture.screen_grab import list_monitors
+from alu_gauntlet_helper.views.components.hotkey_edit import HotkeyEdit
 
 
 class SettingsTab(QWidget):
@@ -18,10 +21,10 @@ class SettingsTab(QWidget):
 
         self.start_minimized = QCheckBox("Start minimized")
 
-        self.capture_hotkey = QLineEdit()
-        self.overlay_hotkey = QLineEdit()
-        self.capture_monitor = QSpinBox()
-        self.capture_monitor.setRange(1, 4)
+        self.capture_hotkey = HotkeyEdit()
+        self.overlay_hotkey = HotkeyEdit()
+        self.monitor_group = QButtonGroup(self)
+        self.monitor_layout = self._build_monitor_selector()
         self.save_captures = QCheckBox("Save capture screenshots (data/captures)")
         self.capture_status = QLabel()
 
@@ -34,7 +37,7 @@ class SettingsTab(QWidget):
         self.form.addWidget(self.start_minimized)
         self.form.addRow("Capture hotkey", self.capture_hotkey)
         self.form.addRow("Overlay hotkey", self.overlay_hotkey)
-        self.form.addRow("Capture monitor", self.capture_monitor)
+        self.form.addRow("Capture monitor", self.monitor_layout)
         self.form.addWidget(self.save_captures)
         self.form.addWidget(self.capture_status)
 
@@ -50,14 +53,33 @@ class SettingsTab(QWidget):
         self.refresh()
         self.on_tray_changed()
 
+    def _build_monitor_selector(self) -> QHBoxLayout:
+        layout = QHBoxLayout()
+        layout.setSpacing(0)
+        monitors = list_monitors() or [(0, 0)]
+        for index, (width, height) in enumerate(monitors):
+            # parent keeps the button alive: QButtonGroup.addButton() doesn't take ownership
+            button = QPushButton(f"Monitor {index + 1}\n{width}×{height}", self)
+            button.setObjectName("segment")
+            button.setCheckable(True)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setProperty("first", index == 0)
+            button.setProperty("last", index == len(monitors) - 1)
+            self.monitor_group.addButton(button, index + 1)  # id = монітор (1-based)
+            layout.addWidget(button)
+        layout.addStretch()
+        return layout
+
     def refresh(self):
         settings = APP_CONTEXT.settings.get()
         self.show_tray_icon.setChecked(settings.show_tray_icon)
         self.close_to_tray.setChecked(settings.close_to_tray)
         self.start_minimized.setChecked(settings.start_minimized)
-        self.capture_hotkey.setText(settings.capture_hotkey)
-        self.overlay_hotkey.setText(settings.overlay_hotkey)
-        self.capture_monitor.setValue(settings.capture_monitor)
+        self.capture_hotkey.set_value(settings.capture_hotkey)
+        self.overlay_hotkey.set_value(settings.overlay_hotkey)
+        button = self.monitor_group.button(settings.capture_monitor) or self.monitor_group.button(1)
+        if button is not None:
+            button.setChecked(True)
         self.save_captures.setChecked(settings.save_captures)
         self.capture_status.setText("")
 
@@ -70,9 +92,9 @@ class SettingsTab(QWidget):
         settings.show_tray_icon = self.show_tray_icon.isChecked()
         settings.close_to_tray = self.close_to_tray.isChecked()
         settings.start_minimized = self.start_minimized.isChecked()
-        settings.capture_hotkey = self.capture_hotkey.text().strip() or "f8"
-        settings.overlay_hotkey = self.overlay_hotkey.text().strip() or "f9"
-        settings.capture_monitor = self.capture_monitor.value()
+        settings.capture_hotkey = self.capture_hotkey.value().strip() or "f8"
+        settings.overlay_hotkey = self.overlay_hotkey.value().strip() or "f9"
+        settings.capture_monitor = self.monitor_group.checkedId() if self.monitor_group.checkedId() != -1 else 1
         settings.save_captures = self.save_captures.isChecked()
         APP_CONTEXT.settings.save(settings)
         self.refresh()

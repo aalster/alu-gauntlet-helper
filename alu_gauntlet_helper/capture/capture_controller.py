@@ -56,6 +56,10 @@ class CaptureController(QObject):
 
     # --- захоплення -----------------------------------------------------
 
+    def capture_now(self):
+        """Програмний тригер захоплення — те саме, що й хоткей."""
+        self._capture_requested.emit()
+
     def _on_capture_requested(self):
         if self._busy:
             return

@@ -8,7 +8,6 @@ from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, EffectiveRace
 from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.utils.utils import format_time
-from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.views.components.common import (CarInfoWidget, ListItemWidget,
                                                          RankClassBadge, hbox,
                                                          res_to_pixmap, vbox)
@@ -91,7 +90,7 @@ class CaptureRaceRow(ListItemWidget):
 class CaptureTab(QWidget):
     """Стан сесії захоплення: рев'ю, редагування і збереження прямо в табі."""
 
-    def __init__(self, recognize_file=None, toggle_overlay=None):
+    def __init__(self, recognize_file=None, toggle_overlay=None, capture=None):
         super().__init__()
         self.recognize_file = recognize_file
 
@@ -101,18 +100,19 @@ class CaptureTab(QWidget):
         self.load_button.setObjectName("secondary")
         self.load_button.clicked.connect(self.load_screenshot)
 
+        self.capture_button = QPushButton(f"Capture Screen ({settings.capture_hotkey.upper()})")
+        if capture:
+            self.capture_button.clicked.connect(capture)
+
         self.overlay_button = QPushButton(f"Toggle Overlay ({settings.overlay_hotkey.upper()})")
         self.overlay_button.setObjectName("secondary")
         if toggle_overlay:
             self.overlay_button.clicked.connect(toggle_overlay)
 
-        hint = QLabel(f"Press <b>{settings.capture_hotkey.upper()}</b> to capture screen")
-        hint.setStyleSheet(f"color: {style.TEXT_MUTED};")
-
         top = QHBoxLayout()
         top.addWidget(self.load_button)
+        top.addWidget(self.capture_button)
         top.addWidget(self.overlay_button)
-        top.addWidget(hint)
         top.addStretch()
 
         # ручні стани чекбоксів {race_number: bool}; немає ключа — авторежим (чекнуто, коли є час)

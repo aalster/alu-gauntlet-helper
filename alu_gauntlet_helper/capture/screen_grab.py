@@ -8,6 +8,19 @@ import numpy as np
 CAPTURES_DIR = "data/captures"
 
 
+def list_monitors() -> list[tuple[int, int]]:
+    """Список (width, height) для кожного фізичного монітора.
+    Без monitors[0], який у mss означає «усі екрани разом»."""
+    with mss.mss() as sct:
+        return [(m["width"], m["height"]) for m in sct.monitors[1:]]
+
+
+def monitor_count() -> int:
+    """Кількість фізичних моніторів."""
+    with mss.mss() as sct:
+        return len(sct.monitors) - 1
+
+
 def grab_screen(monitor_index: int = 1) -> np.ndarray:
     """Скріншот монітора як BGR numpy array. monitors[0] — усі екрани разом."""
     with mss.mss() as sct:
