@@ -16,7 +16,7 @@ from alu_gauntlet_helper.screen_recognition.screens.challenge_accordion import C
 from alu_gauntlet_helper.screen_recognition.screens.challenge_complete import ChallengeCompleteExtractor
 from alu_gauntlet_helper.screen_recognition.screens.race_result import RaceResultExtractor
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT
-from alu_gauntlet_helper.views.overlay import OverlayWindow, build_overlay_lines
+from alu_gauntlet_helper.views.overlay import OverlayWindow, build_overlay_html
 
 OVERLAY_HIDE_DELAY_MS = 80
 
@@ -159,6 +159,6 @@ class CaptureController(QObject):
             status = "Done — review in the app"
         settings = APP_CONTEXT.settings.get()
         hint = f"{settings.capture_hotkey.upper()} capture · {settings.overlay_hotkey.upper()} hide"
-        self.overlay.set_lines(build_overlay_lines(effective, track_names, car_names, status, hotkey_hint=hint))
+        self.overlay.set_html(build_overlay_html(effective, track_names, car_names, status, hotkey_hint=hint))
         if not self.overlay.isVisible():
             self.overlay.show()
