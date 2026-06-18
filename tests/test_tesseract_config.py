@@ -21,9 +21,12 @@ def restore_tesseract_cmd():
     pytesseract.pytesseract.tesseract_cmd = original
 
 
-def test_bundled_path_empty_in_dev(monkeypatch):
+def test_bundled_path_points_to_installer_in_dev(monkeypatch):
+    # Запуск із вихідників бере ту саму портативну копію з installer/tesseract/,
+    # а не системний Tesseract (див. докстрінг _bundled_tesseract).
     monkeypatch.delattr(sys, "frozen", raising=False)
-    assert ocr._bundled_tesseract() == ""
+    name = "tesseract.exe" if sys.platform == "win32" else "tesseract"
+    assert ocr._bundled_tesseract().endswith(os.path.join("installer", "tesseract", name))
 
 
 def test_bundled_path_in_frozen(monkeypatch):

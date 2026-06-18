@@ -84,6 +84,25 @@ def test_empty_vocabulary_returns_none():
     assert resolver.resolve("SAN FRANCISCO RAILROAD BUSTLE") is None
 
 
+def test_track_name_contains_other_map_name():
+    # Трек "Paris of the East" на карті Shanghai містить підрядок з назвою ІНШОЇ
+    # карти — "Paris". У БД карти йдуть алфавітно (Paris ПЕРЕД Shanghai), тож на
+    # рівному partial_ratio=100 ("PARIS" і "SHANGHAI" обидва присутні в тексті)
+    # не можна віддавати перемогу першій-ліпшій короткій назві: реальна карта —
+    # довша SHANGHAI, що присутня повністю.
+    local_tracks = [
+        tv(10, "Along the Seine", "Paris"),
+        tv(11, "Metro", "Paris"),
+        tv(12, "Notre Dame", "Paris"),
+        tv(13, "Double Roundabout", "Shanghai"),
+        tv(14, "Paris of the East", "Shanghai"),
+    ]
+    resolver = TrackResolver(local_tracks)
+    # типовий OCR-вивід цього екрана: назва треку на двох рядках
+    guess = resolver.resolve("SHANGHAI\nPARISOF\nHN THEEAST")
+    assert guess and guess.value == 14
+
+
 def test_track_with_empty_map_name_resolves_via_fallback():
     # TrackResolver skips tracks with empty map_name in the map index,
     # but build_track_matcher includes them in the fallback matcher.

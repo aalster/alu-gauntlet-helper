@@ -75,12 +75,18 @@ class TrackResolver:
         # inside the longer, so 2-3 chars like "NO" score 100 against "NORWAY".
         if len(norm_text) < self._MIN_FRAGMENT_LEN:
             return None
-        best_map, best_score = None, 0.0
+        # На рівному скорі перемагає ДОВША назва карти. Коли назва треку містить
+        # назву іншої карти (трек "Paris of the East" на карті Shanghai), і
+        # "PARIS", і "SHANGHAI" дають partial_ratio=100 як підрядки тексту; за
+        # строгого ">" перемогла б перша за порядком (карти в БД алфавітні —
+        # Paris перед Shanghai), даючи хибну карту. Справжня карта присутня в
+        # тексті повністю й довша за випадковий короткий збіг.
+        best_map, best_key = None, (0.0, 0)
         for norm_map in self._maps:
-            score = fuzz.partial_ratio(norm_map, norm_text)
-            if score > best_score:
-                best_map, best_score = norm_map, score
-        return best_map if best_score >= self.threshold else None
+            key = (fuzz.partial_ratio(norm_map, norm_text), len(norm_map))
+            if key > best_key:
+                best_map, best_key = norm_map, key
+        return best_map if best_key[0] >= self.threshold else None
 
     @staticmethod
     def _strip_map(lines: list[str], norm_map: str) -> str:

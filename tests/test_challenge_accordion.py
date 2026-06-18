@@ -20,6 +20,7 @@ TRACK_US_TWISTER = 104
 TRACK_CAIRO_GEZIRA = 105
 TRACK_PARIS_NOTRE_DAME = 106
 TRACK_SF_CENTER = 107  # другий трек Сан-Франциско: дизамбігуація реально працює
+TRACK_SHANGHAI_PARIS_EAST = 108  # назва містить чужу карту "Paris" — перевірка колізії
 
 
 def track_view(track_id: int, name: str, map_name: str):
@@ -31,6 +32,7 @@ TRACK_VIEWS = [
     track_view(TRACK_SF_CENTER, "Out of the Center", "San Francisco"),
     track_view(TRACK_NORWAY_FUSION, "Future Fusion", "Norway"),
     track_view(TRACK_SHANGHAI_ROUNDABOUT, "Double Roundabout", "Shanghai"),
+    track_view(TRACK_SHANGHAI_PARIS_EAST, "Paris of the East", "Shanghai"),
     track_view(TRACK_US_TWISTER, "It's a Twister", "US Midwest"),
     track_view(TRACK_CAIRO_GEZIRA, "Gezira Island", "Cairo"),
     track_view(TRACK_PARIS_NOTRE_DAME, "Notre Dame", "Paris"),
@@ -114,6 +116,22 @@ def test_after_4_lost_race_red_time():
     assert c.car.value != CAR_LYKAN_HYPERSPORT
     assert c.rank == 5130
     assert c.time == 24182  # червоний час читається через max-канальний фолбек OCR
+
+
+@pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
+@fixture_guard("accordion_after_shanghai_paris_east.png")
+def test_after_shanghai_paris_of_the_east_track():
+    """Скріншот: RACE 1, WON; зліва суперник MITSUBISHI LANCER EVOLUTION 1,031,
+    справа гравець BUGATTI CHIRON 5,130; карта SHANGHAI, трек PARIS OF THE EAST
+    (назва на двох рядках і містить чужу карту "Paris"); TIME TO BEAT 00:37.672,
+    YOUR TIME 00:26.665. Регресія: карта раніше плуталась із Paris і трек не
+    розпізнавався взагалі."""
+    c = extract_one("accordion_after_shanghai_paris_east.png")
+    assert c.race_number == 1
+    assert c.track and c.track.value == TRACK_SHANGHAI_PARIS_EAST
+    assert c.car and c.car.value == CAR_BUGATTI_CHIRON
+    assert c.rank == 5130
+    assert c.time == 26665  # YOUR TIME, не 37672 (TIME TO BEAT)
 
 
 # --- BEFORE: гонку ще не їхали — лише номер гонки і трек ---------------------
