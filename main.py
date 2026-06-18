@@ -47,7 +47,7 @@ def main():
     sync_bundled_cars()
 
     from alu_gauntlet_helper.screen_recognition.ocr import configure_tesseract
-    configure_tesseract(settings.tesseract_path)
+    configure_tesseract()
 
     app = QApplication(sys.argv)
     app.setStyle("Fusion")

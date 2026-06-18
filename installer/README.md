@@ -10,7 +10,7 @@
    - встанови Tesseract (UB Mannheim build) або візьми вже встановлений;
    - скопіюй вміст його теки (tesseract.exe, *.dll, tessdata/ з eng.traineddata) в `installer/tesseract/`;
    - перевір: `installer\tesseract\tesseract.exe --version` працює.
-   Без цієї теки інсталятор збереться, але без бандленого OCR.
+   Тека обов'язкова: без `tesseract.exe` чи `tessdata\eng.traineddata` збірка впаде з помилкою.
 
 ## Збірка
 

@@ -9,7 +9,10 @@ $version = $versionLine.Matches[0].Groups[1].Value
 Write-Host "Building ALU Gauntlet Helper $version"
 
 if (-not (Test-Path "installer\tesseract\tesseract.exe")) {
-    Write-Warning "installer\tesseract\ is empty - the installer will ship WITHOUT bundled OCR (see installer\README.md)"
+    throw "installer\tesseract\tesseract.exe not found - bundled OCR is required (see installer\README.md)"
+}
+if (-not (Test-Path "installer\tesseract\tessdata\eng.traineddata")) {
+    throw "installer\tesseract\tessdata\eng.traineddata not found - bundled OCR is required (see installer\README.md)"
 }
 
 & "$root\.venv\Scripts\pyinstaller.exe" main.spec --noconfirm

@@ -43,7 +43,7 @@ class CaptureController(QObject):
     def apply_settings(self) -> bool:
         """(Пере)реєструє хоткеї та tesseract зі збережених налаштувань. False — хоткей не став."""
         settings = APP_CONTEXT.settings.get()
-        ocr.configure_tesseract(settings.tesseract_path)
+        ocr.configure_tesseract()
         self.hotkeys.unregister_all()
         ok = self.hotkeys.register(settings.capture_hotkey, self._capture_requested.emit)
         self.hotkeys.register(settings.overlay_hotkey, self._overlay_toggle_requested.emit)

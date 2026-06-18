@@ -13,7 +13,6 @@ class Settings(BaseModel):
 
     capture_hotkey: str = "f8"
     overlay_hotkey: str = "f9"
-    tesseract_path: str = ""
     capture_monitor: int = 1
     save_captures: bool = False
 

@@ -20,8 +20,6 @@ class SettingsTab(QWidget):
 
         self.capture_hotkey = QLineEdit()
         self.overlay_hotkey = QLineEdit()
-        self.tesseract_path = QLineEdit()
-        self.tesseract_path.setPlaceholderText("auto-detect")
         self.capture_monitor = QSpinBox()
         self.capture_monitor.setRange(1, 4)
         self.save_captures = QCheckBox("Save capture screenshots (data/captures)")
@@ -36,7 +34,6 @@ class SettingsTab(QWidget):
         self.form.addWidget(self.start_minimized)
         self.form.addRow("Capture hotkey", self.capture_hotkey)
         self.form.addRow("Overlay hotkey", self.overlay_hotkey)
-        self.form.addRow("Tesseract path", self.tesseract_path)
         self.form.addRow("Capture monitor", self.capture_monitor)
         self.form.addWidget(self.save_captures)
         self.form.addWidget(self.capture_status)
@@ -60,7 +57,6 @@ class SettingsTab(QWidget):
         self.start_minimized.setChecked(settings.start_minimized)
         self.capture_hotkey.setText(settings.capture_hotkey)
         self.overlay_hotkey.setText(settings.overlay_hotkey)
-        self.tesseract_path.setText(settings.tesseract_path)
         self.capture_monitor.setValue(settings.capture_monitor)
         self.save_captures.setChecked(settings.save_captures)
         self.capture_status.setText("")
@@ -76,7 +72,6 @@ class SettingsTab(QWidget):
         settings.start_minimized = self.start_minimized.isChecked()
         settings.capture_hotkey = self.capture_hotkey.text().strip() or "f8"
         settings.overlay_hotkey = self.overlay_hotkey.text().strip() or "f9"
-        settings.tesseract_path = self.tesseract_path.text().strip()
         settings.capture_monitor = self.capture_monitor.value()
         settings.save_captures = self.save_captures.isChecked()
         APP_CONTEXT.settings.save(settings)

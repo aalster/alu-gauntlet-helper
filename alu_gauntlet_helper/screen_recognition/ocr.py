@@ -16,10 +16,17 @@ DEFAULT_TESSERACT_PATHS = [
 
 
 def _bundled_tesseract() -> str:
-    """Шлях до Tesseract, що йде в комплекті з інсталятором; "" поза frozen-збіркою."""
+    """Шлях до портативного Tesseract, що йде в комплекті з застосунком.
+
+    Frozen-збірка: тека `tesseract/` поруч з exe (її кладе інсталятор).
+    Запуск із вихідників: та сама портативна копія з `installer/tesseract/`,
+    щоб і в розробці використовувати саме бандлений Tesseract, а не системний."""
+    name = "tesseract.exe" if sys.platform == "win32" else "tesseract"
     if getattr(sys, "frozen", False):
-        return os.path.join(os.path.dirname(sys.executable), "tesseract", "tesseract.exe")
-    return ""
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.join(os.path.dirname(__file__), "..", "..", "installer")
+    return os.path.normpath(os.path.join(base, "tesseract", name))
 
 
 NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
