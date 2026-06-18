@@ -11,6 +11,7 @@ from alu_gauntlet_helper.capture.screen_grab import grab_screen, save_capture
 from alu_gauntlet_helper.screen_recognition import ocr
 from alu_gauntlet_helper.screen_recognition.engine import RecognitionEngine
 from alu_gauntlet_helper.screen_recognition.matching import TrackResolver, build_car_matcher
+from alu_gauntlet_helper.screen_recognition.screens.before_race import BeforeRaceExtractor
 from alu_gauntlet_helper.screen_recognition.screens.challenge_accordion import ChallengeAccordionExtractor
 from alu_gauntlet_helper.screen_recognition.screens.challenge_complete import ChallengeCompleteExtractor
 from alu_gauntlet_helper.screen_recognition.screens.race_result import RaceResultExtractor
@@ -114,10 +115,12 @@ class CaptureController(QObject):
         track_resolver = TrackResolver(APP_CONTEXT.tracks_service.get_all_views())
         car_matcher = build_car_matcher(APP_CONTEXT.cars_service.get_all())
         # Порядок — за ціною перевірки-якоря на чужому екрані: race_result і
-        # challenge_complete відсіюються за 1-3 OCR-виклики, акордеон — до 15.
+        # challenge_complete відсіюються за 1-3 OCR-виклики, before_race — за 1-2
+        # (частки білого без OCR + одна цифра), акордеон — до 15.
         return RecognitionEngine([
             RaceResultExtractor(car_matcher),
             ChallengeCompleteExtractor(car_matcher),
+            BeforeRaceExtractor(track_resolver),
             ChallengeAccordionExtractor(track_resolver, car_matcher),
         ])
 

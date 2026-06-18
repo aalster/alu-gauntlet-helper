@@ -140,3 +140,23 @@ def read_name(img: np.ndarray) -> str:
     if img.size == 0:
         return ""
     return read_text(img, NAME_CHARS, psm=6)
+
+
+def read_bright_digit(img: np.ndarray, threshold: int = 150) -> int | None:
+    """Єдина яскраво-БІЛА цифра 1..5 на темному тлі (індикатор поточної гонки).
+
+    Фіксований поріг по min-каналу, а не Otsu: у поточного номера всі канали
+    близькі до 255 (високий min), тоді як тьмяні сірі майбутні номери лишаються
+    нижче порога, а кольорові іконки прапорів (червоний/зелений) мають низький
+    min і теж не проходять. Так у кропі залишається тільки поточна цифра.
+    Otsu тут не годиться: він адаптивно підхоплює і тьмяні сусідні цифри."""
+    if img.size == 0:
+        return None
+    gray = img.min(axis=2) if img.ndim == 3 else img
+    gray = cv2.resize(gray, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
+    _, binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+    binary = cv2.bitwise_not(binary)  # tesseract: темний текст на білому
+    config = "--oem 3 --psm 10 -c tessedit_char_whitelist=12345"
+    text = pytesseract.image_to_string(Image.fromarray(binary), lang="eng", config=config)
+    match = re.search(r"[1-5]", text)
+    return int(match.group()) if match else None
