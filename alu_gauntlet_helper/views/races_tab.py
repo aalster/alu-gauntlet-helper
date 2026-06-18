@@ -12,7 +12,7 @@ from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, pars
     get_resource_path, load_pixmap_cover
 from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, vbox, res_to_pixmap, hbox, \
     ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge, CarInfoWidget, preserved_scroll, \
-    image_preview_html
+    set_lazy_image_tooltip
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
@@ -111,9 +111,7 @@ class RaceListWidget(ListItemWidget):
                 self.map_icon.setPixmap(pixmap)
         # наведення на іконку карти показує іконку траси у тултипі
         if race.track_icon:
-            preview = image_preview_html(race.track_icon)
-            if preview:
-                self.map_icon.setToolTip(preview)
+            set_lazy_image_tooltip(self.map_icon, race.track_icon)
 
         self.map_label = QLabel(race.map_name)
         self.map_label.setObjectName("rowMapLabel")

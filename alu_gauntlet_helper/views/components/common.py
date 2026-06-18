@@ -4,7 +4,7 @@ from typing import Callable
 from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, QRectF, QPointF, QBuffer, QIODevice
 from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QIcon, QImageReader, QImage
 from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLayout, QWidget, QListWidget, QListWidgetItem, \
-    QToolButton, QLabel
+    QToolButton, QLabel, QToolTip
 
 from alu_gauntlet_helper.utils.utils import get_resource_path, load_pixmap_cover
 from alu_gauntlet_helper.views import style
@@ -119,13 +119,30 @@ class RankClassBadge(QWidget):
             layout.addWidget(class_label)
 
 
+_preview_html_cache: dict[tuple[str, int], str] = {}
+
+
 def image_preview_html(icon_path: str, width: int = 360) -> str:
     """Rich-text <img> для hover-тултипа, масштабований до `width` (без збільшення).
 
     Масштабуємо самі через SmoothTransformation і вшиваємо як data-URI: якщо
     віддати рушію тултипа повний PNG з width/height, він стискає його швидким
     (nearest-neighbor) трансформом — тонкі лінії треку виглядають рваними.
+
+    Результат кешується по (path, width): декод+масштаб+base64 коштує дорого,
+    тож повторне наведення на той самий рядок повертає готовий html миттєво.
     """
+    key = (icon_path, width)
+    cached = _preview_html_cache.get(key)
+    if cached is not None:
+        return cached
+
+    html = _build_preview_html(icon_path, width)
+    _preview_html_cache[key] = html
+    return html
+
+
+def _build_preview_html(icon_path: str, width: int) -> str:
     reader = QImageReader(icon_path)
     size = reader.size()  # reads the header only, no full decode
     if not size.isValid() or size.width() <= 0:
@@ -148,6 +165,40 @@ def image_preview_html(icon_path: str, width: int = 360) -> str:
     return f'<img src="data:image/png;base64,{b64}" width="{target_w}" height="{target_h}">'
 
 
+class _LazyImageTooltip(QObject):
+    """Будує hover-превʼю ліниво — лише коли над віджетом реально показується тултип.
+
+    Жадібна генерація base64-превʼю для кожного видимого рядка списку домінувала
+    час старту (сотні декодів+скейлів наперед для тултипів, які можуть не навести).
+    """
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.ToolTip:
+            icon_path = obj.property("_lazy_tooltip_icon")
+            if icon_path:
+                width = obj.property("_lazy_tooltip_width") or 360
+                html = image_preview_html(icon_path, width)
+                if html:
+                    QToolTip.showText(event.globalPos(), html, obj)
+                else:
+                    QToolTip.hideText()
+                return True
+        return False
+
+
+# спільний фільтр на всі рядки: один QObject, стан тримається у властивостях віджета
+_LAZY_IMAGE_TOOLTIP = _LazyImageTooltip()
+
+
+def set_lazy_image_tooltip(widget: QWidget, icon_path: str, width: int = 360):
+    """Показати збільшене превʼю зображення у тултипі, генеруючи його при наведенні."""
+    if not icon_path:
+        return
+    widget.setProperty("_lazy_tooltip_icon", icon_path)
+    widget.setProperty("_lazy_tooltip_width", width)
+    widget.installEventFilter(_LAZY_IMAGE_TOOLTIP)
+
+
 class CarInfoWidget(QWidget):
     """Car icon, brand/model and rank badge combined on a darkened plate.
     Hovering shows the car image enlarged in a tooltip."""
@@ -168,9 +219,7 @@ class CarInfoWidget(QWidget):
             pixmap = load_pixmap_cover(icon_path, w=self.icon_label.width(), h=self.icon_label.height())
             if pixmap:
                 self.icon_label.setPixmap(pixmap)
-            preview = image_preview_html(icon_path, self.PREVIEW_WIDTH)
-            if preview:
-                self.icon_label.setToolTip(preview)
+            set_lazy_image_tooltip(self.icon_label, icon_path, self.PREVIEW_WIDTH)
 
         self.brand_label = QLabel(brand.upper())
         self.brand_label.setObjectName("carBrandLabel")

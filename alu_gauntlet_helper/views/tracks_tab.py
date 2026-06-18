@@ -13,7 +13,7 @@ from alu_gauntlet_helper.services.maps import Map
 from alu_gauntlet_helper.services.tracks import TrackView
 from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_MAPS, DATA_PATH_TRACKS, pixmap_cover
 from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, enable_clear_button, \
-    enable_search_icon, preserved_scroll, image_preview_html
+    enable_search_icon, preserved_scroll, set_lazy_image_tooltip
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -151,9 +151,7 @@ class TrackListWidget(ListItemWidget):
         if thumb and os.path.exists(thumb):
             self.track_icon.setPixmap(pixmap_cover(QPixmap(thumb), w=self.track_icon.width(), h=self.track_icon.height()))
         if item.icon and os.path.exists(item.icon):
-            preview = image_preview_html(item.icon)
-            if preview:
-                self.track_icon.setToolTip(preview)
+            set_lazy_image_tooltip(self.track_icon, item.icon)
 
         self.map_label = QLabel(item.map_name)
         self.map_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 13px; font-weight: bold;")
