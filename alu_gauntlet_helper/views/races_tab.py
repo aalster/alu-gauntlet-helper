@@ -9,10 +9,10 @@ from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.services.tracks import TrackView
 from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time, format_relative_time, \
-    get_resource_path, load_pixmap_cover
-from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, vbox, res_to_pixmap, hbox, \
-    ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge, CarInfoWidget, preserved_scroll, \
-    set_lazy_image_tooltip
+    get_resource_path
+from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, res_to_pixmap, hbox, \
+    ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge, CarInfoWidget, TrackInfoWidget, \
+    preserved_scroll
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
@@ -101,25 +101,8 @@ class RaceDialog(EditDialog):
 class RaceListWidget(ListItemWidget):
     def __init__(self, race: RaceView, parent=None):
         super().__init__(race, parent)
-        self.map_icon = QLabel()
-        self.map_icon.setObjectName("rowMapIcon")
-        self.map_icon.setFixedSize(44, 44)
-        self.map_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        if race.map_icon:
-            pixmap = load_pixmap_cover(race.map_icon, w=self.map_icon.width(), h=self.map_icon.height())
-            if pixmap:
-                self.map_icon.setPixmap(pixmap)
-        # наведення на іконку карти показує іконку траси у тултипі
-        if race.track_icon:
-            set_lazy_image_tooltip(self.map_icon, race.track_icon)
+        self.track_info = TrackInfoWidget(race.map_icon, race.track_icon, race.map_name, race.track_name)
 
-        self.map_label = QLabel(race.map_name)
-        self.map_label.setObjectName("rowMapLabel")
-        # лейбли розтягуються на висоту рядка, тому притискаємо тексти до центру
-        self.map_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
-        self.track_label = QLabel(race.track_name)
-        self.track_label.setObjectName("rowTrackLabel")
-        self.track_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         rank_color = ""
         if race.rank and race.car_rank:
             if race.car_rank > race.rank:
@@ -156,10 +139,9 @@ class RaceListWidget(ListItemWidget):
         # half the default vertical padding to keep race rows compact
         margins = self.layout.contentsMargins()
         self.layout.setContentsMargins(margins.left(), margins.top() // 2, margins.right(), margins.bottom() // 2)
-        self.layout.addWidget(self.map_icon)
-        self.layout.addLayout(vbox([self.map_label, self.track_label], spacing=0), stretch=14)
-        self.layout.addWidget(self.car_info, stretch=30)
-        self.layout.addWidget(self.time_label, stretch=10)
+        self.layout.addWidget(self.track_info, stretch=20)
+        self.layout.addWidget(self.car_info, stretch=24)
+        self.layout.addWidget(self.time_label, stretch=14)
         self.layout.addLayout(hbox([self.bad_timing_label, self.info_label], spacing=0), stretch=8)
         self.layout.addWidget(self.created_at_label, stretch=10)
         self.setLayout(self.layout)

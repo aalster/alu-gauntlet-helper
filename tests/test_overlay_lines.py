@@ -40,6 +40,21 @@ def test_unresolved_names_show_question_marks():
     assert "?" in html
 
 
+def test_uncertain_fields_highlighted():
+    races = {1: EffectiveRace(track_id=11, car_id=21, time=22797,
+                              track_uncertain=True, car_uncertain=True)}
+    html = build_overlay_html(races, {11: "Notre Dame"}, {21: "Ultima RS"})
+    from alu_gauntlet_helper.views.overlay import UNCERTAIN_COLOR
+    assert html.count(UNCERTAIN_COLOR) == 2  # підсвічені і трек, і авто
+
+
+def test_certain_fields_not_highlighted():
+    from alu_gauntlet_helper.views.overlay import UNCERTAIN_COLOR
+    races = {1: EffectiveRace(track_id=11, car_id=21, time=22797)}
+    html = build_overlay_html(races, {11: "Notre Dame"}, {21: "Ultima RS"})
+    assert UNCERTAIN_COLOR not in html
+
+
 def test_status_and_hotkey_hint_present():
     html = build_overlay_html({}, {}, {}, status="waiting", hotkey_hint="F9 capture · F10 hide")
     assert "F9 capture · F10 hide" in html

@@ -199,6 +199,44 @@ def set_lazy_image_tooltip(widget: QWidget, icon_path: str, width: int = 360):
     widget.installEventFilter(_LAZY_IMAGE_TOOLTIP)
 
 
+class TrackInfoWidget(QWidget):
+    """Map icon plus map/track names combined. Hovering the icon shows the track route enlarged.
+
+    Map name and track name are passed as ready-to-render strings (callers may embed
+    rich-text markers, e.g. a warning glyph for uncertain captures)."""
+
+    ICON_SIZE = 44
+
+    def __init__(self, map_icon: str, track_icon: str, map_name: str, track_name: str, parent=None):
+        super().__init__(parent)
+
+        self.icon_label = QLabel()
+        self.icon_label.setObjectName("rowMapIcon")
+        self.icon_label.setFixedSize(self.ICON_SIZE, self.ICON_SIZE)
+        self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        if map_icon:
+            pixmap = load_pixmap_cover(map_icon, w=self.icon_label.width(), h=self.icon_label.height())
+            if pixmap:
+                self.icon_label.setPixmap(pixmap)
+        # наведення на іконку карти показує іконку траси у тултипі
+        if track_icon:
+            set_lazy_image_tooltip(self.icon_label, track_icon)
+
+        self.map_label = QLabel(map_name)
+        self.map_label.setObjectName("rowMapLabel")
+        # лейбли розтягуються на висоту рядка, тому притискаємо тексти до центру
+        self.map_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
+        self.track_label = QLabel(track_name)
+        self.track_label.setObjectName("rowTrackLabel")
+        self.track_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+        layout.addWidget(self.icon_label)
+        layout.addLayout(vbox([self.map_label, self.track_label], spacing=0), stretch=1)
+
+
 class CarInfoWidget(QWidget):
     """Car icon, brand/model and rank badge combined on a darkened plate.
     Hovering shows the car image enlarged in a tooltip."""

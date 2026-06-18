@@ -8,6 +8,15 @@ from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, Effective
 from alu_gauntlet_helper.utils.utils import format_time
 
 MARGIN = 16
+UNCERTAIN_COLOR = "#FFC107"  # ненадійні (low-confidence) поля підсвічуються амбер
+
+
+def _cell(text: str, uncertain: bool) -> str:
+    """Текст комірки; ненадійне значення підсвічується амбер."""
+    safe = escape(text)
+    if uncertain:
+        return f"<span style='color:{UNCERTAIN_COLOR}'>{safe}</span>"
+    return safe
 
 
 def build_overlay_html(races: dict[int, EffectiveRace],
@@ -38,11 +47,13 @@ def build_overlay_html(races: dict[int, EffectiveRace],
             mark, mark_color = "✓", "#67d27a"
         else:
             mark, mark_color = "⚠", "#e6c34a"
+        track_cell = _cell(track, e.track_uncertain)
+        car_cell = _cell(car, e.car_uncertain)
         rows.append(
             f"<tr>"
             f"<td style='padding-right:8px'>{n}&nbsp;<span style='color:{mark_color}'>{mark}</span></td>"
-            f"<td style='padding-right:12px'>{escape(track)}</td>"
-            f"<td style='padding-right:12px'>{escape(car)}</td>"
+            f"<td style='padding-right:12px'>{track_cell}</td>"
+            f"<td style='padding-right:12px'>{car_cell}</td>"
             f"<td>{escape(time_str)}</td>"
             f"</tr>"
         )

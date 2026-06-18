@@ -60,6 +60,10 @@ QLabel#rowTimeLabel {{
     color: {TIME_YELLOW};
 }}
 
+QLabel#captureStatus {{
+    color: {TEXT_MUTED};
+}}
+
 QLabel#rowCreatedLabel {{
     color: {TEXT_FAINT};
     font-size: 12px;

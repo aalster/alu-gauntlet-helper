@@ -36,6 +36,7 @@ class MainWindow(QMainWindow):
         self.capture_tab = CaptureTab(recognize_file=self.capture_controller.recognize_file,
                                       toggle_overlay=self.capture_controller.toggle_overlay,
                                       capture=self.capture_controller.capture_now)
+        self.capture_controller.status_changed.connect(self.capture_tab.set_status)
         self.car_selection_tab = CarSelectionTab()
         self.races_tab = RacesTab()
         self.tracks_tab = TracksTab()

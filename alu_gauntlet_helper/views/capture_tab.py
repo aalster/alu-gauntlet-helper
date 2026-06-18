@@ -9,11 +9,13 @@ from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, Effective
 from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.utils.utils import format_time
 from alu_gauntlet_helper.views.components.common import (CarInfoWidget, ListItemWidget,
-                                                         RankClassBadge, hbox,
-                                                         res_to_pixmap, vbox)
+                                                         RankClassBadge, TrackInfoWidget,
+                                                         hbox, res_to_pixmap)
 from alu_gauntlet_helper.views.races_tab import RaceDialog
 
 WARN_ICON = '<span style="color: #FFC107;">⚠</span> '
+UNCERTAIN_FOOTER = ('<span style="color: #FFC107;">⚠</span> '
+                    'Some fields were recognized with low confidence — review the marked rows before saving.')
 
 
 class CaptureRaceRow(ListItemWidget):
@@ -30,13 +32,12 @@ class CaptureRaceRow(ListItemWidget):
         # clicked — тільки від кліку юзера; програмний setChecked його не емітить
         self.checkbox.clicked.connect(lambda c: on_toggle(race_number, c))
 
-        self.map_label = QLabel(track.map_name if track else "")
-        self.map_label.setObjectName("rowMapLabel")
         track_text = ""
         if track:
             track_text = (WARN_ICON if e.track_uncertain else "") + track.name
-        self.track_label = QLabel(track_text)
-        self.track_label.setObjectName("rowTrackLabel")
+        self.track_info = TrackInfoWidget(
+            track.map_icon if track else "", track.icon if track else "",
+            track.map_name if track else "", track_text)
 
         if e is not None:
             if e.rank:
@@ -79,7 +80,7 @@ class CaptureRaceRow(ListItemWidget):
         margins = self.layout.contentsMargins()
         self.layout.setContentsMargins(margins.left(), margins.top() // 2, margins.right(), margins.bottom() // 2)
         self.layout.addWidget(self.checkbox, stretch=4)
-        self.layout.addLayout(vbox([self.map_label, self.track_label], spacing=3), stretch=18)
+        self.layout.addWidget(self.track_info, stretch=18)
         self.layout.addWidget(self.car_info, stretch=24)
         self.layout.addWidget(self.time_label, stretch=10)
         self.layout.addLayout(hbox([self.bad_timing_label, self.note_label], spacing=0), stretch=6)
@@ -109,11 +110,16 @@ class CaptureTab(QWidget):
         if toggle_overlay:
             self.overlay_button.clicked.connect(toggle_overlay)
 
+        self.status_label = QLabel()
+        self.status_label.setObjectName("captureStatus")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
         top = QHBoxLayout()
         top.addWidget(self.load_button)
         top.addWidget(self.capture_button)
         top.addWidget(self.overlay_button)
         top.addStretch()
+        top.addWidget(self.status_label)
 
         # ручні стани чекбоксів {race_number: bool}; немає ключа — авторежим (чекнуто, коли є час)
         self.manual_checks: dict[int, bool] = {}
@@ -129,7 +135,13 @@ class CaptureTab(QWidget):
         self.discard_button.setObjectName("secondary")
         self.discard_button.clicked.connect(self.discard)
 
+        self.warning_label = QLabel()
+        self.warning_label.setTextFormat(Qt.TextFormat.RichText)
+        self.warning_label.setWordWrap(True)
+        self.warning_label.setVisible(False)
+
         buttons = QHBoxLayout()
+        buttons.addWidget(self.warning_label, stretch=1)
         buttons.addStretch()
         buttons.addWidget(self.save_button)
         buttons.addWidget(self.discard_button)
@@ -141,6 +153,10 @@ class CaptureTab(QWidget):
 
         APP_CONTEXT.challenge_session.add_listener(self.refresh)
         self.refresh()
+
+    def set_status(self, status: str):
+        """Той самий статус, що й на оверлеї (Recognizing, …), праворуч від кнопок."""
+        self.status_label.setText(status)
 
     def _effective_map(self) -> dict[int, EffectiveRace]:
         session = APP_CONTEXT.challenge_session
@@ -174,6 +190,10 @@ class CaptureTab(QWidget):
                 row.add_to_list(self.list_widget)
             else:
                 row.replace_in_list(self.list_widget, n - 1)
+
+        has_uncertain = any(e.track_uncertain or e.car_uncertain for e in effective.values())
+        self.warning_label.setText(UNCERTAIN_FOOTER if has_uncertain else "")
+        self.warning_label.setVisible(has_uncertain)
 
         self._update_buttons(effective)
 
@@ -242,7 +262,13 @@ class CaptureTab(QWidget):
         APP_CONTEXT.challenge_session.clear()
 
     def discard(self):
-        answer = QMessageBox.question(self, "Discard session",
-                                      "Discard all captured races?")
-        if answer == QMessageBox.StandardButton.Yes:
+        box = QMessageBox(QMessageBox.Icon.Question, "Discard session",
+                          "Discard all captured races?",
+                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                          self)
+        for btn in box.buttons():
+            btn.setObjectName("secondary")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+        if box.exec() == QMessageBox.StandardButton.Yes:
             APP_CONTEXT.challenge_session.clear()

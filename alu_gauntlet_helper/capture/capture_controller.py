@@ -28,6 +28,7 @@ class CaptureController(QObject):
     _capture_requested = pyqtSignal()
     _overlay_toggle_requested = pyqtSignal()
     _recognized = pyqtSignal(object)  # RecognitionResult | None
+    status_changed = pyqtSignal(str)  # поточний статус для UI (той самий, що й на оверлеї)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -169,6 +170,19 @@ class CaptureController(QObject):
         self._status = status
         self._refresh_overlay()
 
+    def _compute_status(self, session) -> str:
+        # поки є кадри в роботі — "Recognizing"/"Recognizing (N)" має пріоритет;
+        # транзитні повідомлення (помилки, "not recognized") показуються, коли черга порожня
+        if self._in_flight == 1:
+            return "Recognizing"
+        if self._in_flight > 1:
+            return f"Recognizing ({self._in_flight})"
+        if self._status:
+            return self._status
+        if session.is_complete():
+            return "Done — review in the app"
+        return ""
+
     def _refresh_overlay(self):
         session = APP_CONTEXT.challenge_session
         effective = {n: e for n in range(1, RACE_COUNT + 1) if (e := session.effective(n)) is not None}
@@ -177,16 +191,8 @@ class CaptureController(QObject):
         track_names = {t.id: f"{t.map_name} - {t.name}" for t in APP_CONTEXT.tracks_service.get_by_ids(track_ids).values()}
         car_names = {c.id: c.name for c in APP_CONTEXT.cars_service.get_by_ids(car_ids).values()}
 
-        # поки є кадри в роботі — "Recognizing"/"Recognizing (N)" має пріоритет;
-        # транзитні повідомлення (помилки, "not recognized") показуються, коли черга порожня
-        if self._in_flight == 1:
-            status = "Recognizing"
-        elif self._in_flight > 1:
-            status = f"Recognizing ({self._in_flight})"
-        else:
-            status = self._status
-        if not status and session.is_complete():
-            status = "Done — review in the app"
+        status = self._compute_status(session)
+        self.status_changed.emit(status)
         settings = APP_CONTEXT.settings.get()
         hint = f"{settings.capture_hotkey.upper()} capture · {settings.overlay_hotkey.upper()} hide"
         self.overlay.set_html(build_overlay_html(effective, track_names, car_names, status, hotkey_hint=hint))
