@@ -16,6 +16,14 @@ class Settings(BaseModel):
     capture_monitor: int = 1
     save_captures: bool = False
 
+    # прив'язка оверлея: фіксуємо той кут, що ближчий до краю екрана, щоб при
+    # зміні розміру оверлей не «стрибав». overlay_anchored=False → снап у кут.
+    overlay_anchored: bool = False
+    overlay_anchor_x: int = 0       # абс. X прив'язаного вертикального краю (лівого/правого)
+    overlay_anchor_y: int = 0       # абс. Y прив'язаного горизонтального краю (верх/низ)
+    overlay_anchor_right: bool = False   # True → прив'язка до правого краю
+    overlay_anchor_bottom: bool = False  # True → прив'язка до нижнього краю
+
 
 class SettingsRepository:
 

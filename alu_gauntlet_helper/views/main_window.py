@@ -37,6 +37,11 @@ class MainWindow(QMainWindow):
                                       toggle_overlay=self.capture_controller.toggle_overlay,
                                       capture=self.capture_controller.capture_now)
         self.capture_controller.status_changed.connect(self.capture_tab.set_status)
+        # Save на оверлеї повністю дублює кнопку «Save selected» таба CAPTURE
+        overlay = self.capture_controller.overlay
+        overlay.save_requested.connect(self.capture_tab.save_selected)
+        self.capture_tab.save_state_changed.connect(overlay.set_save_enabled)
+        overlay.set_save_enabled(self.capture_tab.save_button.isEnabled())  # початкова синхронізація
         self.car_selection_tab = CarSelectionTab()
         self.races_tab = RacesTab()
         self.tracks_tab = TracksTab()

@@ -1,4 +1,4 @@
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (QAbstractItemView, QCheckBox, QFileDialog, QHBoxLayout,
                              QLabel, QListWidget, QMessageBox, QPushButton,
@@ -11,6 +11,7 @@ from alu_gauntlet_helper.utils.utils import format_time
 from alu_gauntlet_helper.views.components.common import (CarInfoWidget, ListItemWidget,
                                                          RankClassBadge, TrackInfoWidget,
                                                          hbox, res_to_pixmap)
+from alu_gauntlet_helper.views.overlay import Spinner
 from alu_gauntlet_helper.views.races_tab import RaceDialog
 
 WARN_ICON = '<span style="color: #FFC107;">⚠</span> '
@@ -91,6 +92,9 @@ class CaptureRaceRow(ListItemWidget):
 class CaptureTab(QWidget):
     """Стан сесії захоплення: рев'ю, редагування і збереження прямо в табі."""
 
+    # стан кнопки Save (enabled) — дублюється кнопкою Save на оверлеї
+    save_state_changed = pyqtSignal(bool)
+
     def __init__(self, recognize_file=None, toggle_overlay=None, capture=None):
         super().__init__()
         self.recognize_file = recognize_file
@@ -110,6 +114,7 @@ class CaptureTab(QWidget):
         if toggle_overlay:
             self.overlay_button.clicked.connect(toggle_overlay)
 
+        self.status_spinner = Spinner()  # крутиться поряд зі статусом під час розпізнавання
         self.status_label = QLabel()
         self.status_label.setObjectName("captureStatus")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -119,6 +124,7 @@ class CaptureTab(QWidget):
         top.addWidget(self.capture_button)
         top.addWidget(self.overlay_button)
         top.addStretch()
+        top.addWidget(self.status_spinner)
         top.addWidget(self.status_label)
 
         # ручні стани чекбоксів {race_number: bool}; немає ключа — авторежим (чекнуто, коли є час)
@@ -155,7 +161,12 @@ class CaptureTab(QWidget):
         self.refresh()
 
     def set_status(self, status: str):
-        """Той самий статус, що й на оверлеї (Recognizing, …), праворуч від кнопок."""
+        """Той самий статус, що й на оверлеї (Recognizing, …), праворуч від кнопок.
+        Поки триває розпізнавання — поряд крутиться спінер."""
+        if status.startswith("Recognizing"):
+            self.status_spinner.start()
+        else:
+            self.status_spinner.stop()
         self.status_label.setText(status)
 
     def _effective_map(self) -> dict[int, EffectiveRace]:
@@ -208,6 +219,7 @@ class CaptureTab(QWidget):
                     all_checked_complete = False
 
         self.save_button.setEnabled(any_checked and all_checked_complete)
+        self.save_state_changed.emit(self.save_button.isEnabled())
         self.discard_button.setEnabled(bool(effective))
 
     def on_checkbox_toggled(self, n: int, checked: bool):
