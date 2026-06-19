@@ -1,10 +1,19 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QFormLayout, QHBoxLayout,
-                             QLabel, QPushButton, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFormLayout,
+                             QHBoxLayout, QLabel, QPushButton, QSlider,
+                             QVBoxLayout, QWidget)
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.capture.screen_grab import list_monitors
 from alu_gauntlet_helper.views.components.hotkey_edit import HotkeyEdit
+
+# (підпис, значення для keyboard) — модифікатор активації керування оверлеєм
+OVERLAY_ACTIONS_OPTIONS = [
+    ("Ctrl + Alt", "ctrl+alt"),
+    ("Ctrl + Shift", "ctrl+shift"),
+]
+
+HOTKEY_INPUT_WIDTH = 200  # хоткеї/комбо не розтягуємо на всю ширину форми
 
 
 class SettingsTab(QWidget):
@@ -23,9 +32,26 @@ class SettingsTab(QWidget):
 
         self.capture_hotkey = HotkeyEdit()
         self.overlay_hotkey = HotkeyEdit()
+        self.overlay_actions = QComboBox()
+        for label, value in OVERLAY_ACTIONS_OPTIONS:
+            self.overlay_actions.addItem(label, value)
+        for w in (self.capture_hotkey, self.overlay_hotkey, self.overlay_actions):
+            w.setMaximumWidth(HOTKEY_INPUT_WIDTH)
         self.monitor_group = QButtonGroup(self)
         self.monitor_layout = self._build_monitor_selector()
         self.save_captures = QCheckBox("Save capture screenshots (data/captures)")
+
+        self.overlay_opacity = QSlider(Qt.Orientation.Horizontal)
+        self.overlay_opacity.setRange(20, 100)  # нижче 20% оверлей майже не видно
+        self.overlay_opacity.setMaximumWidth(HOTKEY_INPUT_WIDTH)
+        self.overlay_opacity_value = QLabel()
+        self.overlay_opacity.valueChanged.connect(
+            lambda v: self.overlay_opacity_value.setText(f"{v}%"))
+        self.overlay_opacity_row = QHBoxLayout()
+        self.overlay_opacity_row.addWidget(self.overlay_opacity)
+        self.overlay_opacity_row.addWidget(self.overlay_opacity_value)
+        self.overlay_opacity_row.addStretch()
+
         self.capture_status = QLabel()
 
         self.save_button = QPushButton("Save")
@@ -37,6 +63,8 @@ class SettingsTab(QWidget):
         self.form.addWidget(self.start_minimized)
         self.form.addRow("Capture hotkey", self.capture_hotkey)
         self.form.addRow("Overlay hotkey", self.overlay_hotkey)
+        self.form.addRow("Overlay actions", self.overlay_actions)
+        self.form.addRow("Overlay opacity", self.overlay_opacity_row)
         self.form.addRow("Capture monitor", self.monitor_layout)
         self.form.addWidget(self.save_captures)
         self.form.addWidget(self.capture_status)
@@ -77,10 +105,14 @@ class SettingsTab(QWidget):
         self.start_minimized.setChecked(settings.start_minimized)
         self.capture_hotkey.set_value(settings.capture_hotkey)
         self.overlay_hotkey.set_value(settings.overlay_hotkey)
+        actions_idx = self.overlay_actions.findData(settings.overlay_actions_hotkey)
+        self.overlay_actions.setCurrentIndex(actions_idx if actions_idx >= 0 else 0)
         button = self.monitor_group.button(settings.capture_monitor) or self.monitor_group.button(1)
         if button is not None:
             button.setChecked(True)
         self.save_captures.setChecked(settings.save_captures)
+        self.overlay_opacity.setValue(settings.overlay_opacity)
+        self.overlay_opacity_value.setText(f"{settings.overlay_opacity}%")
         self.capture_status.setText("")
 
     def on_tray_changed(self):
@@ -94,8 +126,10 @@ class SettingsTab(QWidget):
         settings.start_minimized = self.start_minimized.isChecked()
         settings.capture_hotkey = self.capture_hotkey.value().strip() or "f8"
         settings.overlay_hotkey = self.overlay_hotkey.value().strip() or "f9"
+        settings.overlay_actions_hotkey = self.overlay_actions.currentData() or "ctrl+alt"
         settings.capture_monitor = self.monitor_group.checkedId() if self.monitor_group.checkedId() != -1 else 1
         settings.save_captures = self.save_captures.isChecked()
+        settings.overlay_opacity = self.overlay_opacity.value()
         APP_CONTEXT.settings.save(settings)
         self.refresh()
         self.refresh_tray_icon(settings.show_tray_icon)

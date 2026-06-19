@@ -27,8 +27,8 @@ class CaptureController(QObject):
 
     _capture_requested = pyqtSignal()
     _overlay_toggle_requested = pyqtSignal()
-    _move_enter_requested = pyqtSignal()  # Ctrl+Alt натиснуто — увімкнути перетягування
-    _move_exit_requested = pyqtSignal()   # Ctrl+Alt відпущено — зафіксувати й зберегти
+    _actions_enter_requested = pyqtSignal()  # комбо натиснуто — увімкнути керування оверлеєм
+    _actions_exit_requested = pyqtSignal()   # комбо відпущено — зафіксувати позицію й зберегти
     _recognized = pyqtSignal(object)  # RecognitionResult | None
     status_changed = pyqtSignal(str)  # поточний статус для UI (той самий, що й на оверлеї)
 
@@ -48,8 +48,8 @@ class CaptureController(QObject):
 
         self._capture_requested.connect(self._on_capture_requested)
         self._overlay_toggle_requested.connect(self.toggle_overlay)
-        self._move_enter_requested.connect(self._enter_move_mode)
-        self._move_exit_requested.connect(self._exit_move_mode)
+        self._actions_enter_requested.connect(self._enter_actions_mode)
+        self._actions_exit_requested.connect(self._exit_actions_mode)
         self._recognized.connect(self._on_recognized)
         # ✕ на оверлеї — просто сховати (сесія лишається); Save вмикає MainWindow,
         # бо повністю дублює кнопку таба CAPTURE
@@ -64,8 +64,10 @@ class CaptureController(QObject):
         self.hotkeys.unregister_all()
         ok = self.hotkeys.register(settings.capture_hotkey, self._capture_requested.emit)
         self.hotkeys.register(settings.overlay_hotkey, self._overlay_toggle_requested.emit)
-        self.hotkeys.register_hold(["ctrl", "alt"], self._move_enter_requested.emit, self._move_exit_requested.emit)
+        actions_keys = [k for k in settings.overlay_actions_hotkey.split("+") if k]
+        self.hotkeys.register_hold(actions_keys, self._actions_enter_requested.emit, self._actions_exit_requested.emit)
         self.overlay.set_screen_index(settings.capture_monitor)
+        self.overlay.set_opacity(settings.overlay_opacity)
         if settings.overlay_anchored:
             self.overlay.set_anchor(settings.overlay_anchor_x, settings.overlay_anchor_y,
                                     settings.overlay_anchor_right, settings.overlay_anchor_bottom)
@@ -180,18 +182,18 @@ class CaptureController(QObject):
             # рядками з сесії ("N — no data", коли даних немає); _refresh_overlay сам покаже вікно
             self._refresh_overlay()
 
-    def _enter_move_mode(self):
-        """Ctrl+Alt затиснуто — розблокувати оверлей для перетягування."""
-        if self.overlay.is_draggable():
+    def _enter_actions_mode(self):
+        """Комбо затиснуто — увімкнути керування оверлеєм (перетягування + кнопки)."""
+        if self.overlay.is_actions_mode():
             return
         if not self.overlay.isVisible():
-            return  # схований оверлей за Ctrl+Alt не відкриваємо
-        self.overlay.set_draggable(True)
-        self._refresh_overlay()  # перерендерити (Save замість хоткеїв)
+            return  # схований оверлей за комбо не відкриваємо
+        self.overlay.set_actions_mode(True)
+        self._refresh_overlay()  # перерендерити (кнопки замість хоткеїв)
 
-    def _exit_move_mode(self):
-        """Ctrl+Alt відпущено — зафіксувати позицію й зберегти."""
-        if not self.overlay.is_draggable():
+    def _exit_actions_mode(self):
+        """Комбо відпущено — зафіксувати позицію й зберегти."""
+        if not self.overlay.is_actions_mode():
             return
         ax, ay, anchor_right, anchor_bottom = self.overlay.compute_anchor()
         settings = APP_CONTEXT.settings.get()
@@ -202,7 +204,7 @@ class CaptureController(QObject):
         settings.overlay_anchor_bottom = anchor_bottom
         APP_CONTEXT.settings.save(settings)
         self.overlay.set_anchor(ax, ay, anchor_right, anchor_bottom)
-        self.overlay.set_draggable(False)
+        self.overlay.set_actions_mode(False)
         if self.overlay.isVisible():
             # повертаємо підказку замість Save; схований оверлей не показуємо
             self._refresh_overlay()
@@ -235,7 +237,10 @@ class CaptureController(QObject):
         status = self._compute_status(session)
         self.status_changed.emit(status)
         settings = APP_CONTEXT.settings.get()
-        hint = f"{settings.capture_hotkey.upper()} capture · {settings.overlay_hotkey.upper()} hide"
+        # комбо показуємо як у налаштуваннях ("Ctrl + Alt"), а не великими літерами
+        combo = " + ".join(p.capitalize() for p in settings.overlay_actions_hotkey.split("+") if p)
+        hint = (f"{settings.capture_hotkey.upper()} capture · "
+                f"{settings.overlay_hotkey.upper()} hide · {combo} actions")
         self.overlay.update_content(
             header_text(effective),
             build_races_table(effective, track_names, car_names),

@@ -13,8 +13,11 @@ class Settings(BaseModel):
 
     capture_hotkey: str = "f8"
     overlay_hotkey: str = "f9"
+    overlay_actions_hotkey: str = "ctrl+alt"  # комбо-модифікатор активації керування оверлеєм
     capture_monitor: int = 1
     save_captures: bool = False
+
+    overlay_opacity: int = 80  # непрозорість картки оверлея, % (20–100)
 
     # прив'язка оверлея: фіксуємо той кут, що ближчий до краю екрана, щоб при
     # зміні розміру оверлей не «стрибав». overlay_anchored=False → снап у кут.

@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QPushButton, QSizePolicy,
 
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, EffectiveRace
 from alu_gauntlet_helper.utils.utils import format_time
+from alu_gauntlet_helper.views.components.common import res_to_pixmap
 from alu_gauntlet_helper.views.style import (BORDER, CARD_SELECTED, CYAN, TEXT,
                                              TEXT_DARK, YELLOW, YELLOW_HOVER,
                                              YELLOW_PRESSED)
@@ -68,14 +69,22 @@ def build_races_table(races: dict[int, EffectiveRace],
 
 # фон-картка оверлея. Рамка завжди присутня (2px), але прозора — щоб розмір
 # не змінювався при вмиканні режиму переміщення, інакше прив'язаний край «стрибав» би
-_CARD_STYLE = (
-    "#overlayCard {"
-    "  background-color: rgba(8, 10, 40, 215);"
-    "  border-radius: 8px;"
-    "  border: 2px solid transparent;"
-    "}"
-)
-_CARD_MOVE_BORDER = "#overlayCard { border-color: #67d27a; }"  # у режимі переміщення фарбуємо рамку
+_CARD_RGB = "8, 10, 40"
+_CARD_ACTIVE_BORDER = "#67d27a"  # колір рамки, коли керування активне
+
+
+def _card_style(opacity_percent: int, active: bool) -> str:
+    """Стиль картки: альфа фону — з відсотка непрозорості; коли керування
+    активне (Ctrl+Alt) — зелена рамка, інакше прозора (щоб розмір не стрибав)."""
+    alpha = round(max(0, min(100, opacity_percent)) / 100 * 255)
+    border = _CARD_ACTIVE_BORDER if active else "transparent"
+    return (
+        "#overlayCard {"
+        f"  background-color: rgba({_CARD_RGB}, {alpha});"
+        "  border-radius: 8px;"
+        f"  border: 2px solid {border};"
+        "}"
+    )
 
 _TEXT_STYLE = "color: white; font-size: 13px; background: transparent;"
 _HEADER_STYLE = _TEXT_STYLE + " font-weight: bold;"
@@ -113,8 +122,9 @@ class _DragHandle(QLabel):
     """Кнопка справа вгорі: лише за неї можна перетягувати оверлей."""
 
     def __init__(self, overlay: "OverlayWindow"):
-        super().__init__("✥", overlay)
+        super().__init__(overlay)
         self._overlay = overlay
+        self.setPixmap(res_to_pixmap("icons/move.svg", 16))  # lucide move
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet(_HANDLE_STYLE)
         self.setCursor(Qt.CursorShape.SizeAllCursor)
@@ -183,7 +193,7 @@ class Spinner(QWidget):
 
 class OverlayWindow(QWidget):
     """Панель статусу поверх гри. За замовчуванням click-through; у режимі
-    переміщення (set_draggable) ловить мишу й її можна перетягнути."""
+    керування (set_actions_mode) ловить мишу — можна перетягувати й тиснути кнопки."""
 
     save_requested = pyqtSignal()     # клік Save на оверлеї
     capture_requested = pyqtSignal()  # клік Capture на оверлеї
@@ -200,15 +210,16 @@ class OverlayWindow(QWidget):
         self._screen_index = 1
         # прив'язка (ax, ay, anchor_right, anchor_bottom) або None → снап у кут
         self._anchor: tuple[int, int, bool, bool] | None = None
-        self._draggable = False
+        self._actions_mode = False
         self._drag_offset: QPoint | None = None
+        self._opacity_percent = 80  # % непрозорості картки; перекривається налаштуваннями
 
         # картка-контейнер тримає фон/рамку; вміст — звичайні віджети в layout
         self.card = QWidget(self)
         self.card.setObjectName("overlayCard")
         # без WA_StyledBackground звичайний QWidget не малює фон зі стилю
         self.card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.card.setStyleSheet(_CARD_STYLE)
+        self.card.setStyleSheet(_card_style(self._opacity_percent, False))
 
         # верхній рядок: заголовок ліворуч, панель керування (ручка · ✕) праворуч
         self.header_label = QLabel()
@@ -246,7 +257,7 @@ class OverlayWindow(QWidget):
         self.table_label.setStyleSheet(_TEXT_STYLE)
 
         # нижній рядок: статус ліворуч; праворуч — підказка з хоткеями АБО
-        # кнопка Save (видно лише одне, перемикається в set_draggable)
+        # кнопка Save (видно лише одне, перемикається в set_actions_mode)
         self.spinner = Spinner()  # обертова іконка замість слова "Recognizing"
         self.status_label = QLabel()
         self.status_label.setStyleSheet(_TEXT_STYLE)
@@ -335,6 +346,13 @@ class OverlayWindow(QWidget):
         self._screen_index = index
         self._apply_position()
 
+    def set_opacity(self, percent: int):
+        """Непрозорість картки (%). У режимі керування картка завжди 100%, тож
+        тут лише запам'ятовуємо й застосовуємо, коли керування неактивне."""
+        self._opacity_percent = percent
+        if not self._actions_mode:
+            self.card.setStyleSheet(_card_style(percent, False))
+
     # --- позиція ---------------------------------------------------------
 
     def set_anchor(self, ax: int, ay: int, anchor_right: bool, anchor_bottom: bool):
@@ -375,7 +393,7 @@ class OverlayWindow(QWidget):
         # у режимі переміщення (коли користувач саме не тягне) контент може
         # змінити розмір — тримаємо прив'язаний край на місці, щоб не «втікав» за екран
         super().resizeEvent(e)
-        if self._draggable and self._drag_offset is None and e.oldSize().isValid():
+        if self._actions_mode and self._drag_offset is None and e.oldSize().isValid():
             dw = e.size().width() - e.oldSize().width()
             dh = e.size().height() - e.oldSize().height()
             if dw or dh:
@@ -387,7 +405,7 @@ class OverlayWindow(QWidget):
 
     def _apply_position(self):
         # під час перетягування не сіпаємо вікно — позицією керує користувач
-        if self._draggable:
+        if self._actions_mode:
             return
         if self._anchor is not None:
             ax, ay, anchor_right, anchor_bottom = self._anchor
@@ -409,20 +427,21 @@ class OverlayWindow(QWidget):
         geo = screen.availableGeometry()
         self.move(geo.right() - self.width() - MARGIN, geo.top() + MARGIN)
 
-    # --- режим переміщення ----------------------------------------------
+    # --- режим керування (Ctrl+Alt) -------------------------------------
 
-    def is_draggable(self) -> bool:
-        return self._draggable
+    def is_actions_mode(self) -> bool:
+        return self._actions_mode
 
-    def set_draggable(self, on: bool):
-        """Вмикає/вимикає режим переміщення: перемикає click-through і підсвітку."""
-        if on == self._draggable:
+    def set_actions_mode(self, on: bool):
+        """Вмикає/вимикає режим керування: перемикає click-through і підсвітку."""
+        if on == self._actions_mode:
             return
-        self._draggable = on
+        self._actions_mode = on
         visible = self.isVisible()
         # WindowTransparentForInput на Windows застосовується лише після re-show
         self.setWindowFlag(Qt.WindowType.WindowTransparentForInput, not on)
-        self.card.setStyleSheet(_CARD_STYLE + (_CARD_MOVE_BORDER if on else ""))
+        # у режимі керування картка завжди 100% непрозора; поза ним — за налаштуванням
+        self.card.setStyleSheet(_card_style(100 if on else self._opacity_percent, on))
         # контроли активні лише коли оверлей ловить мишу (Ctrl+Alt);
         # праворуч унизу Save заступає підказку з хоткеями
         self.drag_handle.setVisible(on)
