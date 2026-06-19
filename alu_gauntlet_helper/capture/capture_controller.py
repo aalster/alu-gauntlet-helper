@@ -16,7 +16,7 @@ from alu_gauntlet_helper.screen_recognition.screens.before_race import BeforeRac
 from alu_gauntlet_helper.screen_recognition.screens.challenge_accordion import ChallengeAccordionExtractor
 from alu_gauntlet_helper.screen_recognition.screens.challenge_complete import ChallengeCompleteExtractor
 from alu_gauntlet_helper.screen_recognition.screens.race_result import RaceResultExtractor
-from alu_gauntlet_helper.services.challenge_session import RACE_COUNT
+from alu_gauntlet_helper.services.challenge_session import LOW_CONFIDENCE, RACE_COUNT
 from alu_gauntlet_helper.views.overlay import OverlayWindow, build_races_table, header_text
 
 OVERLAY_HIDE_DELAY_MS = 80
@@ -103,13 +103,12 @@ class CaptureController(QObject):
             self._set_status("Screenshot failed")
             return
 
-        if settings.save_captures:
-            save_capture(img)
-
         # граб завершено — оверлей можна повертати й приймати наступні F8,
-        # розпізнавання поставленого в чергу кадру триватиме у фоні
+        # розпізнавання поставленого в чергу кадру триватиме у фоні.
+        # Скрін зберігаємо вже після розпізнавання — лише якщо дані не
+        # розпізнались або розпізнались з низькою впевненістю (див. _recognition_loop)
         self._busy = False
-        self._enqueue(self._build_engine(), img)
+        self._enqueue(self._build_engine(), img, save_if_uncertain=settings.save_captures)
 
     def recognize_file(self, path: str):
         """Розпізнавання скріншота з файлу — той самий пайплайн, що й захоплення хоткеєм."""
@@ -120,10 +119,10 @@ class CaptureController(QObject):
             return
         self._enqueue(self._build_engine(), img)
 
-    def _enqueue(self, engine: RecognitionEngine, img):
+    def _enqueue(self, engine: RecognitionEngine, img, save_if_uncertain: bool = False):
         """Ставить кадр у чергу розпізнавання й оновлює лічильник/оверлей (UI-потік)."""
         self._in_flight += 1
-        self._queue.put((engine, img))
+        self._queue.put((engine, img, save_if_uncertain))
         self._refresh_overlay()
 
     def _recognition_loop(self):
@@ -132,7 +131,7 @@ class CaptureController(QObject):
             item = self._queue.get()
             if item is None:  # sentinel зі shutdown
                 break
-            engine, img = item
+            engine, img, save_if_uncertain = item
             result = None
             try:
                 if not ocr.is_available():
@@ -141,11 +140,30 @@ class CaptureController(QObject):
                     result = engine.recognize(img)
             except Exception:
                 traceback.print_exc()
+            # зберігаємо скрін лише тоді, коли є що ловити для рев'ю:
+            # дані не розпізнались або хоч одне поле — з низькою впевненістю
+            if save_if_uncertain and self._is_uncertain(result):
+                try:
+                    save_capture(img)
+                except Exception:
+                    traceback.print_exc()
             try:
                 self._recognized.emit(result)
             except RuntimeError:
                 # QObject знищено під час завершення застосунку
                 pass
+
+    @staticmethod
+    def _is_uncertain(result) -> bool:
+        """True, якщо скрін не розпізнано або якесь поле має score нижче порога ворнінга."""
+        if result is None or not result.captures:
+            return True
+        for c in result.captures:
+            if c.track and c.track.score < LOW_CONFIDENCE:
+                return True
+            if c.car and c.car.score < LOW_CONFIDENCE:
+                return True
+        return False
 
     @staticmethod
     def _build_engine() -> RecognitionEngine:

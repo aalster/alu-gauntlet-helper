@@ -1,10 +1,13 @@
-from PyQt6.QtCore import Qt
+import os
+
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFormLayout,
                              QHBoxLayout, QLabel, QPushButton, QSlider,
                              QVBoxLayout, QWidget)
 
 from alu_gauntlet_helper.app_context import APP_CONTEXT
-from alu_gauntlet_helper.capture.screen_grab import list_monitors
+from alu_gauntlet_helper.capture.screen_grab import CAPTURES_DIR, list_monitors
 from alu_gauntlet_helper.views.components.hotkey_edit import HotkeyEdit
 
 # (підпис, значення для keyboard) — модифікатор активації керування оверлеєм
@@ -39,7 +42,15 @@ class SettingsTab(QWidget):
             w.setMaximumWidth(HOTKEY_INPUT_WIDTH)
         self.monitor_group = QButtonGroup(self)
         self.monitor_layout = self._build_monitor_selector()
-        self.save_captures = QCheckBox("Save capture screenshots (data/captures)")
+        self.save_captures = QCheckBox("Save screenshots of unrecognized / low-confidence captures (data/captures)")
+        self.open_captures_button = QPushButton("Open folder")
+        self.open_captures_button.setObjectName("secondary")
+        self.open_captures_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.open_captures_button.clicked.connect(self.on_open_captures_dir)  # type: ignore
+        self.open_captures_row = QHBoxLayout()
+        self.open_captures_row.addWidget(self.save_captures)
+        self.open_captures_row.addWidget(self.open_captures_button)
+        self.open_captures_row.addStretch()
 
         self.overlay_opacity = QSlider(Qt.Orientation.Horizontal)
         self.overlay_opacity.setRange(20, 100)  # нижче 20% оверлей майже не видно
@@ -66,7 +77,8 @@ class SettingsTab(QWidget):
         self.form.addRow("Overlay actions", self.overlay_actions)
         self.form.addRow("Overlay opacity", self.overlay_opacity_row)
         self.form.addRow("Capture monitor", self.monitor_layout)
-        self.form.addWidget(self.save_captures)
+        # порожній caption — щоб чекбокс став у колонку полів, врівень з іншими інпутами
+        self.form.addRow("", self.open_captures_row)
         self.form.addWidget(self.capture_status)
 
         self.bottom_layout = QHBoxLayout()
@@ -114,6 +126,13 @@ class SettingsTab(QWidget):
         self.overlay_opacity.setValue(settings.overlay_opacity)
         self.overlay_opacity_value.setText(f"{settings.overlay_opacity}%")
         self.capture_status.setText("")
+
+    def on_open_captures_dir(self):
+        # тека створюється лише при першому збереженні скріна — гарантуємо її наявність,
+        # щоб кнопка працювала навіть коли скрінів ще не було
+        path = os.path.abspath(CAPTURES_DIR)
+        os.makedirs(path, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     def on_tray_changed(self):
         self.close_to_tray.setEnabled(self.show_tray_icon.isChecked())
