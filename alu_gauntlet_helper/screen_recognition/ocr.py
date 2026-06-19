@@ -142,11 +142,21 @@ def read_rank(img: np.ndarray) -> int | None:
     return int(match[1] + match[2]) if match else None
 
 
-def read_name(img: np.ndarray) -> str:
-    """Назва авто/треку; може бути 2 рядки — psm 6."""
+def read_name(img: np.ndarray, channel: str = "gray") -> str:
+    """Назва авто/треку; може бути 2 рядки — psm 6.
+
+    channel див. preprocess(): "min" лишає тільки білий текст (гасить кольорові
+    написи на яскравому тлі), "max" — кольоровий."""
     if img.size == 0:
         return ""
-    return read_text(img, NAME_CHARS, psm=6)
+    return read_text(img, NAME_CHARS, psm=6, channel=channel)
+
+
+# Цифри індикатора намальовані жирним КУРСИВОМ — tesseract (psm 10) на сирому
+# нахилі читає їх ненадійно ("1"→нічого, "2"→"4"). Перед OCR розпрямляємо нахил
+# зсувом по x; одне значення зсуву крихке (різні цифри оптимальні за різного
+# нахилу), тож пробуємо кілька й голосуємо — як read_time голосує по каналах.
+DIGIT_SHEARS = (0.1, 0.2, 0.3)
 
 
 def read_bright_digit(img: np.ndarray, threshold: int = 150) -> int | None:
@@ -156,14 +166,27 @@ def read_bright_digit(img: np.ndarray, threshold: int = 150) -> int | None:
     близькі до 255 (високий min), тоді як тьмяні сірі майбутні номери лишаються
     нижче порога, а кольорові іконки прапорів (червоний/зелений) мають низький
     min і теж не проходять. Так у кропі залишається тільки поточна цифра.
-    Otsu тут не годиться: він адаптивно підхоплює і тьмяні сусідні цифри."""
+    Otsu тут не годиться: він адаптивно підхоплює і тьмяні сусідні цифри.
+
+    Курсив розпрямляється deshear-зсувом; результат — найчастіша цифра по
+    кількох значеннях зсуву (стійко до похибки конкретного нахилу)."""
     if img.size == 0:
         return None
     gray = img.min(axis=2) if img.ndim == 3 else img
     gray = cv2.resize(gray, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
     _, binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-    binary = cv2.bitwise_not(binary)  # tesseract: темний текст на білому
+
     config = "--oem 3 --psm 10 -c tessedit_char_whitelist=12345"
-    text = pytesseract.image_to_string(Image.fromarray(binary), lang="eng", config=config)
-    match = re.search(r"[1-5]", text)
-    return int(match.group()) if match else None
+    votes: list[int] = []
+    h, w = binary.shape
+    for shear in DIGIT_SHEARS:
+        m = np.float32([[1, shear, 0], [0, 1, 0]])
+        sheared = cv2.warpAffine(binary, m, (round(w + shear * h), h), borderValue=0)
+        sheared = cv2.bitwise_not(sheared)  # tesseract: темний текст на білому
+        text = pytesseract.image_to_string(Image.fromarray(sheared), lang="eng", config=config)
+        match = re.search(r"[1-5]", text)
+        if match:
+            votes.append(int(match.group()))
+    if not votes:
+        return None
+    return max(set(votes), key=votes.count)

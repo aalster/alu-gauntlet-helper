@@ -142,7 +142,7 @@ class CaptureController(QObject):
         return RecognitionEngine([
             RaceResultExtractor(car_matcher),
             ChallengeCompleteExtractor(car_matcher),
-            BeforeRaceExtractor(track_resolver),
+            BeforeRaceExtractor(track_resolver, car_matcher),
             ChallengeAccordionExtractor(track_resolver, car_matcher),
         ])
 
