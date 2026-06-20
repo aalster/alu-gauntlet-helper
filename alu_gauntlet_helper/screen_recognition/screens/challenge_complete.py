@@ -42,10 +42,10 @@ class ChallengeCompleteExtractor(ScreenExtractor):
         captures = []
         for i, base_row in enumerate(COMPLETE_ROWS):
             row = base_row.shifted(0.0, dy)
-            if i > 0:
-                number, _row_lang = read_race_header(img, row.sub(COMPLETE_RACE_BADGE))
-                if number != i + 1:
-                    continue
+            # B5: заголовки рядків 2..5 НЕ перечитуємо — рядки рівновіддалені, тож
+            # номер i-го = i+1 геометрично (раніше тут був повторний дорогий
+            # read_race_header на кожен рядок, ~45 зайвих запусків tesseract на
+            # RU-скрін). Порожній рядок однаково відсівається перевіркою нижче.
             time = ocr.read_time(row.sub(COMPLETE_PLAYER_TIME).crop(img))
             car_text = ocr.read_name(row.sub(COMPLETE_PLAYER_CAR).crop(img))
             car = self.car_matcher.match(car_text)

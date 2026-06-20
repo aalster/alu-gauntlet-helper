@@ -30,6 +30,7 @@ TRACK_OSAKA_NAMBA = 111
 TRACK_NY_WALL_STREET = 112
 TRACK_SINGAPORE_URBAN = 113
 TRACK_SCOTLAND_VALLEY = 114
+TRACK_AUCKLAND_SPRINT = 115
 
 
 def track_view(track_id: int, name: str, map_name: str, name_ru: str = "", map_name_ru: str = ""):
@@ -38,7 +39,8 @@ def track_view(track_id: int, name: str, map_name: str, name_ru: str = "", map_n
 
 
 TRACK_VIEWS = [
-    track_view(TRACK_SF_RAILROAD, "Railroad Bustle", "San Francisco"),
+    track_view(TRACK_SF_RAILROAD, "Railroad Bustle", "San Francisco",
+               "Железная Дорога", "Сан-Франциско"),
     track_view(TRACK_SF_CENTER, "Out of the Center", "San Francisco"),
     track_view(TRACK_NORWAY_FUSION, "Future Fusion", "Norway"),
     track_view(TRACK_SHANGHAI_ROUNDABOUT, "Double Roundabout", "Shanghai"),
@@ -54,6 +56,8 @@ TRACK_VIEWS = [
     track_view(TRACK_SINGAPORE_URBAN, "Urban Rush", "Singapore",
                "Городская Спешка", "Сингапур"),
     track_view(TRACK_SCOTLAND_VALLEY, "Rocky Valley", "Scotland", "Каньон", "Шотландия"),
+    track_view(TRACK_AUCKLAND_SPRINT, "Straight Sprint", "Auckland",
+               "Спринт По Прямой", "Окленд"),
 ]
 
 # У словнику авто НАВМИСНО є й суперники з лівого боку панелей (Bugatti Chiron
@@ -230,6 +234,11 @@ def test_old_fixture_race1_is_before_variant():
     ("accordion_ru_3_new_york.png", 3, TRACK_NY_WALL_STREET, CAR_KOENIGSEGG_CCXR, 4998),
     ("accordion_ru_4_singapore.png", 4, TRACK_SINGAPORE_URBAN, CAR_RIMAC_NEVERA_TA, 4835),
     ("accordion_ru_5_scotland.png", 5, TRACK_SCOTLAND_VALLEY, CAR_FERRARI_SF90, 4795),
+    # Дві нові проблемні фікстури (повільне розпізнавання ~15 с/скрин — див.
+    # docs/optimizing-recognition-speed.md). Поточний екстрактор їх ВСЕ Ж бере,
+    # але дорого; швидкий шлях — у tests/test_car_selection_fast.py.
+    ("car_selection_ru_1_sf.png", 1, TRACK_SF_RAILROAD, CAR_RIMAC_NEVERA_TA, 4835),
+    ("car_selection_ru_2_auckland.png", 2, TRACK_AUCKLAND_SPRINT, CAR_FERRARI_SF90, 4795),
 ])
 def test_ru_car_selection(fixture, race, track_id, car_id, rank):
     if not (FIXTURES / fixture).exists():

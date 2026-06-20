@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 
 from alu_gauntlet_helper.models import RaceCapture
@@ -11,10 +13,13 @@ from alu_gauntlet_helper.screen_recognition.regions import (
 from alu_gauntlet_helper.screen_recognition.screens.base import (
     HEADER_DY_OFFSETS, ScreenExtractor, encode_png, read_race_header,
 )
+from alu_gauntlet_helper.screen_recognition.screens.expanded_panel import detect_expanded_panel
 
 # Канали препроцесу для назви треку (як у before_race): карта блакитна, трек
 # білий — різні канали ловлять їх по-різному, беремо найкращий resolve.
 TRACK_CHANNELS = ("gray", "min", "max")
+
+_RACE_WORD_RE = re.compile(r"RACE")
 
 
 class ChallengeAccordionExtractor(ScreenExtractor):
@@ -36,8 +41,24 @@ class ChallengeAccordionExtractor(ScreenExtractor):
         self.car_matcher = car_matcher
 
     def _find_expanded(self, img: np.ndarray):
-        """Шукає розгорнуту панель: спершу позиції after-варіанта, потім before.
-        Повертає (race_number, panel, language) або None.
+        """Шукає розгорнуту панель → (race_number, panel, language) або None.
+
+        C6: спершу геометричний пошук (detect_expanded_panel) — 0 OCR-викликів на
+        панель і номер. Якщо вдалося, мову визначаємо ОДНИМ читанням бейджа (B2:
+        латинське "RACE" → en, інакше ru), а panel беремо з відкаліброваної сітки
+        ACCORDION_AFTER_PANELS за номером. Якщо геометрія не спрацювала (напр.
+        англ. before-екран з іншим тлом) — падаємо у повний OCR-пошук нижче."""
+        geom = detect_expanded_panel(img)
+        if geom is not None:
+            race_number = geom[2]
+            panel = ACCORDION_AFTER_PANELS[race_number - 1]
+            text = ocr.read_text(panel.sub(ACCORDION_HEADER).crop(img), "RACE12345")
+            language = "en" if _RACE_WORD_RE.search(text) else "ru"
+            return race_number, panel, language
+        return self._find_expanded_by_ocr(img)
+
+    def _find_expanded_by_ocr(self, img: np.ndarray):
+        """Запасний OCR-пошук розгорнутої панелі (коли геометрія не спрацювала).
 
         Заголовок панелі читається як "RACE N"/"ГОНКА N". Кроп на позиції i, коли
         розгорнута інша панель, накриває кілька згорнутих колонок → read_race_header
