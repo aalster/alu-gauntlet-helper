@@ -137,7 +137,7 @@ class RaceColumn(QWidget):
         self.track_completer = ItemCompleter(
             self.track_edit.get_input(),
             autocomplete=APP_CONTEXT.tracks_service.autocomplete,
-            presentation=lambda i: f"{i.map_name} - {i.name}",
+            presentation=lambda i: f"{i.display_map_name} - {i.display_name}",
             allow_custom_text=False,
             selected_listener=self.on_track_selected
         )

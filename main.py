@@ -38,6 +38,8 @@ def main():
     init_db()
 
     settings = APP_CONTEXT.settings.get()
+    from alu_gauntlet_helper import game_lang
+    game_lang.set_game_language(settings.game_language)
     if not settings.initial_data_loaded:
         init_data()
         settings.initial_data_loaded = True

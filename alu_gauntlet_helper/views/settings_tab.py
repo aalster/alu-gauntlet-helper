@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFormLayout,
                              QHBoxLayout, QLabel, QPushButton, QSlider,
                              QVBoxLayout, QWidget)
 
+from alu_gauntlet_helper import game_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.capture.screen_grab import CAPTURES_DIR, list_monitors
 from alu_gauntlet_helper.views.components.hotkey_edit import HotkeyEdit
@@ -14,6 +15,12 @@ from alu_gauntlet_helper.views.components.hotkey_edit import HotkeyEdit
 OVERLAY_ACTIONS_OPTIONS = [
     ("Ctrl + Alt", "ctrl+alt"),
     ("Ctrl + Shift", "ctrl+shift"),
+]
+
+# (підпис, значення) — мова контенту гри (назви карт/треків)
+GAME_LANGUAGE_OPTIONS = [
+    ("Eng", game_lang.EN),
+    ("Рус", game_lang.RU),
 ]
 
 HOTKEY_INPUT_WIDTH = 200  # хоткеї/комбо не розтягуємо на всю ширину форми
@@ -32,6 +39,11 @@ class SettingsTab(QWidget):
         self.close_to_tray.checkStateChanged.connect(self.on_tray_changed)  # type: ignore
 
         self.start_minimized = QCheckBox("Start minimized")
+
+        self.game_language = QComboBox()
+        for label, value in GAME_LANGUAGE_OPTIONS:
+            self.game_language.addItem(label, value)
+        self.game_language.setMaximumWidth(HOTKEY_INPUT_WIDTH)
 
         self.capture_hotkey = HotkeyEdit()
         self.overlay_hotkey = HotkeyEdit()
@@ -72,6 +84,7 @@ class SettingsTab(QWidget):
         self.form.addWidget(self.show_tray_icon)
         self.form.addWidget(self.close_to_tray)
         self.form.addWidget(self.start_minimized)
+        self.form.addRow("Game language", self.game_language)
         self.form.addRow("Capture hotkey", self.capture_hotkey)
         self.form.addRow("Overlay hotkey", self.overlay_hotkey)
         self.form.addRow("Overlay actions", self.overlay_actions)
@@ -115,6 +128,8 @@ class SettingsTab(QWidget):
         self.show_tray_icon.setChecked(settings.show_tray_icon)
         self.close_to_tray.setChecked(settings.close_to_tray)
         self.start_minimized.setChecked(settings.start_minimized)
+        lang_idx = self.game_language.findData(settings.game_language)
+        self.game_language.setCurrentIndex(lang_idx if lang_idx >= 0 else 0)
         self.capture_hotkey.set_value(settings.capture_hotkey)
         self.overlay_hotkey.set_value(settings.overlay_hotkey)
         actions_idx = self.overlay_actions.findData(settings.overlay_actions_hotkey)
@@ -143,6 +158,7 @@ class SettingsTab(QWidget):
         settings.show_tray_icon = self.show_tray_icon.isChecked()
         settings.close_to_tray = self.close_to_tray.isChecked()
         settings.start_minimized = self.start_minimized.isChecked()
+        settings.game_language = self.game_language.currentData() or game_lang.EN
         settings.capture_hotkey = self.capture_hotkey.value().strip() or "f8"
         settings.overlay_hotkey = self.overlay_hotkey.value().strip() or "f9"
         settings.overlay_actions_hotkey = self.overlay_actions.currentData() or "ctrl+alt"
@@ -150,6 +166,8 @@ class SettingsTab(QWidget):
         settings.save_captures = self.save_captures.isChecked()
         settings.overlay_opacity = self.overlay_opacity.value()
         APP_CONTEXT.settings.save(settings)
+        # застосовуємо мову гри одразу: інші вкладки оновляться при перемиканні
+        game_lang.set_game_language(settings.game_language)
         self.refresh()
         self.refresh_tray_icon(settings.show_tray_icon)
         if self.apply_capture_settings():

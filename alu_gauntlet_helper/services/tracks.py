@@ -1,6 +1,7 @@
 from alu_gauntlet_helper.database import connect
 from pydantic import BaseModel
 
+from alu_gauntlet_helper import game_lang
 from alu_gauntlet_helper.services.maps import MapsService, Map
 from alu_gauntlet_helper.services.observable import Observable
 
@@ -9,12 +10,22 @@ class Track(BaseModel):
     id: int = 0
     map_id: int = 0
     name: str = ""
+    name_ru: str = ""
     icon: str = ""
     icon_preview: str = ""
 
+    @property
+    def display_name(self) -> str:
+        return game_lang.localize(self.name, self.name_ru)
+
 class TrackView(Track):
     map_name: str = ""
+    map_name_ru: str = ""
     map_icon: str = ""
+
+    @property
+    def display_map_name(self) -> str:
+        return game_lang.localize(self.map_name, self.map_name_ru)
 
 class TracksRepository:
     @staticmethod
@@ -24,9 +35,9 @@ class TracksRepository:
     def add(self, item: Track):
         with connect() as conn:
             return conn.execute(
-                "INSERT INTO tracks (map_id, name, icon, icon_preview) "
-                "VALUES (:map_id, :name, :icon, :icon_preview)",
-                item.model_dump(include={"map_id", "name", "icon", "icon_preview"})).lastrowid
+                "INSERT INTO tracks (map_id, name, name_ru, icon, icon_preview) "
+                "VALUES (:map_id, :name, :name_ru, :icon, :icon_preview)",
+                item.model_dump(include={"map_id", "name", "name_ru", "icon", "icon_preview"})).lastrowid
 
     def get_by_name(self, map_id: int, name: str):
         with connect() as conn:
@@ -54,7 +65,8 @@ class TracksRepository:
             params = {}
 
             if query:
-                conditions.append("(t.name LIKE :query OR m.name LIKE :query)")
+                conditions.append("(t.name LIKE :query OR t.name_ru LIKE :query "
+                                  "OR m.name LIKE :query OR m.name_ru LIKE :query)")
                 params["query"] = f"%{query}%"
 
             if map_id:
@@ -70,9 +82,9 @@ class TracksRepository:
     def update(self, item: Track):
         with connect() as conn:
             conn.execute(
-                "UPDATE tracks SET map_id = :map_id, name = :name, icon = :icon, "
-                "icon_preview = :icon_preview WHERE id = :id",
-                item.model_dump(include={"id", "map_id", "name", "icon", "icon_preview"}))
+                "UPDATE tracks SET map_id = :map_id, name = :name, name_ru = :name_ru, "
+                "icon = :icon, icon_preview = :icon_preview WHERE id = :id",
+                item.model_dump(include={"id", "map_id", "name", "name_ru", "icon", "icon_preview"}))
 
 class TracksService(Observable):
     def __init__(self, repo: TracksRepository, maps: MapsService):
@@ -88,6 +100,7 @@ class TracksService(Observable):
             result.append(TrackView(
                 **i.model_dump(),
                 map_name=map_.name if map_ else "Unknown Map",
+                map_name_ru=map_.name_ru if map_ else "",
                 map_icon=map_.icon if map_ else ""
             ))
         return result

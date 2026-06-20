@@ -1,13 +1,19 @@
 from alu_gauntlet_helper.database import connect
 from pydantic import BaseModel
 
+from alu_gauntlet_helper import game_lang
 from alu_gauntlet_helper.services.observable import Observable
 
 
 class Map(BaseModel):
     id: int = 0
     name: str = ""
+    name_ru: str = ""
     icon: str = ""
+
+    @property
+    def display_name(self) -> str:
+        return game_lang.localize(self.name, self.name_ru)
 
 class MapsRepository:
     @staticmethod
@@ -16,11 +22,15 @@ class MapsRepository:
 
     def add(self, item: Map) -> int:
         with connect() as conn:
-            return conn.execute("INSERT INTO maps (name, icon) VALUES (:name, :icon)", item.model_dump()).lastrowid
+            return conn.execute(
+                "INSERT INTO maps (name, name_ru, icon) VALUES (:name, :name_ru, :icon)",
+                item.model_dump()).lastrowid
 
     def update(self, item: Map):
         with connect() as conn:
-            conn.execute("UPDATE maps SET name = :name, icon = :icon WHERE id = :id", item.model_dump())
+            conn.execute(
+                "UPDATE maps SET name = :name, name_ru = :name_ru, icon = :icon WHERE id = :id",
+                item.model_dump())
 
     def get_by_name(self, name: str):
         with connect() as conn:
@@ -33,7 +43,7 @@ class MapsRepository:
             params = {}
 
             if query:
-                sql += " WHERE name LIKE :query"
+                sql += " WHERE name LIKE :query OR name_ru LIKE :query"
                 params = {"query": f"%{query}%"}
 
             rows = conn.execute(sql + " ORDER BY name LIMIT 100", params).fetchall()

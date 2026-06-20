@@ -35,10 +35,10 @@ class CaptureRaceRow(ListItemWidget):
 
         track_text = ""
         if track:
-            track_text = (WARN_ICON if e.track_uncertain else "") + track.name
+            track_text = (WARN_ICON if e.track_uncertain else "") + track.display_name
         self.track_info = TrackInfoWidget(
             track.map_icon if track else "", track.icon if track else "",
-            track.map_name if track else "", track_text)
+            track.display_map_name if track else "", track_text)
 
         if e is not None:
             if e.rank:
@@ -254,7 +254,9 @@ class CaptureTab(QWidget):
             track_id=e.track_id, car_id=e.car_id, rank=e.rank, time=e.time,
             bad_timing=e.bad_timing, note=e.note,
             map_name=track.map_name if track else "",
+            map_name_ru=track.map_name_ru if track else "",
             track_name=track.name if track else "",
+            track_name_ru=track.name_ru if track else "",
             car_name=car.name if car else e.car_name,
         )
 

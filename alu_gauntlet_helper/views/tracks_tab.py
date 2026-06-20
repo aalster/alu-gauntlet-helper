@@ -24,6 +24,7 @@ class MapDialog(EditDialog):
     def __init__(self, item: Map, action: Callable[[Map], int], parent=None):
         self.item = item
         self.name_edit = ValidatedLineEdit(item.name)
+        self.name_ru_edit = ValidatedLineEdit(item.name_ru)
         icon = QImage(item.icon) if item.icon and os.path.exists(item.icon) else None
         self.icon_edit = ImageLineEdit(icon)
 
@@ -33,12 +34,14 @@ class MapDialog(EditDialog):
     def prepare_layout(self):
         form_layout = QFormLayout()
         form_layout.addRow("Name", self.name_edit)
+        form_layout.addRow("Name (RU)", self.name_ru_edit)
         form_layout.addRow("Icon", self.icon_edit)
 
         return form_layout
 
     def prepare_item(self):
         name = self.name_edit.text()
+        name_ru = self.name_ru_edit.text()
         icon = self.icon_edit.get_image()
         icon_path = ""
 
@@ -49,7 +52,7 @@ class MapDialog(EditDialog):
         if icon:
             icon_path = save_data_image(DATA_PATH_MAPS, icon)
 
-        return Map(id=self.item.id, name=name, icon = icon_path)
+        return Map(id=self.item.id, name=name, name_ru=name_ru, icon=icon_path)
 
 
 class MapListWidget(ListItemWidget):
@@ -65,7 +68,7 @@ class MapListWidget(ListItemWidget):
 
         if item.icon and os.path.exists(item.icon):
             self.map_icon.setPixmap(pixmap_cover(QPixmap(item.icon), w=self.map_icon.width(), h=self.map_icon.height()))
-        self.map_label = QLabel(item.name.upper())
+        self.map_label = QLabel(item.display_name.upper())
 
         name_font = QFont()
         name_font.setPointSize(self.font().pointSize() + 3)
@@ -86,6 +89,7 @@ class TrackDialog(EditDialog):
 
         self.map_edit = ValidatedLineEdit(item.map_name)
         self.name_edit = ValidatedLineEdit(item.name)
+        self.name_ru_edit = ValidatedLineEdit(item.name_ru)
         icon = QImage(item.icon) if item.icon and os.path.exists(item.icon) else None
         self.icon_edit = ImageLineEdit(icon)
 
@@ -104,6 +108,8 @@ class TrackDialog(EditDialog):
         form_layout.addWidget(self.map_edit)
         form_layout.addWidget(QLabel("Name"))
         form_layout.addWidget(self.name_edit)
+        form_layout.addWidget(QLabel("Name (RU)"))
+        form_layout.addWidget(self.name_ru_edit)
         form_layout.addWidget(QLabel("Icon"))
         form_layout.addWidget(self.icon_edit)
 
@@ -113,6 +119,7 @@ class TrackDialog(EditDialog):
         map_id = self.maps_completer.get_selected_item().id if self.maps_completer.get_selected_item() else 0
         map_name = self.map_edit.text()
         name = self.name_edit.text()
+        name_ru = self.name_ru_edit.text()
         icon = self.icon_edit.get_image()
         icon_path = ""
 
@@ -133,7 +140,7 @@ class TrackDialog(EditDialog):
 
         # одне зображення для обох полів: повна іконка == превʼю (того самого файлу)
         return TrackView(id=self.item.id, map_id=map_id, map_name=map_name, name=name,
-                         icon=icon_path, icon_preview=icon_path)
+                         name_ru=name_ru, icon=icon_path, icon_preview=icon_path)
 
 
 class TrackListWidget(ListItemWidget):
@@ -153,10 +160,10 @@ class TrackListWidget(ListItemWidget):
         if item.icon and os.path.exists(item.icon):
             set_lazy_image_tooltip(self.track_icon, item.icon)
 
-        self.map_label = QLabel(item.map_name)
+        self.map_label = QLabel(item.display_map_name)
         self.map_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 13px; font-weight: bold;")
 
-        self.track_label = QLabel(item.name.upper())
+        self.track_label = QLabel(item.display_name.upper())
         name_font = QFont()
         name_font.setPointSize(self.font().pointSize() + 3)
         name_font.setBold(True)

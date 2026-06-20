@@ -11,6 +11,9 @@ class Settings(BaseModel):
     close_to_tray: bool = False
     start_minimized: bool = False
 
+    # мова контенту гри (назви карт/треків); незалежна від майбутньої мови застосунку
+    game_language: str = "en"  # "en" | "ru"
+
     capture_hotkey: str = "f8"
     overlay_hotkey: str = "f9"
     overlay_actions_hotkey: str = "ctrl+alt"  # комбо-модифікатор активації керування оверлеєм

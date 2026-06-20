@@ -4,6 +4,7 @@ from PyQt6.QtGui import QIntValidator, QFont, QIcon
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
     QLabel, QTextEdit, QFormLayout
 
+from alu_gauntlet_helper import game_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.views import style
@@ -23,7 +24,8 @@ class RaceDialog(EditDialog):
         self.item = item
         self.relaxed = relaxed  # порожні трек/авто/час дозволені (capture-драфти)
 
-        self.track_edit = ValidatedLineEdit(f"{item.map_name} - {item.track_name}" if item.track_name else "")
+        self.track_edit = ValidatedLineEdit(
+            f"{item.display_map_name} - {item.display_track_name}" if item.track_name else "")
         self.car_edit = ValidatedLineEdit(item.car_name)
         self.rank_edit = ValidatedLineEdit(str(item.rank) if item.rank else "")
         self.rank_edit.get_input().setValidator(QIntValidator(0, 10000))
@@ -42,10 +44,12 @@ class RaceDialog(EditDialog):
         self.tracks_completer = ItemCompleter(
             self.track_edit.get_input(),
             autocomplete=APP_CONTEXT.tracks_service.autocomplete,
-            presentation=lambda i: f"{i.map_name} - {i.name}",
+            presentation=lambda i: f"{i.display_map_name} - {i.display_name}",
             allow_custom_text=False
         )
-        self.tracks_completer.set_selected_item(TrackView(id=item.track_id, name=item.track_name, map_name=item.map_name))
+        self.tracks_completer.set_selected_item(TrackView(
+            id=item.track_id, name=item.track_name, name_ru=item.track_name_ru,
+            map_name=item.map_name, map_name_ru=item.map_name_ru))
 
         self.cars_completer = ItemCompleter(
             self.car_edit.get_input(),
@@ -101,7 +105,8 @@ class RaceDialog(EditDialog):
 class RaceListWidget(ListItemWidget):
     def __init__(self, race: RaceView, parent=None):
         super().__init__(race, parent)
-        self.track_info = TrackInfoWidget(race.map_icon, race.track_icon, race.map_name, race.track_name)
+        self.track_info = TrackInfoWidget(race.map_icon, race.track_icon,
+                                          race.display_map_name, race.display_track_name)
 
         rank_color = ""
         if race.rank and race.car_rank:
@@ -187,6 +192,8 @@ class RacesTab(QWidget):
         for svc in (APP_CONTEXT.races_service, APP_CONTEXT.cars_service,
                     APP_CONTEXT.tracks_service, APP_CONTEXT.maps_service):
             svc.add_listener(self._mark_dirty)
+        # зміна мови гри змінює відображувані назви — перебудувати при наступному показі
+        game_lang.add_listener(self._mark_dirty)
 
     def _mark_dirty(self):
         self._dirty = True

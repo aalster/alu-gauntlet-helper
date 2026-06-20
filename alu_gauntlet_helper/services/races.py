@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
+from alu_gauntlet_helper import game_lang
 from alu_gauntlet_helper.database import connect
 from alu_gauntlet_helper.services.cars import CarsService
 from alu_gauntlet_helper.services.observable import Observable
@@ -26,8 +27,10 @@ class Race(BaseModel):
 
 class RaceView(Race):
     map_name: str = ""
+    map_name_ru: str = ""
     map_icon: str = ""
     track_name: str = ""
+    track_name_ru: str = ""
     track_icon: str = ""
     car_name: str = ""
     car_brand: str = ""
@@ -36,6 +39,14 @@ class RaceView(Race):
     car_rank: int = 0
     car_max_rank: int = 0
     car_icon: str = ""
+
+    @property
+    def display_map_name(self) -> str:
+        return game_lang.localize(self.map_name, self.map_name_ru)
+
+    @property
+    def display_track_name(self) -> str:
+        return game_lang.localize(self.track_name, self.track_name_ru)
 
 
 class CarSuggestion(BaseModel):
@@ -73,7 +84,8 @@ class RacesRepository:
 
             sql += " WHERE 1 = 1"
             if track_query:
-                sql += " AND (t.name LIKE :track_query OR m.name LIKE :track_query)"
+                sql += (" AND (t.name LIKE :track_query OR t.name_ru LIKE :track_query"
+                        " OR m.name LIKE :track_query OR m.name_ru LIKE :track_query)")
                 params['track_query'] = f"%{track_query}%"
 
             if car_query:
@@ -138,8 +150,10 @@ class RacesService(Observable):
             result.append(RaceView(
                 **i.model_dump(),
                 map_name=track.map_name if track else "Unknown Map",
+                map_name_ru=track.map_name_ru if track else "",
                 map_icon=track.map_icon if track else "",
                 track_name=track.name if track else "Unknown Track",
+                track_name_ru=track.name_ru if track else "",
                 track_icon=track.icon if track else "",
                 car_name=car.name if car else "Unknown Car",
                 car_brand=car.brand if car else "",
