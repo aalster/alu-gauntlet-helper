@@ -84,13 +84,13 @@ class RacesRepository:
 
             sql += " WHERE 1 = 1"
             if track_query:
-                sql += (" AND (t.name LIKE :track_query OR t.name_ru LIKE :track_query"
-                        " OR m.name LIKE :track_query OR m.name_ru LIKE :track_query)")
-                params['track_query'] = f"%{track_query}%"
+                sql += (" AND (lower_u(t.name) LIKE :track_query OR lower_u(t.name_ru) LIKE :track_query"
+                        " OR lower_u(m.name) LIKE :track_query OR lower_u(m.name_ru) LIKE :track_query)")
+                params['track_query'] = f"%{track_query.lower()}%"
 
             if car_query:
-                sql += " AND c.name LIKE :car_query"
-                params['car_query'] = f"%{car_query}%"
+                sql += " AND lower_u(c.name) LIKE :car_query"
+                params['car_query'] = f"%{car_query.lower()}%"
 
             rows = conn.execute(sql + " ORDER BY r.created_at DESC LIMIT 100", params).fetchall()
             return [self.parse(row) for row in rows]

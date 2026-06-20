@@ -9,6 +9,9 @@ MIGRATIONS_DIR = Path(get_resource_path("migrations"))
 def connect():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
+    # SQLite's built-in LIKE/LOWER fold case only for ASCII, so Cyrillic search
+    # would be case-sensitive. Register a Unicode-aware lowercase function.
+    conn.create_function("lower_u", 1, lambda s: s.lower() if s is not None else None, deterministic=True)
     return conn
 
 def init_db():

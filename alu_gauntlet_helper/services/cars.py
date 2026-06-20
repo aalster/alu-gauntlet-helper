@@ -57,8 +57,8 @@ class CarsRepository:
             params = {}
 
             if query:
-                conditions.append("name LIKE :query")
-                params["query"] = f"%{query}%"
+                conditions.append("lower_u(name) LIKE :query")
+                params["query"] = f"%{query.lower()}%"
 
             if car_class:
                 conditions.append("car_class = :car_class")

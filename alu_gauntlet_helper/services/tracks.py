@@ -65,9 +65,9 @@ class TracksRepository:
             params = {}
 
             if query:
-                conditions.append("(t.name LIKE :query OR t.name_ru LIKE :query "
-                                  "OR m.name LIKE :query OR m.name_ru LIKE :query)")
-                params["query"] = f"%{query}%"
+                conditions.append("(lower_u(t.name) LIKE :query OR lower_u(t.name_ru) LIKE :query "
+                                  "OR lower_u(m.name) LIKE :query OR lower_u(m.name_ru) LIKE :query)")
+                params["query"] = f"%{query.lower()}%"
 
             if map_id:
                 conditions.append("t.map_id = :map_id")

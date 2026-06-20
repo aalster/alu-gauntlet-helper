@@ -43,8 +43,8 @@ class MapsRepository:
             params = {}
 
             if query:
-                sql += " WHERE name LIKE :query OR name_ru LIKE :query"
-                params = {"query": f"%{query}%"}
+                sql += " WHERE lower_u(name) LIKE :query OR lower_u(name_ru) LIKE :query"
+                params = {"query": f"%{query.lower()}%"}
 
             rows = conn.execute(sql + " ORDER BY name LIMIT 100", params).fetchall()
             return [self.parse(row) for row in rows]
