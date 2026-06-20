@@ -94,6 +94,19 @@ def test_ru_race_result(fixture, race, car_id, time, rank):
 
 
 @pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
+@fixture_guard("race_result_ru_3_won_lowres.png")
+def test_ru_race_result_lowres_digit_glued_to_word():
+    """Низькоякісний скрін (1921x1080): курсивна "3" зливається зі словом і
+    читається як кирилична "З" ("ГОНКАЗ"), а праворуч декор читається як "11".
+    Номер гонки має лишитись 3, а не схопити шумову "1"."""
+    img = cv2.imread(str(FIXTURES / "race_result_ru_3_won_lowres.png"))
+    captures = make_extractor().extract(img)
+    assert len(captures) == 1
+    assert captures[0].race_number == 3
+    assert captures[0].game_language == "ru"
+
+
+@pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
 def test_non_race_result_image_returns_empty():
     import numpy as np
     img = np.zeros((1600, 2560, 3), dtype=np.uint8)
