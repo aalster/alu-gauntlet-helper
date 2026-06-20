@@ -30,7 +30,7 @@ class CaptureController(QObject):
     _overlay_toggle_requested = pyqtSignal()
     _actions_enter_requested = pyqtSignal()  # комбо натиснуто — увімкнути керування оверлеєм
     _actions_exit_requested = pyqtSignal()   # комбо відпущено — зафіксувати позицію й зберегти
-    _recognized = pyqtSignal(object)  # RecognitionResult | None
+    _recognized = pyqtSignal(object, int)  # (RecognitionResult | None, epoch покоління)
     status_changed = pyqtSignal(str)  # поточний статус для UI (той самий, що й на оверлеї)
 
     def __init__(self, parent=None):
@@ -40,6 +40,7 @@ class CaptureController(QObject):
         self._busy = False  # True лише поки оверлей сховано й триває граб
         self._status = ""
         self._in_flight = 0  # скрінів у черзі/на розпізнаванні (лише UI-потік)
+        self._epoch = 0  # «покоління» сесії: Discard інкрементує, застарілі результати ігноруємо
 
         # Один довгоживучий воркер серіалізує OCR: грабити можна під час
         # розпізнавання попередніх кадрів, але самі розпізнавання — по одному.
@@ -123,7 +124,21 @@ class CaptureController(QObject):
     def _enqueue(self, engine: RecognitionEngine, img, save_if_uncertain: bool = False):
         """Ставить кадр у чергу розпізнавання й оновлює лічильник/оверлей (UI-потік)."""
         self._in_flight += 1
-        self._queue.put((engine, img, save_if_uncertain))
+        self._queue.put((engine, img, save_if_uncertain, self._epoch))
+        self._refresh_overlay()
+
+    def cancel_pending(self):
+        """Скасовує всі кадри в черзі/на розпізнаванні (Discard session) — щоб вони
+        не наповнили сесію назад. Кадр, що вже в роботі, дороблюється у фоні, але
+        його результат відкидається в _on_recognized за «поколінням» (epoch)."""
+        self._epoch += 1
+        while True:  # викидаємо ще не взяті в роботу кадри
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                break
+        self._in_flight = 0
+        self._status = ""
         self._refresh_overlay()
 
     def _recognition_loop(self):
@@ -132,7 +147,7 @@ class CaptureController(QObject):
             item = self._queue.get()
             if item is None:  # sentinel зі shutdown
                 break
-            engine, img, save_if_uncertain = item
+            engine, img, save_if_uncertain, epoch = item
             result = None
             try:
                 if not ocr.is_available():
@@ -149,7 +164,7 @@ class CaptureController(QObject):
                 except Exception:
                     traceback.print_exc()
             try:
-                self._recognized.emit(result)
+                self._recognized.emit(result, epoch)
             except RuntimeError:
                 # QObject знищено під час завершення застосунку
                 pass
@@ -181,7 +196,9 @@ class CaptureController(QObject):
             ChallengeAccordionExtractor(track_resolver, car_matcher),
         ])
 
-    def _on_recognized(self, result):
+    def _on_recognized(self, result, epoch):
+        if epoch != self._epoch:
+            return  # результат скасованої (Discard) сесії — ігноруємо
         self._in_flight = max(0, self._in_flight - 1)
         if result is None:
             # _set_status сам зробить refresh; "Recognizing" далі має пріоритет,

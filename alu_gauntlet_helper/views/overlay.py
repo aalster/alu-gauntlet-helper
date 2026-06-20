@@ -2,7 +2,7 @@ from html import escape
 
 from PyQt6.QtCore import QPoint, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QGuiApplication, QPainter, QPen
-from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QPushButton, QSizePolicy,
+from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QPushButton,
                              QStackedWidget, QVBoxLayout, QWidget)
 
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, EffectiveRace
@@ -238,9 +238,9 @@ class OverlayWindow(QWidget):
         toolbar_layout.setSpacing(TOOLBAR_SPACING)
         toolbar_layout.addWidget(self.drag_handle)
         toolbar_layout.addWidget(self.close_button)
-        # резервуємо ширину панелі назавжди (кнопки лише ховаємо), щоб поява панелі
-        # в режимі переміщення не міняла ширину оверлея
-        self.toolbar.setFixedWidth(self.toolbar.sizeHint().width())
+        # кнопки видимі лише в режимі керування; коли сховані, панель має ~нульову
+        # ширину й нічого не резервує. Зміну ширини оверлея від появи кнопок
+        # компенсує resizeEvent, тримаючи прив'язаний край — без фіксації ширини.
         self.drag_handle.setVisible(False)
         self.close_button.setVisible(False)  # кнопки видимі лише в режимі переміщення
 
@@ -263,8 +263,8 @@ class OverlayWindow(QWidget):
         self.status_label.setStyleSheet(_TEXT_STYLE)
 
         # праворуч унизу — або підказка з хоткеями, або кнопки Capture+Save.
-        # Тримаємо їх у QStackedWidget: його ширина = ширша зі сторінок, тож
-        # перемикання Ctrl+Alt не міняє ширину оверлея (правий край не «втікає»)
+        # Тримаємо їх у QStackedWidget: його ширина природно дорівнює ширшій зі
+        # сторінок, тож нижній рядок не стрибає при перемиканні Ctrl+Alt.
         self.hint_label = QLabel()
         self.hint_label.setStyleSheet(_HINT_STYLE)
         self.hint_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -289,7 +289,6 @@ class OverlayWindow(QWidget):
         buttons_row.addWidget(self.save_button)
 
         self.bottom_right = QStackedWidget()
-        self.bottom_right.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
         self.bottom_right.addWidget(self.hint_label)  # індекс 0 — звичайний режим
         self.bottom_right.addWidget(buttons_page)     # індекс 1 — режим переміщення
 
@@ -338,6 +337,8 @@ class OverlayWindow(QWidget):
             self.status_label.setText(status)
         self.status_label.setVisible(bool(self.status_label.text()))
         self.hint_label.setText(hint)
+        self.card.updateGeometry()
+        self.layout().activate()
         self.adjustSize()
         self._apply_position()
 
@@ -390,18 +391,27 @@ class OverlayWindow(QWidget):
         self.save_button.setEnabled(enabled)
 
     def resizeEvent(self, e):
-        # у режимі переміщення (коли користувач саме не тягне) контент може
-        # змінити розмір — тримаємо прив'язаний край на місці, щоб не «втікав» за екран
+        # будь-яка зміна розміру (контент, поява кнопок у Ctrl+Alt) не повинна
+        # зрушувати прив'язаний край — тримаємо його на місці, нарощуючи в інший бік.
+        # Саме це дозволяє внутрішнім елементам мати природну ширину: на місці
+        # лишається край вікна, а не заморожена ширина віджетів усередині.
         super().resizeEvent(e)
-        if self._actions_mode and self._drag_offset is None and e.oldSize().isValid():
-            dw = e.size().width() - e.oldSize().width()
-            dh = e.size().height() - e.oldSize().height()
-            if dw or dh:
-                anchor_right, anchor_bottom = self._current_side()
-                x = self.x() - dw if anchor_right else self.x()
-                y = self.y() - dh if anchor_bottom else self.y()
-                if (x, y) != (self.x(), self.y()):
-                    self.move(x, y)
+        if self._drag_offset is not None or not e.oldSize().isValid():
+            return  # під час перетягування позицією керує користувач
+        dw = e.size().width() - e.oldSize().width()
+        dh = e.size().height() - e.oldSize().height()
+        if not (dw or dh):
+            return
+        # у режимі керування орієнтуємось на поточне положення (користувач міг
+        # перетягнути); у звичайному — на збережену прив'язку
+        if self._actions_mode or self._anchor is None:
+            anchor_right, anchor_bottom = self._current_side()
+        else:
+            anchor_right, anchor_bottom = self._anchor[2], self._anchor[3]
+        x = self.x() - dw if anchor_right else self.x()
+        y = self.y() - dh if anchor_bottom else self.y()
+        if (x, y) != (self.x(), self.y()):
+            self.move(x, y)
 
     def _apply_position(self):
         # під час перетягування не сіпаємо вікно — позицією керує користувач

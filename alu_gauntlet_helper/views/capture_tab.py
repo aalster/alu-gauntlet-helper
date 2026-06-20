@@ -95,9 +95,11 @@ class CaptureTab(QWidget):
     # стан кнопки Save (enabled) — дублюється кнопкою Save на оверлеї
     save_state_changed = pyqtSignal(bool)
 
-    def __init__(self, recognize_file=None, toggle_overlay=None, capture=None):
+    def __init__(self, recognize_file=None, toggle_overlay=None, capture=None,
+                 cancel_pending=None):
         super().__init__()
         self.recognize_file = recognize_file
+        self._cancel_pending = cancel_pending  # скасувати чергу капчура при Discard
 
         settings = APP_CONTEXT.settings.get()
 
@@ -285,4 +287,6 @@ class CaptureTab(QWidget):
             btn.style().unpolish(btn)
             btn.style().polish(btn)
         if box.exec() == QMessageBox.StandardButton.Yes:
+            if self._cancel_pending:
+                self._cancel_pending()  # скинути чергу/in-flight, щоб не наповнили сесію назад
             APP_CONTEXT.challenge_session.clear()
