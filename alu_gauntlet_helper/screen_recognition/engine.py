@@ -21,5 +21,7 @@ class RecognitionEngine:
                 traceback.print_exc()
                 continue
             if captures:
-                return RecognitionResult(screen=extractor.name, captures=captures)
+                language = next((c.game_language for c in captures if c.game_language), None)
+                return RecognitionResult(screen=extractor.name, captures=captures,
+                                         game_language=language)
         return None

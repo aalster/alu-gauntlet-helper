@@ -23,8 +23,18 @@ TRACK_SF_CENTER = 107  # другий трек Сан-Франциско: диз
 TRACK_SHANGHAI_PARIS_EAST = 108  # назва містить чужу карту "Paris" — перевірка колізії
 
 
-def track_view(track_id: int, name: str, map_name: str):
-    return SimpleNamespace(id=track_id, name=name, map_name=map_name)
+# Російські треки (для RU-фікстур): name_ru/map_name_ru обовʼязкові — TrackResolver
+# індексує карту й треку обома мовами, і саме за рос. ключем карти впізнає RU-екран.
+TRACK_NEVADA_BRIDGE = 110
+TRACK_OSAKA_NAMBA = 111
+TRACK_NY_WALL_STREET = 112
+TRACK_SINGAPORE_URBAN = 113
+TRACK_SCOTLAND_VALLEY = 114
+
+
+def track_view(track_id: int, name: str, map_name: str, name_ru: str = "", map_name_ru: str = ""):
+    return SimpleNamespace(id=track_id, name=name, map_name=map_name,
+                           name_ru=name_ru, map_name_ru=map_name_ru)
 
 
 TRACK_VIEWS = [
@@ -36,6 +46,14 @@ TRACK_VIEWS = [
     track_view(TRACK_US_TWISTER, "It's a Twister", "US Midwest"),
     track_view(TRACK_CAIRO_GEZIRA, "Gezira Island", "Cairo"),
     track_view(TRACK_PARIS_NOTRE_DAME, "Notre Dame", "Paris"),
+    track_view(TRACK_NEVADA_BRIDGE, "Bridge to Bridge", "Nevada",
+               "От Моста К Мосту", "Невада"),
+    track_view(TRACK_OSAKA_NAMBA, "Namba Park", "Osaka", "Парк Намба", "Осака"),
+    track_view(TRACK_NY_WALL_STREET, "Wall Street Ride", "New York",
+               "Поездка По Уолл-Стрит", "Нью-Йорк"),
+    track_view(TRACK_SINGAPORE_URBAN, "Urban Rush", "Singapore",
+               "Городская Спешка", "Сингапур"),
+    track_view(TRACK_SCOTLAND_VALLEY, "Rocky Valley", "Scotland", "Каньон", "Шотландия"),
 ]
 
 # У словнику авто НАВМИСНО є й суперники з лівого боку панелей (Bugatti Chiron
@@ -47,6 +65,7 @@ CAR_FERRARI_SF90 = 203
 CAR_KOENIGSEGG_CCXR = 204
 CAR_LYKAN_HYPERSPORT = 205
 CAR_RIMAC_NEVERA_TA = 206
+CAR_VANDA_DENDROBIUM = 207
 CAR_VOCAB = [
     (CAR_ULTIMA_RS, "Ultima RS"),
     (CAR_BUGATTI_CHIRON, "Bugatti Chiron"),
@@ -54,6 +73,7 @@ CAR_VOCAB = [
     (CAR_KOENIGSEGG_CCXR, "Koenigsegg CCXR"),
     (CAR_LYKAN_HYPERSPORT, "W Motors Lykan Hypersport"),
     (CAR_RIMAC_NEVERA_TA, "Rimac Nevera Time Attack"),
+    (CAR_VANDA_DENDROBIUM, "Vanda Electrics Dendrobium"),
 ]
 
 
@@ -193,6 +213,34 @@ def test_old_fixture_race1_is_before_variant():
     assert c.car is None
     assert c.rank is None  # раніше тут помилково було 4644 (ранг суперника)
     assert c.time is None  # раніше тут помилково було 22797 (час суперника)
+
+
+# --- RU: екран "ВЫБОР АВТО" (вибір авто) російською мовою ---------------------
+# Той самий лейаут, що й англ. accordion: 5 панелей, одна розгорнута. Назви карт
+# і треків кирилицею (авто лишаються англ.). Праворуч — обране авто гравця з
+# рангом (час ще None — гонку не їхали). Перевіряє: двомовний якір "ГОНКА N",
+# RU-резолв треку, авто англ., і авто-визначення мови гри (game_language == "ru").
+# Калібрування дизамбігуації: коли розгорнуто гонку 4 чи 5, згорнуті колонки
+# ліворуч стоять на позиціях нижчих індексів — справжню панель обираємо за треком.
+
+@pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
+@pytest.mark.parametrize("fixture, race, track_id, car_id, rank", [
+    ("accordion_ru_1_nevada.png", 1, TRACK_NEVADA_BRIDGE, CAR_BUGATTI_CHIRON, 5130),
+    ("accordion_ru_2_osaka.png", 2, TRACK_OSAKA_NAMBA, CAR_VANDA_DENDROBIUM, 4099),
+    ("accordion_ru_3_new_york.png", 3, TRACK_NY_WALL_STREET, CAR_KOENIGSEGG_CCXR, 4998),
+    ("accordion_ru_4_singapore.png", 4, TRACK_SINGAPORE_URBAN, CAR_RIMAC_NEVERA_TA, 4835),
+    ("accordion_ru_5_scotland.png", 5, TRACK_SCOTLAND_VALLEY, CAR_FERRARI_SF90, 4795),
+])
+def test_ru_car_selection(fixture, race, track_id, car_id, rank):
+    if not (FIXTURES / fixture).exists():
+        pytest.skip("немає фікстури")
+    c = extract_one(fixture)
+    assert c.race_number == race
+    assert c.track and c.track.value == track_id  # назва треку кирилицею
+    assert c.car and c.car.value == car_id         # обране авто гравця (правий бік), англ.
+    assert c.rank == rank
+    assert c.time is None                           # гонку ще не їхали
+    assert c.game_language == "ru"                  # мова визначена з якоря "ГОНКА N"
 
 
 @pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")

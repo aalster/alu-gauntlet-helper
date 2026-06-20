@@ -14,9 +14,13 @@ TESSERACT_OK = ocr.configure_tesseract() and ocr.is_available()
 # не того боку дало б хибний id і завалило тест.
 CAR_BUGATTI_CHIRON = 202
 CAR_LYKAN_HYPERSPORT = 205
+CAR_VANDA_DENDROBIUM = 207
+CAR_KOENIGSEGG_CCXR = 204
 CAR_VOCAB = [
     (CAR_BUGATTI_CHIRON, "Bugatti Chiron"),
     (CAR_LYKAN_HYPERSPORT, "W Motors Lykan Hypersport"),
+    (CAR_VANDA_DENDROBIUM, "Vanda Electrics Dendrobium"),
+    (CAR_KOENIGSEGG_CCXR, "Koenigsegg CCXR"),
 ]
 
 
@@ -61,6 +65,32 @@ def test_other_screens_do_not_trigger(fixture):
         pytest.skip("немає фікстури")
     img = cv2.imread(str(FIXTURES / fixture))
     assert make_extractor().extract(img) == []
+
+
+# --- RU: екран результату гонки "ГОНКА N ПОБЕДА!" російською ------------------
+# Заголовок кирилицею; авто гравця лишається англ. Перевіряє двомовний якір
+# (курсивна "1" у шрифті гри читається як "7" → мапиться назад) і авто-визначення
+# мови гри. Треку на цьому екрані немає (як і в англ. варіанті).
+
+@pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
+@pytest.mark.parametrize("fixture, race, car_id, time, rank", [
+    ("race_result_ru_1_won.png", 1, CAR_BUGATTI_CHIRON, 23229, 5130),
+    ("race_result_ru_2_won.png", 2, CAR_VANDA_DENDROBIUM, 21965, 4099),
+    ("race_result_ru_3_won.png", 3, CAR_KOENIGSEGG_CCXR, 22749, 4998),
+])
+def test_ru_race_result(fixture, race, car_id, time, rank):
+    if not (FIXTURES / fixture).exists():
+        pytest.skip("немає фікстури")
+    img = cv2.imread(str(FIXTURES / fixture))
+    captures = make_extractor().extract(img)
+    assert len(captures) == 1
+    c = captures[0]
+    assert c.race_number == race  # із заголовка "ГОНКА N ПОБЕДА!"
+    assert c.track is None
+    assert c.car and c.car.value == car_id  # авто гравця, англ.
+    assert c.time == time
+    assert c.rank == rank
+    assert c.game_language == "ru"
 
 
 @pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")

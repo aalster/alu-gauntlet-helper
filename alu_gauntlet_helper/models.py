@@ -24,8 +24,10 @@ class RaceCapture(BaseModel):
     time: int | None = None  # мс, як Race.time
     source_screen: str = ""
     panel_image: bytes | None = None  # PNG-кроп панелі-джерела для рев'ю
+    game_language: str | None = None  # "en"/"ru" — мова, визначена з якоря екрана
 
 
 class RecognitionResult(BaseModel):
     screen: str
     captures: list[RaceCapture] = []
+    game_language: str | None = None  # мова гри, визначена з цього скріншота

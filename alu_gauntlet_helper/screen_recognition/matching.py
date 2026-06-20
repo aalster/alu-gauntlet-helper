@@ -4,7 +4,8 @@ from rapidfuzz import fuzz, process
 
 from alu_gauntlet_helper.models import FieldGuess
 
-_NORMALIZE_RE = re.compile(r"[^A-Z0-9]")
+# Лишаємо латиницю, кирилицю й цифри; .upper() нормалізує регістр обох абеток.
+_NORMALIZE_RE = re.compile(r"[^A-ZА-ЯЁ0-9]")
 
 
 def normalize(text: str) -> str:
@@ -61,13 +62,23 @@ class TrackResolver:
 
     def __init__(self, track_views, threshold: float = 75.0):
         self.threshold = threshold
-        # normalized map name -> list[(track_id, normalized track name)]
+        # normalized map name -> list[(track_id, normalized track name)].
+        # Індексуємо і англ., і рос. назву карти; під кожним ключем — назва треку
+        # тією ж мовою (на RU-екрані і карта, і трек російською). Мова визначається
+        # автоматично з того, який ключ карти збігся з OCR-текстом.
         self._maps: dict[str, list[tuple[int, str]]] = {}
         for t in track_views:
-            norm_map = normalize(t.map_name)
-            if not norm_map:
-                continue
-            self._maps.setdefault(norm_map, []).append((t.id, normalize(t.name)))
+            map_ru = getattr(t, "map_name_ru", "")
+            name_ru = getattr(t, "name_ru", "")
+            variants = [(t.map_name, t.name)]
+            if map_ru:
+                # трек без перекладу → у грі під рос. картою лишається англ. назва
+                variants.append((map_ru, name_ru or t.name))
+            for map_name, track_name in variants:
+                norm_map = normalize(map_name)
+                if not norm_map:
+                    continue
+                self._maps.setdefault(norm_map, []).append((t.id, normalize(track_name)))
         self._fallback = build_track_matcher(track_views)
 
     def _best_map(self, norm_text: str) -> str | None:
@@ -148,11 +159,17 @@ class TrackResolver:
 
 
 def build_track_matcher(track_views) -> VocabularyMatcher:
-    """track_views: list[TrackView]. Синоніми: «назва треку» і «карта + трек»."""
+    """track_views: list[TrackView]. Синоніми: «назва треку» і «карта + трек»,
+    англ. і рос. (один id, дедуплікація на виході VocabularyMatcher)."""
     vocab = []
     for t in track_views:
         vocab.append((t.id, t.name))
         vocab.append((t.id, f"{t.map_name} {t.name}"))
+        name_ru = getattr(t, "name_ru", "")
+        if name_ru:
+            map_ru = getattr(t, "map_name_ru", "") or t.map_name
+            vocab.append((t.id, name_ru))
+            vocab.append((t.id, f"{map_ru} {name_ru}"))
     return VocabularyMatcher(vocab)
 
 

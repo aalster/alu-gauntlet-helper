@@ -7,7 +7,7 @@ class FakeKeyboard:
         self.fail = fail
         self.registered = {}
 
-    def add_hotkey(self, combo, callback):
+    def add_hotkey(self, combo, callback, trigger_on_release=False):
         if self.fail:
             raise ValueError("bad combo")
         self.registered[combo] = callback

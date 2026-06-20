@@ -9,7 +9,7 @@ from alu_gauntlet_helper.screen_recognition.regions import (
     RACE_RESULT_PLAYER_TIME,
 )
 from alu_gauntlet_helper.screen_recognition.screens.base import (
-    HEADER_DY_OFFSETS, RACE_HEADER_RE, ScreenExtractor, encode_png,
+    HEADER_DY_OFFSETS, ScreenExtractor, encode_png, read_race_header,
 )
 
 # Кадр цілком (на відміну від панелі акордеона тут немає природного кропу),
@@ -35,19 +35,17 @@ class RaceResultExtractor(ScreenExtractor):
     def __init__(self, car_matcher: VocabularyMatcher):
         self.car_matcher = car_matcher
 
-    def _race_number(self, img: np.ndarray) -> int | None:
-        """Якір екрана: зверху зліва читається "RACE N" (бейдж WON/LOST і
-        трикутне лого відфільтровує whitelist). Вимагаємо єдиний номер —
-        кілька різних токенів означали б, що це не той екран."""
+    def _race_number(self, img: np.ndarray) -> tuple[int | None, str | None]:
+        """Якір екрана: зверху зліва "RACE N"/"ГОНКА N" (бейдж WON/LOST і
+        трикутне лого відфільтровує whitelist/канали). → (номер, мова)."""
         for dy in HEADER_DY_OFFSETS:
-            text = ocr.read_text(RACE_RESULT_HEADER.shifted(0.0, dy).crop(img), "RACE12345")
-            tokens = RACE_HEADER_RE.findall(text)
-            if tokens and len(set(tokens)) == 1:
-                return int(tokens[0])
-        return None
+            number, language = read_race_header(img, RACE_RESULT_HEADER.shifted(0.0, dy))
+            if number is not None:
+                return number, language
+        return None, None
 
     def extract(self, img: np.ndarray) -> list[RaceCapture]:
-        race_number = self._race_number(img)
+        race_number, language = self._race_number(img)
         if race_number is None:
             return []
 
@@ -67,4 +65,5 @@ class RaceResultExtractor(ScreenExtractor):
             time=time,
             source_screen=self.name,
             panel_image=encode_png(review_image),
+            game_language=language,
         )]

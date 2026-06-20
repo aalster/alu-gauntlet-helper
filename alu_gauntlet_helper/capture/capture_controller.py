@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
+from alu_gauntlet_helper import game_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.capture.hotkey import GlobalHotkeyService
 from alu_gauntlet_helper.capture.screen_grab import grab_screen, save_capture
@@ -188,7 +189,20 @@ class CaptureController(QObject):
             self._set_status("Screen not recognized")
             return
         self._status = ""
+        if result.game_language:
+            self._apply_game_language(result.game_language)
         APP_CONTEXT.challenge_session.apply(result)  # listener оновить оверлей
+
+    @staticmethod
+    def _apply_game_language(language: str):
+        """Авто-перемикання мови гри за розпізнаним екраном (симетрично EN↔RU):
+        зберігаємо в налаштування й оновлюємо відображення назв по всьому застосунку."""
+        if game_lang.current_game_language() == language:
+            return
+        settings = APP_CONTEXT.settings.get()
+        settings.game_language = language
+        APP_CONTEXT.settings.save(settings)
+        game_lang.set_game_language(language)
 
     # --- оверлей ---------------------------------------------------------
 

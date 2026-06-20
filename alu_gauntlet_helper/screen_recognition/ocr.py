@@ -29,6 +29,9 @@ def _bundled_tesseract() -> str:
     return os.path.normpath(os.path.join(base, "tesseract", name))
 
 
+# Латиниця для англ. назв і авто. Російські назви читаються БЕЗ whitelist:
+# tessedit_char_whitelist з багатобайтними кириличними символами ламає LSTM-движок
+# tesseract (повертає "?"), тож для lang="rus" whitelist не передаємо (див. read_name).
 NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
 TIME_RE = re.compile(r"(\d{1,2})\s*:\s*(\d{2})\s*[.,]\s*(\d{2,3})")  # {2,3}: OCR інколи губить цифру мс
 RANK_RE = re.compile(r"(\d)\s*[,.]?\s*(\d{3})")  # [,.]? необов'язковий: OCR інколи губить кому в "4,045"
@@ -99,10 +102,15 @@ def preprocess(img: np.ndarray, scale: int = 3, channel: str = "gray") -> Image.
     return Image.fromarray(binary)
 
 
-def read_text(img: np.ndarray, whitelist: str, psm: int = 7, channel: str = "gray") -> str:
-    config = f"--oem 3 --psm {psm} -c tessedit_char_whitelist={whitelist}"
+def read_text(img: np.ndarray, whitelist: str = "", psm: int = 7, channel: str = "gray",
+              lang: str = "eng") -> str:
+    """lang: "eng" (латиниця/авто) або "rus" (кирилиця). whitelist="" — без обмеження
+    символів (кириличні бейджі з логотипом краще читаються без whitelist)."""
+    config = f"--oem 3 --psm {psm}"
+    if whitelist:
+        config += f" -c tessedit_char_whitelist={whitelist}"
     return pytesseract.image_to_string(preprocess(img, channel=channel),
-                                       lang="eng", config=config).strip()
+                                       lang=lang, config=config).strip()
 
 
 TIME_CHANNELS = ("gray", "max", "min")
@@ -142,14 +150,17 @@ def read_rank(img: np.ndarray) -> int | None:
     return int(match[1] + match[2]) if match else None
 
 
-def read_name(img: np.ndarray, channel: str = "gray") -> str:
+def read_name(img: np.ndarray, channel: str = "gray", lang: str = "eng") -> str:
     """Назва авто/треку; може бути 2 рядки — psm 6.
 
     channel див. preprocess(): "min" лишає тільки білий текст (гасить кольорові
-    написи на яскравому тлі), "max" — кольоровий."""
+    написи на яскравому тлі), "max" — кольоровий.
+    lang: "rus" для російських назв карт/треків (авто завжди "eng")."""
     if img.size == 0:
         return ""
-    return read_text(img, NAME_CHARS, psm=6, channel=channel)
+    # rus — без whitelist (кириличний whitelist ламає LSTM); шум добирає fuzzy-матч
+    whitelist = "" if lang == "rus" else NAME_CHARS
+    return read_text(img, whitelist, psm=6, channel=channel, lang=lang)
 
 
 # Цифри індикатора намальовані жирним КУРСИВОМ — tesseract (psm 10) на сирому

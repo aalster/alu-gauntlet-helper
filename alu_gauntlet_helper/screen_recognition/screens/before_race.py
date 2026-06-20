@@ -74,10 +74,20 @@ class BeforeRaceExtractor(ScreenExtractor):
                 best = guess
         return best
 
-    def _resolve_track(self, img: np.ndarray) -> FieldGuess | None:
-        """Найкращий resolve треку по всіх каналах препроцесу (див. TRACK_CHANNELS)."""
-        return self._best_over_channels(
-            BEFORE_RACE_TRACK.crop(img), TRACK_CHANNELS, self.track_resolver.resolve)
+    def _resolve_track(self, img: np.ndarray) -> tuple[FieldGuess | None, str | None]:
+        """Resolve треку по каналах і обох мовах → (guess, мова|None).
+
+        На before_race немає текстового якоря мови (номер дає індикатор-цифра),
+        тож мову визначаємо за тим, який мовний прохід дав кращий resolve."""
+        crop = BEFORE_RACE_TRACK.crop(img)
+        best: FieldGuess | None = None
+        best_language: str | None = None
+        for language, lang in (("en", "eng"), ("ru", "rus")):
+            for channel in TRACK_CHANNELS:
+                guess = self.track_resolver.resolve(ocr.read_name(crop, channel=channel, lang=lang))
+                if guess is not None and (best is None or guess.score > best.score):
+                    best, best_language = guess, language
+        return best, best_language
 
     def _resolve_car(self, img: np.ndarray) -> FieldGuess | None:
         """Авто гравця (праве в матчапі) — найкращий збіг по каналах."""
@@ -89,13 +99,15 @@ class BeforeRaceExtractor(ScreenExtractor):
         if race_number is None:
             return []
 
+        track, language = self._resolve_track(img)
         review_image = cv2.resize(img, None, fx=REVIEW_IMAGE_SCALE, fy=REVIEW_IMAGE_SCALE,
                                   interpolation=cv2.INTER_AREA)
         return [RaceCapture(
             race_number=race_number,
-            track=self._resolve_track(img),
+            track=track,
             car=self._resolve_car(img),
             rank=ocr.read_rank(BEFORE_RACE_PLAYER_RANK.crop(img)),
             source_screen=self.name,
             panel_image=encode_png(review_image),
+            game_language=language,
         )]
