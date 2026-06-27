@@ -9,6 +9,11 @@ def test_capture_defaults():
     assert s.save_captures is False
 
 
+def test_app_language_defaults_to_empty():
+    s = Settings()
+    assert s.app_language == ""
+
+
 def test_parses_string_values_from_db():
     # SettingsRepository зберігає все рядками
     s = Settings(capture_monitor="2", save_captures="True")

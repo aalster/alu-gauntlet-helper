@@ -38,8 +38,14 @@ def main():
     init_db()
 
     settings = APP_CONTEXT.settings.get()
-    from alu_gauntlet_helper import game_lang
+    from alu_gauntlet_helper import game_lang, ui_lang
+    from PyQt6.QtCore import QLocale
     game_lang.set_game_language(settings.game_language)
+    # мова UI: при першому запуску визначаємо із системної локалі й зберігаємо
+    if not settings.app_language:
+        settings.app_language = ui_lang.system_to_ui_language(QLocale.system().name())
+        APP_CONTEXT.settings.save(settings)
+    ui_lang.set_ui_language(settings.app_language)
     if not settings.initial_data_loaded:
         init_data()
         settings.initial_data_loaded = True

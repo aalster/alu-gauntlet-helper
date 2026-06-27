@@ -2,6 +2,7 @@ from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QPixmap, QGuiApplication, QImage, QCursor
 from PyQt6.QtWidgets import QWidget, QLabel, QPushButton, QVBoxLayout, QFileDialog, QStyle
 
+from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.utils.utils import pixmap_cover
 from alu_gauntlet_helper.views.components.common import add_contents
 
@@ -20,17 +21,17 @@ class ImageLineEdit(QWidget):
         self.clear_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_LineEditClearButton))
         self.clear_button.setFixedSize(QSize(20, 20))
         self.clear_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.clear_button.setToolTip("Clear")
+        self.clear_button.setToolTip(ui_lang.t("image.clear"))
         self.clear_button.setStyleSheet("border: none; background: transparent; padding: 0;")
         padding = 2
         self.clear_button.move(self.preview.width() - self.clear_button.width() - padding, padding)
         self.clear_button.clicked.connect(self.clear) # type: ignore
 
-        self.select_button = QPushButton("Choose file")
+        self.select_button = QPushButton(ui_lang.t("image.choose_file"))
         self.select_button.setObjectName("secondary")
         self.select_button.clicked.connect(self.pick_file) # type: ignore
 
-        self.paste_button = QPushButton("Paste from clipboard")
+        self.paste_button = QPushButton(ui_lang.t("image.paste"))
         self.paste_button.setObjectName("secondary")
         self.paste_button.clicked.connect(self.paste_image) # type: ignore
 
@@ -63,7 +64,7 @@ class ImageLineEdit(QWidget):
                     pass
 
     def pick_file(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Choose Image", "", "Images (*.png *.jpg *.jpeg *.bmp)")
+        path, _ = QFileDialog.getOpenFileName(self, ui_lang.t("image.choose_image"), "", ui_lang.t("common.images_filter"))
         if path:
             self.set_image(QImage(path))
 

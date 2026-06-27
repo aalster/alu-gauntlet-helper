@@ -4,7 +4,7 @@ from PyQt6.QtGui import QIntValidator, QFont, QIcon
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
     QLabel, QTextEdit, QFormLayout
 
-from alu_gauntlet_helper import game_lang
+from alu_gauntlet_helper import game_lang, ui_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.views import style
@@ -36,7 +36,7 @@ class RaceDialog(EditDialog):
         self.bad_timing_button.setIconSize(QSize(18, 18))
         self.bad_timing_button.setCheckable(True)
         self.bad_timing_button.setChecked(item.bad_timing)
-        self.bad_timing_button.setToolTip("Bad timing")
+        self.bad_timing_button.setToolTip(ui_lang.t("races.bad_timing"))
         self.bad_timing_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.bad_timing_button.setFixedSize(30, 30)
         self.note_edit = QTextEdit(item.note)
@@ -59,15 +59,15 @@ class RaceDialog(EditDialog):
         )
 
         super().__init__(action, parent)
-        self.setWindowTitle(title or ("Edit Race" if item.id else "Add Race"))
+        self.setWindowTitle(title or (ui_lang.t("dialog.edit_race") if item.id else ui_lang.t("dialog.add_race")))
 
     def prepare_layout(self):
         form_layout = QFormLayout()
-        form_layout.addRow("Track", self.track_edit)
-        form_layout.addRow("Car", self.car_edit)
-        form_layout.addRow("Rank", self.rank_edit)
-        form_layout.addRow("Time", hbox([self.time_edit, self.bad_timing_button], spacing=6))
-        form_layout.addRow("Note", self.note_edit)
+        form_layout.addRow(ui_lang.t("field.track"), self.track_edit)
+        form_layout.addRow(ui_lang.t("field.car"), self.car_edit)
+        form_layout.addRow(ui_lang.t("field.rank"), self.rank_edit)
+        form_layout.addRow(ui_lang.t("field.time"), hbox([self.time_edit, self.bad_timing_button], spacing=6))
+        form_layout.addRow(ui_lang.t("field.note"), self.note_edit)
 
         return form_layout
 
@@ -159,17 +159,17 @@ class RacesTab(QWidget):
         enable_search_icon(self.track_query)
         enable_clear_button(self.track_query)
         self.track_query.installEventFilter(CLEAR_ON_ESC_FILTER)
-        self.track_query.setPlaceholderText("Track")
+        self.track_query.setPlaceholderText(ui_lang.t("field.track"))
         self.track_debounce = InputDebounce(self.track_query, on_change=self.on_search)
 
         self.car_query = QLineEdit()
         enable_search_icon(self.car_query)
         enable_clear_button(self.car_query)
         self.car_query.installEventFilter(CLEAR_ON_ESC_FILTER)
-        self.car_query.setPlaceholderText("Car")
+        self.car_query.setPlaceholderText(ui_lang.t("field.car"))
         self.car_debounce = InputDebounce(self.car_query, on_change=self.on_search)
 
-        self.add_button = QPushButton("Add")
+        self.add_button = QPushButton(ui_lang.t("common.add"))
         self.add_button.clicked.connect(self.on_add) # type: ignore
 
         self.list_widget = QListWidget()

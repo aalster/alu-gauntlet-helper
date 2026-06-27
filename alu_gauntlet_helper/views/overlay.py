@@ -5,6 +5,7 @@ from PyQt6.QtGui import QColor, QGuiApplication, QPainter, QPen
 from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QPushButton,
                              QStackedWidget, QVBoxLayout, QWidget)
 
+from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, EffectiveRace
 from alu_gauntlet_helper.utils.utils import format_time
 from alu_gauntlet_helper.views.components.common import res_to_pixmap
@@ -25,9 +26,8 @@ def _cell(text: str, uncertain: bool) -> str:
 
 
 def header_text(races: dict[int, EffectiveRace]) -> str:
-    """Текст заголовка оверлея (звичайний QLabel, не HTML)."""
-    complete = sum(1 for e in races.values() if e.is_complete)
-    return f"Gauntlet capture {complete}/{RACE_COUNT}"
+    """Статичний заголовок оверлея (бренд, без лічильника гонок)."""
+    return ui_lang.t("window.title")
 
 
 def build_races_table(races: dict[int, EffectiveRace],
@@ -44,7 +44,7 @@ def build_races_table(races: dict[int, EffectiveRace],
         if e is None:
             rows.append(
                 f"<tr><td style='padding-right:8px'>{n}</td>"
-                f"<td colspan='3' style='color:#9aa0c0'>no data</td></tr>"
+                f"<td colspan='3' style='color:#9aa0c0'>{ui_lang.t('overlay.no_data')}</td></tr>"
             )
             continue
         track = track_names.get(e.track_id, "?") if e.track_id else "?"
@@ -128,7 +128,7 @@ class _DragHandle(QLabel):
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setStyleSheet(_HANDLE_STYLE)
         self.setCursor(Qt.CursorShape.SizeAllCursor)
-        self.setToolTip("Перетягніть, щоб перемістити оверлей")
+        self.setToolTip(ui_lang.t("overlay.drag_tooltip"))
 
     def enterEvent(self, e):
         self.setStyleSheet(_HANDLE_HOVER_STYLE)
@@ -229,7 +229,7 @@ class OverlayWindow(QWidget):
         self.close_button = QPushButton("✕")
         self.close_button.setStyleSheet(_CLOSE_STYLE)
         self.close_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.close_button.setToolTip("Сховати оверлей")
+        self.close_button.setToolTip(ui_lang.t("overlay.hide_tooltip"))
         self.close_button.clicked.connect(lambda: self.close_requested.emit())
 
         self.toolbar = QWidget()
@@ -269,15 +269,15 @@ class OverlayWindow(QWidget):
         self.hint_label.setStyleSheet(_HINT_STYLE)
         self.hint_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        self.capture_button = QPushButton("Capture")
+        self.capture_button = QPushButton(ui_lang.t("overlay.capture"))
         self.capture_button.setStyleSheet(_SAVE_STYLE)
         self.capture_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.capture_button.setToolTip("Зробити захоплення екрана")
+        self.capture_button.setToolTip(ui_lang.t("overlay.capture_tooltip"))
         self.capture_button.clicked.connect(lambda: self.capture_requested.emit())
-        self.save_button = QPushButton("Save")
+        self.save_button = QPushButton(ui_lang.t("overlay.save"))
         self.save_button.setStyleSheet(_SAVE_STYLE)
         self.save_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.save_button.setToolTip("Зберегти відмічені гонки")
+        self.save_button.setToolTip(ui_lang.t("overlay.save_tooltip"))
         self.save_button.clicked.connect(lambda: self.save_requested.emit())
 
         buttons_page = QWidget()

@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
-from alu_gauntlet_helper import game_lang
+from alu_gauntlet_helper import game_lang, ui_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.capture.hotkey import GlobalHotkeyService
 from alu_gauntlet_helper.capture.screen_grab import grab_screen, save_capture
@@ -102,7 +102,7 @@ class CaptureController(QObject):
         except Exception:
             traceback.print_exc()
             self._busy = False
-            self._set_status("Screenshot failed")
+            self._set_status(ui_lang.t("status.screenshot_failed"))
             return
 
         # граб завершено — оверлей можна повертати й приймати наступні F8,
@@ -117,7 +117,7 @@ class CaptureController(QObject):
         # cv2.imread мовчки падає на не-ASCII шляхах у Windows, тому imdecode
         img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
         if img is None:
-            self._set_status("Failed to load screenshot")
+            self._set_status(ui_lang.t("status.load_failed"))
             return
         self._enqueue(self._build_engine(), img)
 
@@ -205,7 +205,7 @@ class CaptureController(QObject):
         if result is None:
             # _set_status сам зробить refresh; "Recognizing" далі має пріоритет,
             # поки лишаються кадри в роботі
-            self._set_status("Screen not recognized")
+            self._set_status(ui_lang.t("status.not_recognized"))
             return
         self._status = ""
         if result.game_language:
@@ -268,13 +268,13 @@ class CaptureController(QObject):
         # поки є кадри в роботі — "Recognizing"/"Recognizing (N)" має пріоритет;
         # транзитні повідомлення (помилки, "not recognized") показуються, коли черга порожня
         if self._in_flight == 1:
-            return "Recognizing"
+            return ui_lang.t("status.recognizing")
         if self._in_flight > 1:
-            return f"Recognizing ({self._in_flight})"
+            return ui_lang.t("status.recognizing_n").format(n=self._in_flight)
         if self._status:
             return self._status
         if session.is_complete():
-            return "Done — review in the app"
+            return ui_lang.t("status.done")
         return ""
 
     def _refresh_overlay(self):
@@ -290,8 +290,10 @@ class CaptureController(QObject):
         settings = APP_CONTEXT.settings.get()
         # комбо показуємо як у налаштуваннях ("Ctrl + Alt"), а не великими літерами
         combo = " + ".join(p.capitalize() for p in settings.overlay_actions_hotkey.split("+") if p)
-        hint = (f"{settings.capture_hotkey.upper()} capture · "
-                f"{settings.overlay_hotkey.upper()} hide · {combo} actions")
+        hint = ui_lang.t("overlay.hint").format(
+            capture=settings.capture_hotkey.upper(),
+            hide=settings.overlay_hotkey.upper(),
+            combo=combo)
         self.overlay.update_content(
             header_text(effective),
             build_races_table(effective, track_names, car_names),

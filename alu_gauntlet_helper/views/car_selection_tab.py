@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QListWidget, QHBoxLayout, QLabel, QListWidgetItem, QScrollArea, QFrame, QPushButton, QDialog
 
+from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import CarSuggestion, Race
 from alu_gauntlet_helper.utils.utils import format_time, load_pixmap_cover
@@ -16,13 +17,13 @@ from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLi
 class RaceHistoryDialog(QDialog):
     def __init__(self, car_name: str, races: list[Race], parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"Race History - {car_name}")
+        self.setWindowTitle(ui_lang.t("car_selection.race_history").format(name=car_name))
         self.setMinimumSize(350, 250)
 
         self.list_widget = QListWidget()
         for race in races:
             date_str = race.created_at.strftime("%Y-%m-%d %H:%M:%S") if race.created_at else "—"
-            rank_str = f"Rank {race.rank}" if race.rank else "—"
+            rank_str = ui_lang.t("car_selection.rank_n").format(n=race.rank) if race.rank else "—"
             time_str = format_time(race.time)
             item = QListWidgetItem(f"{date_str}    {rank_str}    {time_str}")
             self.list_widget.addItem(item)
@@ -64,16 +65,16 @@ class CarSuggestionWidget(ListItemWidget):
         if item.car_favorite:
             rank_parts.append("♥")
         if item.car_class:
-            rank_parts.append(f"Class {item.car_class}")
+            rank_parts.append(ui_lang.t("car_selection.class_x").format(c=item.car_class))
         if item.car_rank:
-            rank_parts.append(f"Rank: {item.car_rank}")
+            rank_parts.append(ui_lang.t("car_selection.rank_label").format(n=item.car_rank))
         self.rank_label = QLabel(" · ".join(rank_parts))
         self.rank_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px;")
 
         self.time_label = QLabel(format_time(item.avg_time))
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        self.race_count_button = QPushButton(f"{item.race_count} races")
+        self.race_count_button = QPushButton(ui_lang.t("car_selection.races_count").format(n=item.race_count))
         self.race_count_button.setStyleSheet("""
             QPushButton {
                 padding: 2px 8px;
@@ -125,13 +126,13 @@ class RaceColumn(QWidget):
         self.on_car_selected = on_car_selected
         self.get_selected_cars = get_selected_cars
 
-        self.header_label = QLabel(f"Race {race_number}")
+        self.header_label = QLabel(ui_lang.t("car_selection.race_n").format(n=race_number))
         header_font = QFont()
         header_font.setBold(True)
         self.header_label.setFont(header_font)
         self.header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.track_edit = ValidatedLineEdit(placeholder="Select track...")
+        self.track_edit = ValidatedLineEdit(placeholder=ui_lang.t("car_selection.select_track_placeholder"))
         enable_clear_button(self.track_edit.get_input())
         self.track_edit.get_input().textChanged.connect(self.on_track_text_changed)
         self.track_completer = ItemCompleter(
@@ -144,7 +145,7 @@ class RaceColumn(QWidget):
 
         self.list_widget = QListWidget()
         self.list_widget.itemClicked.connect(self.on_item_clicked)
-        self.show_status("Select a track")
+        self.show_status(ui_lang.t("car_selection.select_track"))
 
         layout = QVBoxLayout()
         layout.setContentsMargins(4, 4, 4, 4)
@@ -174,7 +175,7 @@ class RaceColumn(QWidget):
             self.selected_track = None
             self.selected_car_id = None
             self.on_car_selected(self.race_number, None)
-            self.show_status("Select a track")
+            self.show_status(ui_lang.t("car_selection.select_track"))
 
     def on_track_selected(self, track):
         self.selected_track = track
@@ -204,13 +205,13 @@ class RaceColumn(QWidget):
         self.list_widget.clear()
 
         if not self.selected_track or self.selected_track.id <= 0:
-            self.show_status("Select a track")
+            self.show_status(ui_lang.t("car_selection.select_track"))
             return
 
         suggestions = APP_CONTEXT.races_service.get_car_suggestions_for_track(self.selected_track.id)
 
         if not suggestions:
-            self.show_status("No race data")
+            self.show_status(ui_lang.t("car_selection.no_data"))
             return
 
         for suggestion in suggestions:

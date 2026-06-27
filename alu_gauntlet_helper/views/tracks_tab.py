@@ -7,6 +7,7 @@ from PyQt6.QtGui import QPixmap, QImage, QFont
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
     QLabel, QFormLayout, QSplitter
 
+from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.services.maps import Map
@@ -29,13 +30,13 @@ class MapDialog(EditDialog):
         self.icon_edit = ImageLineEdit(icon)
 
         super().__init__(action, parent)
-        self.setWindowTitle("Edit Map" if item.id else "Add Map")
+        self.setWindowTitle(ui_lang.t("dialog.edit_map") if item.id else ui_lang.t("dialog.add_map"))
 
     def prepare_layout(self):
         form_layout = QFormLayout()
-        form_layout.addRow("Name", self.name_edit)
-        form_layout.addRow("Name (RU)", self.name_ru_edit)
-        form_layout.addRow("Icon", self.icon_edit)
+        form_layout.addRow(ui_lang.t("field.name"), self.name_edit)
+        form_layout.addRow(ui_lang.t("field.name_ru"), self.name_ru_edit)
+        form_layout.addRow(ui_lang.t("field.icon"), self.icon_edit)
 
         return form_layout
 
@@ -100,17 +101,17 @@ class TrackDialog(EditDialog):
         )
 
         super().__init__(action, parent)
-        self.setWindowTitle("Edit Track" if item.id else "Add Track")
+        self.setWindowTitle(ui_lang.t("dialog.edit_track") if item.id else ui_lang.t("dialog.add_track"))
 
     def prepare_layout(self):
         form_layout = QVBoxLayout()
-        form_layout.addWidget(QLabel("Map"))
+        form_layout.addWidget(QLabel(ui_lang.t("field.map")))
         form_layout.addWidget(self.map_edit)
-        form_layout.addWidget(QLabel("Name"))
+        form_layout.addWidget(QLabel(ui_lang.t("field.name")))
         form_layout.addWidget(self.name_edit)
-        form_layout.addWidget(QLabel("Name (RU)"))
+        form_layout.addWidget(QLabel(ui_lang.t("field.name_ru")))
         form_layout.addWidget(self.name_ru_edit)
-        form_layout.addWidget(QLabel("Icon"))
+        form_layout.addWidget(QLabel(ui_lang.t("field.icon")))
         form_layout.addWidget(self.icon_edit)
 
         return form_layout
@@ -199,7 +200,7 @@ class MapsPanel(QWidget):
         self.query.installEventFilter(CLEAR_ON_ESC_FILTER)
         self.query.textChanged.connect(self.refresh_debounce) # type: ignore
 
-        self.add_button = QPushButton("Add")
+        self.add_button = QPushButton(ui_lang.t("common.add"))
         self.add_button.clicked.connect(self.on_add) # type: ignore
 
         self.list_widget = QListWidget()
@@ -276,7 +277,7 @@ class TracksPanel(QWidget):
         self.query.installEventFilter(CLEAR_ON_ESC_FILTER)
         self.query.textChanged.connect(self.refresh_debounce) # type: ignore
 
-        self.add_button = QPushButton("Add")
+        self.add_button = QPushButton(ui_lang.t("common.add"))
         self.add_button.clicked.connect(self.on_add) # type: ignore
 
         self.list_widget = QListWidget()

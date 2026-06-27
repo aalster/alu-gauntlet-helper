@@ -7,6 +7,7 @@ from PyQt6.QtGui import QIntValidator, QImage, QFont, QIcon
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
     QLabel, QFormLayout, QComboBox, QButtonGroup
 
+from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.cars import Car
 from alu_gauntlet_helper.views import style
@@ -33,7 +34,7 @@ class CarDialog(EditDialog):
             overlay.setContentsMargins(0, 0, 8, 0)
             overlay.addWidget(max_rank_label, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             rank_input.setTextMargins(0, 0, max_rank_label.sizeHint().width() + 12, 0)
-        self.max_rank_button = QPushButton("MAX")
+        self.max_rank_button = QPushButton(ui_lang.t("cars.max"))
         self.max_rank_button.setObjectName("secondary")
         self.max_rank_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.max_rank_button.setEnabled(bool(item.max_rank))
@@ -42,19 +43,19 @@ class CarDialog(EditDialog):
         self.icon_edit = ImageLineEdit(icon)
 
         super().__init__(action, parent)
-        self.setWindowTitle("Edit Car" if item.id else "Add Car")
+        self.setWindowTitle(ui_lang.t("dialog.edit_car") if item.id else ui_lang.t("dialog.add_car"))
         self.setMinimumHeight(400)
 
     def prepare_layout(self):
         form_layout = QFormLayout()
-        form_layout.addRow("Brand", self.brand_edit)
-        form_layout.addRow("Model", self.model_edit)
+        form_layout.addRow(ui_lang.t("field.brand"), self.brand_edit)
+        form_layout.addRow(ui_lang.t("field.model"), self.model_edit)
         rank_layout = QHBoxLayout()
         rank_layout.setSpacing(6)
         rank_layout.addWidget(self.rank_edit, stretch=1)
         rank_layout.addWidget(self.max_rank_button)
-        form_layout.addRow("Rank", rank_layout)
-        form_layout.addRow("Icon", self.icon_edit)
+        form_layout.addRow(ui_lang.t("field.rank"), rank_layout)
+        form_layout.addRow(ui_lang.t("field.icon"), self.icon_edit)
 
         return form_layout
 
@@ -153,7 +154,11 @@ class CarsTab(QWidget):
         classes = ["All", "D", "C", "B", "A", "S"]
         for index, car_class in enumerate(classes):
             # parent keeps the button alive: QButtonGroup.addButton() doesn't take ownership
-            button = QPushButton(car_class, self)
+            # текст кнопки локалізований лише для "All"; логічне значення класу
+            # тримаємо в property, бо фільтр порівнює саме значення, а не підпис
+            label = ui_lang.t("cars.filter_all") if car_class == "All" else car_class
+            button = QPushButton(label, self)
+            button.setProperty("car_class", car_class)
             button.setObjectName("segment")
             button.setCheckable(True)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -166,13 +171,13 @@ class CarsTab(QWidget):
 
         self.sort_combo = QComboBox()
         sort_icon = QIcon(get_resource_path("icons/sort.svg"))
-        self.sort_combo.addItem(sort_icon, "Default")
-        self.sort_combo.addItem(sort_icon, "Max Rank")
-        self.sort_combo.setToolTip("Sort order")
+        self.sort_combo.addItem(sort_icon, ui_lang.t("cars.sort_default"))
+        self.sort_combo.addItem(sort_icon, ui_lang.t("cars.sort_max_rank"))
+        self.sort_combo.setToolTip(ui_lang.t("cars.sort_order"))
         self.sort_combo.setCursor(Qt.CursorShape.PointingHandCursor)
         self.sort_combo.currentIndexChanged.connect(self.on_filter_changed) # type: ignore
 
-        self.add_button = QPushButton("Add")
+        self.add_button = QPushButton(ui_lang.t("common.add"))
         self.add_button.clicked.connect(self.on_add) # type: ignore
 
         self.list_widget = QListWidget()
@@ -200,7 +205,7 @@ class CarsTab(QWidget):
     def refresh(self):
         with preserved_scroll(self.list_widget):
             self.list_widget.clear()
-            car_class = self.class_group.checkedButton().text()
+            car_class = self.class_group.checkedButton().property("car_class")
             for i in APP_CONTEXT.cars_service.autocomplete(self.query.text(),
                                                            by_max_rank=self.sort_combo.currentIndex() == 1,
                                                            car_class="" if car_class == "All" else car_class):

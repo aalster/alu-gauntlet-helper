@@ -11,8 +11,11 @@ class Settings(BaseModel):
     close_to_tray: bool = False
     start_minimized: bool = False
 
-    # мова контенту гри (назви карт/треків); незалежна від майбутньої мови застосунку
+    # мова контенту гри (назви карт/треків); незалежна від мови застосунку
     game_language: str = "en"  # "en" | "ru"
+
+    # мова інтерфейсу застосунку; "" = ще не визначено (тригер автодетекту)
+    app_language: str = ""  # "" | "en" | "uk"
 
     capture_hotkey: str = "f8"
     overlay_hotkey: str = "f9"

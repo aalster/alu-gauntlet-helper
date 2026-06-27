@@ -3,6 +3,8 @@ from typing import Any, Callable
 
 from PyQt6.QtWidgets import QVBoxLayout, QLabel, QDialog, QPushButton, QHBoxLayout, QLayout
 
+from alu_gauntlet_helper import ui_lang
+
 
 class EditDialog(QDialog):
     def __init__(self, action: Callable[[Any], int], parent=None):
@@ -14,9 +16,9 @@ class EditDialog(QDialog):
         self.error_label = QLabel()
         self.error_label.setStyleSheet("color: #FF6B6B;")
 
-        self.save_button = QPushButton("Ok")
+        self.save_button = QPushButton(ui_lang.t("dialog.ok"))
         self.save_button.clicked.connect(self.accept)   # type: ignore
-        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button = QPushButton(ui_lang.t("dialog.cancel"))
         self.cancel_button.setObjectName("secondary")
         self.cancel_button.clicked.connect(self.reject) # type: ignore
 

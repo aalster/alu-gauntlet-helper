@@ -4,6 +4,7 @@ from PyQt6.QtCore import QByteArray, QUrl
 from PyQt6.QtGui import QIcon, QAction, QDesktopServices
 from PyQt6.QtWidgets import QTabWidget, QMainWindow, QSystemTrayIcon, QMenu, QApplication, QStyle
 
+from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.capture.capture_controller import CaptureController
 from alu_gauntlet_helper.utils.utils import get_resource_path, create_badged_icon
@@ -20,7 +21,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ALU Gauntlet Helper")
+        self.setWindowTitle(ui_lang.t("window.title"))
         self.setWindowIcon(QIcon(get_resource_path("logo.ico")))
         self.setMinimumSize(500, 600)
         self.restore_window_state()
@@ -53,12 +54,12 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
         self.tabs.currentChanged.connect(self.tab_selected) # type: ignore
-        self.tabs.addTab(self.capture_tab, "CAPTURE")
-        self.tabs.addTab(self.car_selection_tab, "CAR SELECTION")
-        self.tabs.addTab(self.races_tab, "RACES")
-        self.tabs.addTab(self.cars_tab, "CARS")
-        self.tabs.addTab(self.tracks_tab, "TRACKS")
-        self.tabs.addTab(self.settings_tab, "SETTINGS")
+        self.tabs.addTab(self.capture_tab, ui_lang.t("tab.capture"))
+        self.tabs.addTab(self.car_selection_tab, ui_lang.t("tab.car_selection"))
+        self.tabs.addTab(self.races_tab, ui_lang.t("tab.races"))
+        self.tabs.addTab(self.cars_tab, ui_lang.t("tab.cars"))
+        self.tabs.addTab(self.tracks_tab, ui_lang.t("tab.tracks"))
+        self.tabs.addTab(self.settings_tab, ui_lang.t("tab.settings"))
 
     def refresh_tray_icon(self, show_tray_icon: bool):
         if show_tray_icon:
@@ -68,8 +69,8 @@ class MainWindow(QMainWindow):
             self.tray_icon = QSystemTrayIcon(QIcon(get_resource_path("logo.ico")), self)
             self.tray_icon.setVisible(True)
 
-            show_action = QAction("Open", self)
-            quit_action = QAction("Quit", self)
+            show_action = QAction(ui_lang.t("tray.open"), self)
+            quit_action = QAction(ui_lang.t("tray.quit"), self)
 
             show_action.triggered.connect(self.show_window) # type: ignore
             quit_action.triggered.connect(QApplication.quit) # type: ignore

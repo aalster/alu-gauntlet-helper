@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (QAbstractItemView, QCheckBox, QFileDialog, QHBoxLay
                              QLabel, QListWidget, QMessageBox, QPushButton,
                              QVBoxLayout, QWidget)
 
+from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, EffectiveRace
 from alu_gauntlet_helper.services.races import RaceView
@@ -15,8 +16,6 @@ from alu_gauntlet_helper.views.overlay import Spinner
 from alu_gauntlet_helper.views.races_tab import RaceDialog
 
 WARN_ICON = '<span style="color: #FFC107;">⚠</span> '
-UNCERTAIN_FOOTER = ('<span style="color: #FFC107;">⚠</span> '
-                    'Some fields were recognized with low confidence — review the marked rows before saving.')
 
 
 class CaptureRaceRow(ListItemWidget):
@@ -72,7 +71,7 @@ class CaptureRaceRow(ListItemWidget):
             self.note_label.setPixmap(res_to_pixmap("icons/notepad-text.svg", 18))
             self.note_label.setToolTip(e.note)
 
-        self.edit_button = QPushButton("Edit")
+        self.edit_button = QPushButton(ui_lang.t("common.edit"))
         self.edit_button.setObjectName("secondary")
         self.edit_button.clicked.connect(lambda: on_edit(race_number))
 
@@ -103,15 +102,17 @@ class CaptureTab(QWidget):
 
         settings = APP_CONTEXT.settings.get()
 
-        self.load_button = QPushButton("Load screenshot")
+        self.load_button = QPushButton(ui_lang.t("capture.load_screenshot"))
         self.load_button.setObjectName("secondary")
         self.load_button.clicked.connect(self.load_screenshot)
 
-        self.capture_button = QPushButton(f"Capture Screen ({settings.capture_hotkey.upper()})")
+        self.capture_button = QPushButton(
+            ui_lang.t("capture.capture_screen").format(hotkey=settings.capture_hotkey.upper()))
         if capture:
             self.capture_button.clicked.connect(capture)
 
-        self.overlay_button = QPushButton(f"Toggle Overlay ({settings.overlay_hotkey.upper()})")
+        self.overlay_button = QPushButton(
+            ui_lang.t("capture.toggle_overlay").format(hotkey=settings.overlay_hotkey.upper()))
         self.overlay_button.setObjectName("secondary")
         if toggle_overlay:
             self.overlay_button.clicked.connect(toggle_overlay)
@@ -137,9 +138,9 @@ class CaptureTab(QWidget):
         self.list_widget.itemDoubleClicked.connect(
             lambda item: self.open_edit(item.data(Qt.ItemDataRole.UserRole)))
 
-        self.save_button = QPushButton("Save selected")
+        self.save_button = QPushButton(ui_lang.t("capture.save_selected"))
         self.save_button.clicked.connect(self.save_selected)
-        self.discard_button = QPushButton("Discard session")
+        self.discard_button = QPushButton(ui_lang.t("capture.discard_session"))
         self.discard_button.setObjectName("secondary")
         self.discard_button.clicked.connect(self.discard)
 
@@ -205,7 +206,8 @@ class CaptureTab(QWidget):
                 row.replace_in_list(self.list_widget, n - 1)
 
         has_uncertain = any(e.track_uncertain or e.car_uncertain for e in effective.values())
-        self.warning_label.setText(UNCERTAIN_FOOTER if has_uncertain else "")
+        self.warning_label.setText(
+            (WARN_ICON + ui_lang.t("capture.low_conf_warning")) if has_uncertain else "")
         self.warning_label.setVisible(has_uncertain)
 
         self._update_buttons(effective)
@@ -230,7 +232,7 @@ class CaptureTab(QWidget):
 
     def load_screenshot(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Load screenshot", "", "Images (*.png *.jpg *.jpeg *.bmp *.webp)")
+            self, ui_lang.t("capture.load_screenshot"), "", "Images (*.png *.jpg *.jpeg *.bmp *.webp)")
         if path and self.recognize_file:
             self.recognize_file(path)
 
@@ -239,7 +241,7 @@ class CaptureTab(QWidget):
         item = self._to_race_view(e) if e else RaceView()
         dialog = RaceDialog(item=item,
                             action=lambda r: APP_CONTEXT.challenge_session.set_draft(n, r),
-                            parent=self, relaxed=True, title=f"Edit Race {n}")
+                            parent=self, relaxed=True, title=ui_lang.t("capture.edit_race_n").format(n=n))
         if e and e.car_id:
             # RaceDialog не виставляє selected_item для авто з item.car_id (на відміну від треку),
             # без цього car_id губиться при незмінному полі — авто перерезолвиться за назвою
@@ -273,13 +275,13 @@ class CaptureTab(QWidget):
             for race in races:
                 APP_CONTEXT.races_service.save(race)
         except Exception as ex:
-            QMessageBox.critical(self, "Save failed", str(ex))
+            QMessageBox.critical(self, ui_lang.t("capture.save_failed"), str(ex))
             return  # сесію не чистимо — можна виправити й повторити
         APP_CONTEXT.challenge_session.clear()
 
     def discard(self):
-        box = QMessageBox(QMessageBox.Icon.Question, "Discard session",
-                          "Discard all captured races?",
+        box = QMessageBox(QMessageBox.Icon.Question, ui_lang.t("capture.discard_session"),
+                          ui_lang.t("capture.discard_confirm"),
                           QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                           self)
         for btn in box.buttons():
