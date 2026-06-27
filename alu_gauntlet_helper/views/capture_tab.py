@@ -130,6 +130,7 @@ class CaptureTab(QWidget):
 
         # ручні стани чекбоксів {race_number: bool}; немає ключа — авторежим (чекнуто, коли є час)
         self.manual_checks: dict[int, bool] = {}
+        self._busy = False  # чи триває розпізнавання у фоні — тоді Discard активна навіть з порожнім списком
 
         self.list_widget = QListWidget()
         self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
@@ -167,6 +168,12 @@ class CaptureTab(QWidget):
         else:
             self.status_spinner.stop()
         self.status_label.setText(status)
+
+    def set_busy(self, busy: bool):
+        """Розпізнавання у фоні: тримає Discard активною, щоб можна було скасувати
+        чергу/in-flight ще до появи рядків у списку."""
+        self._busy = busy
+        self._update_buttons(self._effective_map())
 
     def _effective_map(self) -> dict[int, EffectiveRace]:
         session = APP_CONTEXT.challenge_session
@@ -220,7 +227,7 @@ class CaptureTab(QWidget):
 
         self.save_button.setEnabled(any_checked and all_checked_complete)
         self.save_state_changed.emit(self.save_button.isEnabled())
-        self.discard_button.setEnabled(bool(effective))
+        self.discard_button.setEnabled(bool(effective) or self._busy)
 
     def on_checkbox_toggled(self, n: int, checked: bool):
         self.manual_checks[n] = checked  # після ручного кліку автологіка для гонки вимикається

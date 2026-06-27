@@ -179,6 +179,10 @@ class RacesTab(QWidget):
 
         self.list_widget = QListWidget()
 
+        self.count_label = QLabel()
+        self.count_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px;")
+        self.count_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.track_query)
         top_layout.addWidget(self.car_query)
@@ -187,6 +191,7 @@ class RacesTab(QWidget):
         layout = QVBoxLayout()
         layout.addLayout(top_layout)
         layout.addWidget(self.list_widget)
+        layout.addWidget(self.count_label)
         self.setLayout(layout)
 
         # перебудова списку дорога (100 композитних рядків), тому робимо її лише коли дані
@@ -208,12 +213,15 @@ class RacesTab(QWidget):
             self._rebuild()
 
     def _rebuild(self):
+        track_query = self.track_query.text().strip()
+        car_query = self.car_query.text().strip()
         with preserved_scroll(self.list_widget):
             self.list_widget.clear()
-            track_query = self.track_query.text().strip()
-            car_query = self.car_query.text().strip()
             for i in APP_CONTEXT.races_service.get_all(track_query, car_query):
                 RaceListWidget(i, on_edit=self.on_edit).add_to_list(self.list_widget)
+        total = APP_CONTEXT.races_service.count(track_query, car_query)
+        shown = min(total, APP_CONTEXT.races_service.list_limit)
+        self.count_label.setText(ui_lang.t("common.shown_count").format(shown=shown, total=total))
         self._dirty = False
 
     def on_search(self):

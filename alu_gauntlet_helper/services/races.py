@@ -74,26 +74,39 @@ class RacesRepository:
                          " (:track_id, :car_id, :rank, :time, :bad_timing, :note)",
                          item.model_dump())
 
+    LIMIT = 100
+
+    @staticmethod
+    def _build_filter(track_query: str, car_query: str):
+        sql = (" FROM races r"
+               " LEFT JOIN tracks t ON r.track_id = t.id"
+               " LEFT JOIN maps m ON t.map_id = m.id"
+               " LEFT JOIN cars c ON r.car_id = c.id"
+               " WHERE 1 = 1")
+        params = {}
+
+        if track_query:
+            sql += (" AND (lower_u(t.name) LIKE :track_query OR lower_u(t.name_ru) LIKE :track_query"
+                    " OR lower_u(m.name) LIKE :track_query OR lower_u(m.name_ru) LIKE :track_query)")
+            params['track_query'] = f"%{track_query.lower()}%"
+
+        if car_query:
+            sql += " AND lower_u(c.name) LIKE :car_query"
+            params['car_query'] = f"%{car_query.lower()}%"
+
+        return sql, params
+
     def get_all(self, track_query: str, car_query: str):
         with (connect() as conn):
-            sql = ("SELECT r.* FROM races r"
-                   " LEFT JOIN tracks t ON r.track_id = t.id"
-                   " LEFT JOIN maps m ON t.map_id = m.id"
-                   " LEFT JOIN cars c ON r.car_id = c.id")
-            params = {}
-
-            sql += " WHERE 1 = 1"
-            if track_query:
-                sql += (" AND (lower_u(t.name) LIKE :track_query OR lower_u(t.name_ru) LIKE :track_query"
-                        " OR lower_u(m.name) LIKE :track_query OR lower_u(m.name_ru) LIKE :track_query)")
-                params['track_query'] = f"%{track_query.lower()}%"
-
-            if car_query:
-                sql += " AND lower_u(c.name) LIKE :car_query"
-                params['car_query'] = f"%{car_query.lower()}%"
-
-            rows = conn.execute(sql + " ORDER BY r.created_at DESC LIMIT 100", params).fetchall()
+            from_where, params = self._build_filter(track_query, car_query)
+            sql = "SELECT r.*" + from_where + f" ORDER BY r.created_at DESC LIMIT {self.LIMIT}"
+            rows = conn.execute(sql, params).fetchall()
             return [self.parse(row) for row in rows]
+
+    def count(self, track_query: str, car_query: str) -> int:
+        with connect() as conn:
+            from_where, params = self._build_filter(track_query, car_query)
+            return conn.execute("SELECT COUNT(*)" + from_where, params).fetchone()[0]
 
     def update(self, item: Race):
         with connect() as conn:
@@ -171,6 +184,13 @@ class RacesService(Observable):
 
     def get_all(self, track_query: str, car_query: str) -> list[RaceView]:
         return self.to_views(self.repo.get_all(track_query, car_query))
+
+    def count(self, track_query: str, car_query: str) -> int:
+        return self.repo.count(track_query, car_query)
+
+    @property
+    def list_limit(self) -> int:
+        return self.repo.LIMIT
 
     def save(self, item: RaceView):
         if item.track_id <= 0:

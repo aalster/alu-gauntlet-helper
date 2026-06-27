@@ -187,6 +187,10 @@ class CarsTab(QWidget):
 
         self.list_widget = QListWidget()
 
+        self.count_label = QLabel()
+        self.count_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 12px;")
+        self.count_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
         self.debounce_timer = QTimer()
         self.debounce_timer.setSingleShot(True)
         self.debounce_timer.timeout.connect(self.on_filter_changed) # type: ignore
@@ -200,6 +204,7 @@ class CarsTab(QWidget):
         layout = QVBoxLayout()
         layout.addLayout(top_layout)
         layout.addWidget(self.list_widget)
+        layout.addWidget(self.count_label)
         self.setLayout(layout)
         self.refresh()
 
@@ -210,10 +215,17 @@ class CarsTab(QWidget):
         with preserved_scroll(self.list_widget):
             self.list_widget.clear()
             car_class = self.class_group.checkedButton().property("car_class")
+            filter_class = "" if car_class == "All" else car_class
             for i in APP_CONTEXT.cars_service.autocomplete(self.query.text(),
                                                            by_max_rank=self.sort_combo.currentIndex() == 1,
-                                                           car_class="" if car_class == "All" else car_class):
+                                                           car_class=filter_class):
                 CarListWidget(i, on_favorite=self.on_favorite, on_edit=self.on_edit).add_to_list(self.list_widget)
+        self._update_count_label(filter_class)
+
+    def _update_count_label(self, filter_class: str):
+        total = APP_CONTEXT.cars_service.count(self.query.text(), filter_class)
+        shown = min(total, APP_CONTEXT.cars_service.list_limit)
+        self.count_label.setText(ui_lang.t("common.shown_count").format(shown=shown, total=total))
 
     def on_filter_changed(self, *_):
         self.refresh()

@@ -1,6 +1,9 @@
+from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.services.challenge_session import EffectiveRace
 from alu_gauntlet_helper.views.overlay import (UNCERTAIN_COLOR,
                                                build_races_table, header_text)
+
+BRAND_TITLE = ui_lang.t("window.title")  # заголовок оверлея — статичний бренд, без лічильника
 
 # Оверлей розбито на частини: header_text() — текст-заголовок (звичайний QLabel),
 # build_races_table() — HTML-таблиця гонок. Статус і підказка з хоткеями — окремі
@@ -8,14 +11,14 @@ from alu_gauntlet_helper.views.overlay import (UNCERTAIN_COLOR,
 
 
 def test_empty_session():
-    assert header_text({}) == "Gauntlet capture 0/5"
+    assert header_text({}) == BRAND_TITLE
     table = build_races_table({}, {}, {})
     assert "no data" in table
 
 
 def test_complete_race_line():
     races = {1: EffectiveRace(track_id=11, car_id=21, time=22797)}
-    assert header_text(races) == "Gauntlet capture 1/5"
+    assert header_text(races) == BRAND_TITLE  # заголовок не залежить від вмісту гонок
     table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"})
     assert "Notre Dame" in table
     assert "Ultima RS" in table
@@ -31,7 +34,7 @@ def test_partial_race_marked():
 
 def test_custom_car_name_counts_as_complete():
     races = {1: EffectiveRace(track_id=11, car_name="Custom Car", time=22797)}
-    assert header_text(races) == "Gauntlet capture 1/5"
+    assert header_text(races) == BRAND_TITLE
     table = build_races_table(races, {11: "Notre Dame"}, {})
     assert "Custom Car" in table
     assert "00:22.797" in table

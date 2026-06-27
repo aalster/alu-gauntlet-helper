@@ -26,6 +26,12 @@ class EffectiveRace(BaseModel):
         return self.car_id > 0 or bool(self.car_name)
 
     @property
+    def is_empty(self) -> bool:
+        """Жодного значущого поля — гонка по суті нерозпізнана/непочата."""
+        return not (self.track_id > 0 or self.has_car or self.rank > 0
+                    or self.time > 0 or self.note or self.bad_timing)
+
+    @property
     def is_complete(self) -> bool:
         return self.track_id > 0 and self.has_car and self.time > 0
 
@@ -114,7 +120,9 @@ class ChallengeSessionService:
                 e.rank = capture.rank
             if e.time <= 0 and capture.time:
                 e.time = capture.time
-        return e
+        # порожній результат (напр. розпізнано лише номер гонки чи збережено порожню
+        # модалку) має виглядати як нерозпізнана гонка, а не порожня картка
+        return e if not e.is_empty else None
 
     def is_complete(self) -> bool:
         return all(

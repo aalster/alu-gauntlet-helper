@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
                                       capture=self.capture_controller.capture_now,
                                       cancel_pending=self.capture_controller.cancel_pending)
         self.capture_controller.status_changed.connect(self.capture_tab.set_status)
+        self.capture_controller.busy_changed.connect(self.capture_tab.set_busy)
         # Save на оверлеї повністю дублює кнопку «Save selected» таба CAPTURE
         overlay = self.capture_controller.overlay
         overlay.save_requested.connect(self.capture_tab.save_selected)

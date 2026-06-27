@@ -91,6 +91,21 @@ def test_effective_none_without_data():
     assert s.effective(1) is None
 
 
+def test_effective_none_for_capture_with_only_race_number():
+    # розпізнавання дало лише номер гонки — без треку/авто/рангу/часу
+    s = ChallengeSessionService()
+    s.apply(result(capture(1)))
+    assert s.races[1] is not None  # capture збережено
+    assert s.effective(1) is None  # але рядок має виглядати як нерозпізнаний
+
+
+def test_effective_none_for_empty_draft():
+    # збереження порожньої модалки редагування не має лишати порожню картку
+    s = ChallengeSessionService()
+    s.set_draft(1, draft())
+    assert s.effective(1) is None
+
+
 def test_effective_from_ocr_with_uncertainty_flags():
     s = ChallengeSessionService()
     s.apply(result(capture(1, track_score=0.5, car_score=0.9, rank=3000, time=22797)))
@@ -175,3 +190,14 @@ def test_effective_has_car_property():
     assert not EffectiveRace().has_car
     assert EffectiveRace(car_id=2).has_car
     assert EffectiveRace(car_name="Custom").has_car
+
+
+def test_effective_is_empty_property():
+    assert EffectiveRace().is_empty
+    assert not EffectiveRace(track_id=1).is_empty
+    assert not EffectiveRace(car_id=2).is_empty
+    assert not EffectiveRace(car_name="Custom").is_empty
+    assert not EffectiveRace(rank=3000).is_empty
+    assert not EffectiveRace(time=20000).is_empty
+    assert not EffectiveRace(note="crash").is_empty
+    assert not EffectiveRace(bad_timing=True).is_empty

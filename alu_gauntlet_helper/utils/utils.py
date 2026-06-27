@@ -91,15 +91,46 @@ def parse_time(time: str) -> int:
     except ValueError:
         return 0
 
+def _uk_plural(n: int, one: str, few: str, many: str) -> str:
+    """Українська форма множини: 1 рік / 2 роки / 5 років."""
+    if n % 100 in (11, 12, 13, 14):
+        return many
+    last = n % 10
+    if last == 1:
+        return one
+    if last in (2, 3, 4):
+        return few
+    return many
+
 def format_relative_time(dt: datetime) -> str:
-    """Format a datetime as a relative phrase like '2 days ago'."""
+    """Format a datetime as a relative phrase like '2 days ago' / '2 дні тому'."""
     if not dt:
         return ""
+    from alu_gauntlet_helper.ui_lang import current_ui_language, UK
     seconds = int((datetime.now(LOCAL_TZ) - dt).total_seconds())
-    if seconds < 60:
-        return "just now"
 
     minutes, hours, days = seconds // 60, seconds // 3600, seconds // 86400
+
+    if current_ui_language() == UK:
+        if seconds < 60:
+            return "щойно"
+        if minutes < 60:
+            return f"{minutes} {_uk_plural(minutes, 'хвилину', 'хвилини', 'хвилин')} тому"
+        if hours < 24:
+            return f"{hours} {_uk_plural(hours, 'годину', 'години', 'годин')} тому"
+        if days < 7:
+            return f"{days} {_uk_plural(days, 'день', 'дні', 'днів')} тому"
+        if days < 30:
+            weeks = days // 7
+            return f"{weeks} {_uk_plural(weeks, 'тиждень', 'тижні', 'тижнів')} тому"
+        if days < 365:
+            months = days // 30
+            return f"{months} {_uk_plural(months, 'місяць', 'місяці', 'місяців')} тому"
+        years = days // 365
+        return f"{years} {_uk_plural(years, 'рік', 'роки', 'років')} тому"
+
+    if seconds < 60:
+        return "just now"
     if minutes < 60:
         return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
     if hours < 24:

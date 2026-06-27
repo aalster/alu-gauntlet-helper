@@ -32,6 +32,7 @@ class CaptureController(QObject):
     _actions_exit_requested = pyqtSignal()   # комбо відпущено — зафіксувати позицію й зберегти
     _recognized = pyqtSignal(object, int)  # (RecognitionResult | None, epoch покоління)
     status_changed = pyqtSignal(str)  # поточний статус для UI (той самий, що й на оверлеї)
+    busy_changed = pyqtSignal(bool)   # чи триває розпізнавання у фоні (in_flight > 0)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -125,7 +126,7 @@ class CaptureController(QObject):
         """Ставить кадр у чергу розпізнавання й оновлює лічильник/оверлей (UI-потік)."""
         self._in_flight += 1
         self._queue.put((engine, img, save_if_uncertain, self._epoch))
-        self._refresh_overlay()
+        self._refresh_overlay(show=True)  # старт розпізнавання — оверлей показуємо
 
     def cancel_pending(self):
         """Скасовує всі кадри в черзі/на розпізнаванні (Discard session) — щоб вони
@@ -230,8 +231,8 @@ class CaptureController(QObject):
             self.overlay.hide()
         else:
             # перше ручне відкриття: оверлей ще порожній, тож спершу наповнюємо
-            # рядками з сесії ("N — no data", коли даних немає); _refresh_overlay сам покаже вікно
-            self._refresh_overlay()
+            # рядками з сесії ("N — no data", коли даних немає); show=True покаже вікно
+            self._refresh_overlay(show=True)
 
     def _enter_actions_mode(self):
         """Комбо затиснуто — увімкнути керування оверлеєм (перетягування + кнопки)."""
@@ -277,7 +278,10 @@ class CaptureController(QObject):
             return ui_lang.t("status.done")
         return ""
 
-    def _refresh_overlay(self):
+    def _refresh_overlay(self, show: bool = False):
+        # show=True лише у явних випадках (ручне відкриття чи старт розпізнавання);
+        # як listener сесії викликається без аргументів — редагування/clear оверлей
+        # не показують, лише оновлюють його вміст, якщо він уже видимий
         session = APP_CONTEXT.challenge_session
         effective = {n: e for n in range(1, RACE_COUNT + 1) if (e := session.effective(n)) is not None}
         track_ids = {e.track_id for e in effective.values() if e.track_id}
@@ -287,6 +291,7 @@ class CaptureController(QObject):
 
         status = self._compute_status(session)
         self.status_changed.emit(status)
+        self.busy_changed.emit(self._in_flight > 0)
         settings = APP_CONTEXT.settings.get()
         # комбо показуємо як у налаштуваннях ("Ctrl + Alt"), а не великими літерами
         combo = " + ".join(p.capitalize() for p in settings.overlay_actions_hotkey.split("+") if p)
@@ -298,5 +303,5 @@ class CaptureController(QObject):
             header_text(effective),
             build_races_table(effective, track_names, car_names),
             status, hint, self._in_flight)
-        if not self.overlay.isVisible():
+        if show and not self.overlay.isVisible():
             self.overlay.show()

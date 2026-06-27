@@ -50,31 +50,42 @@ class CarsRepository:
             row = conn.execute("SELECT * FROM cars WHERE asec_id = :asec_id LIMIT 1", {"asec_id": asec_id}).fetchone()
             return self.parse(row)
 
+    LIMIT = 100
+
+    @staticmethod
+    def _build_filter(query: str, car_class: str):
+        conditions = []
+        params = {}
+
+        if query:
+            conditions.append("lower_u(name) LIKE :query")
+            params["query"] = f"%{query.lower()}%"
+
+        if car_class:
+            conditions.append("car_class = :car_class")
+            params["car_class"] = car_class
+
+        where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+        return where, params
+
     def autocomplete(self, query: str, by_max_rank: bool = False, car_class: str = ""):
         with connect() as conn:
-            sql = "SELECT * FROM cars"
-            conditions = []
-            params = {}
-
-            if query:
-                conditions.append("lower_u(name) LIKE :query")
-                params["query"] = f"%{query.lower()}%"
-
-            if car_class:
-                conditions.append("car_class = :car_class")
-                params["car_class"] = car_class
-
-            if conditions:
-                sql += " WHERE " + " AND ".join(conditions)
+            where, params = self._build_filter(query, car_class)
+            sql = "SELECT * FROM cars" + where
 
             if by_max_rank:
-                sql += " ORDER BY max_rank DESC, name LIMIT 100"
+                sql += f" ORDER BY max_rank DESC, name LIMIT {self.LIMIT}"
             else:
                 sql += (" ORDER BY favorite DESC,"
                         " CASE WHEN `rank` > 0 THEN `rank` ELSE max_rank END DESC,"
-                        " name LIMIT 100")
+                        f" name LIMIT {self.LIMIT}")
             rows = conn.execute(sql, params).fetchall()
             return [self.parse(row) for row in rows]
+
+    def count(self, query: str, car_class: str = "") -> int:
+        with connect() as conn:
+            where, params = self._build_filter(query, car_class)
+            return conn.execute("SELECT COUNT(*) FROM cars" + where, params).fetchone()[0]
 
     def update(self, item: Car, update_empty_rank):
         with connect() as conn:
@@ -129,6 +140,13 @@ class CarsService(Observable):
 
     def autocomplete(self, query: str = "", by_max_rank: bool = False, car_class: str = ""):
         return self.repo.autocomplete(query.strip(), by_max_rank, car_class)
+
+    def count(self, query: str = "", car_class: str = "") -> int:
+        return self.repo.count(query.strip(), car_class)
+
+    @property
+    def list_limit(self) -> int:
+        return self.repo.LIMIT
 
     def get_by_ids(self, ids: set[int]) -> dict[int, Car]:
         if not ids:
