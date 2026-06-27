@@ -225,6 +225,29 @@ QPushButton#secondary:checked {{
     color: {CYAN};
 }}
 
+QPushButton#iconButton {{
+    background-color: #1C2C74;
+    color: {TEXT};
+    border: 1px solid {BORDER};
+    padding: 0;
+}}
+
+QPushButton#iconButton:hover {{
+    background-color: {CARD_SELECTED};
+    border: 1px solid {CYAN};
+}}
+
+QPushButton#destructive {{
+    background-color: #1C2C74;
+    color: {ERROR};
+    border: 1px solid {ERROR};
+}}
+
+QPushButton#destructive:hover {{
+    background-color: {ERROR};
+    color: {TEXT};
+}}
+
 QPushButton#iconToggle {{
     background-color: {INPUT_BG};
     border: 1px solid {BORDER};

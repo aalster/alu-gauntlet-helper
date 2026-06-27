@@ -4,7 +4,7 @@ from typing import Callable
 from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, QRectF, QPointF, QBuffer, QIODevice
 from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QIcon, QImageReader, QImage
 from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLayout, QWidget, QListWidget, QListWidgetItem, \
-    QToolButton, QLabel, QToolTip
+    QToolButton, QLabel, QToolTip, QPushButton
 
 from alu_gauntlet_helper.utils.utils import get_resource_path, load_pixmap_cover
 from alu_gauntlet_helper.views import style
@@ -376,3 +376,14 @@ def res_to_pixmap(path: str, size: int | None = None):
     if size:
         q_pixmap = q_pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
     return q_pixmap
+
+
+def edit_icon_button(on_click: Callable[[], None]) -> QPushButton:
+    """Квадратна кнопка-олівець для редагування рядка списку."""
+    button = QPushButton()
+    button.setObjectName("iconButton")
+    button.setIcon(QIcon(res_to_pixmap("icons/pencil.svg", 18)))
+    button.setFixedSize(34, 34)
+    button.setCursor(Qt.CursorShape.PointingHandCursor)
+    button.clicked.connect(on_click)
+    return button

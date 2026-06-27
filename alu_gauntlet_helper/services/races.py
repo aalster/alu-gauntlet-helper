@@ -102,6 +102,10 @@ class RacesRepository:
                          " bad_timing = :bad_timing, note = :note"
                          " WHERE id = :id", item.model_dump())
 
+    def delete(self, race_id: int):
+        with connect() as conn:
+            conn.execute("DELETE FROM races WHERE id = :id", {"id": race_id})
+
     def get_car_stats_for_track(self, track_id: int) -> list[dict]:
         with connect() as conn:
             sql = """
@@ -180,6 +184,10 @@ class RacesService(Observable):
             self.repo.add(item)
         else:
             self.repo.update(item)
+        self._notify()
+
+    def delete(self, item: Race):
+        self.repo.delete(item.id)
         self._notify()
 
     def get_car_suggestions_for_track(self, track_id: int) -> list[CarSuggestion]:

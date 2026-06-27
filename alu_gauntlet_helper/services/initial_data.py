@@ -82,7 +82,7 @@ map_names = [
 #     .reduce((a, b) => a + ",\n" + b))
 tracks = [
     TrackView(map_name="Auckland", name="Hairpin Finish", name_ru="Крутой Финиш"),
-    TrackView(map_name="Auckland", name="Straight Sprint", name_ru="Спринт По Прямой"),
+    TrackView(map_name="Auckland", name="Straight Sprint", name_ru="Спринт по Прямой"),
     TrackView(map_name="Buenos Aires", name="La Boca", name_ru="La Boca"),
     TrackView(map_name="Buenos Aires", name="Water Run", name_ru="Водный Заезд"),
     TrackView(map_name="Cairo", name="A Kings Revival", name_ru="Возвращение Короля"),
@@ -91,13 +91,13 @@ tracks = [
     TrackView(map_name="Greenland", name="Out of the Center", name_ru="Из Центра"),
     TrackView(map_name="Himalayas", name="Freefall", name_ru="Свободное Падение"),
     TrackView(map_name="Himalayas", name="Leap of Faith", name_ru="Прыжок Веры"),
-    TrackView(map_name="Nevada", name="Bridge to Bridge", name_ru="От Моста К Мосту"),
+    TrackView(map_name="Nevada", name="Bridge to Bridge", name_ru="От Моста к Мосту"),
     TrackView(map_name="Nevada", name="Tunnel Sprint", name_ru="Туннельный Спринт"),
-    TrackView(map_name="New York", name="A Run in the Park", name_ru=""),
+    TrackView(map_name="New York", name="A Run in the Park", name_ru="Пробежка по Парку"),
     TrackView(map_name="New York", name="Friendly Neighborhood", name_ru=""),
-    TrackView(map_name="New York", name="Wall Street Ride", name_ru="Поездка По Уолл-Стрит"),
+    TrackView(map_name="New York", name="Wall Street Ride", name_ru="Поездка по Уолл-Стрит"),
     TrackView(map_name="Norway", name="Future Fusion", name_ru="Синтез Будущего"),
-    TrackView(map_name="Norway", name="Rocketing to the Future", name_ru="Вперед В Будущее"),
+    TrackView(map_name="Norway", name="Rocketing to the Future", name_ru="Вперед в Будущее"),
     TrackView(map_name="Osaka", name="Meiji Rush", name_ru="Натиск Мэйдзи"),
     TrackView(map_name="Osaka", name="Namba Park", name_ru="Парк Намба"),
     TrackView(map_name="Paris", name="Along the Seine", name_ru="Вдоль Сены"),
@@ -117,8 +117,8 @@ tracks = [
     TrackView(map_name="The Caribbean", name="Islet Race", name_ru=""),
     TrackView(map_name="The Caribbean", name="Resort Dash", name_ru="Курортный Прорыв"),
     TrackView(map_name="Tuscany", name="Versatile Trail", name_ru=""),
-    TrackView(map_name="Tuscany", name="Vineyard Voyage", name_ru="Вояж По Виноградникам"),
-    TrackView(map_name="Tuscany", name="Riverine Launch", name_ru="Старт На Берегу Реки"),
+    TrackView(map_name="Tuscany", name="Vineyard Voyage", name_ru="Вояж по Виноградникам"),
+    TrackView(map_name="Tuscany", name="Riverine Launch", name_ru="Старт на Берегу Реки"),
     TrackView(map_name="U.S. Midwest", name="Its a Twister", name_ru="Вот Это Поворот!"),
     TrackView(map_name="U.S. Midwest", name="Trainspotter", name_ru="Рельсы")
 ]

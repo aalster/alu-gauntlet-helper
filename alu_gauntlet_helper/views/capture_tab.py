@@ -11,7 +11,7 @@ from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.utils.utils import format_time
 from alu_gauntlet_helper.views.components.common import (CarInfoWidget, ListItemWidget,
                                                          RankClassBadge, TrackInfoWidget,
-                                                         hbox, res_to_pixmap)
+                                                         edit_icon_button, hbox, res_to_pixmap)
 from alu_gauntlet_helper.views.overlay import Spinner
 from alu_gauntlet_helper.views.races_tab import RaceDialog
 
@@ -71,9 +71,7 @@ class CaptureRaceRow(ListItemWidget):
             self.note_label.setPixmap(res_to_pixmap("icons/notepad-text.svg", 18))
             self.note_label.setToolTip(e.note)
 
-        self.edit_button = QPushButton(ui_lang.t("common.edit"))
-        self.edit_button.setObjectName("secondary")
-        self.edit_button.clicked.connect(lambda: on_edit(race_number))
+        self.edit_button = edit_icon_button(lambda: on_edit(race_number))
 
         self.layout = QHBoxLayout(self)
         # half the default vertical padding to keep race rows compact
@@ -135,8 +133,6 @@ class CaptureTab(QWidget):
 
         self.list_widget = QListWidget()
         self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.list_widget.itemDoubleClicked.connect(
-            lambda item: self.open_edit(item.data(Qt.ItemDataRole.UserRole)))
 
         self.save_button = QPushButton(ui_lang.t("capture.save_selected"))
         self.save_button.clicked.connect(self.save_selected)

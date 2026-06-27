@@ -55,7 +55,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         self.tabs.currentChanged.connect(self.tab_selected) # type: ignore
         self.tabs.addTab(self.capture_tab, ui_lang.t("tab.capture"))
-        self.tabs.addTab(self.car_selection_tab, ui_lang.t("tab.car_selection"))
+        # self.tabs.addTab(self.car_selection_tab, ui_lang.t("tab.car_selection"))  # приховано
         self.tabs.addTab(self.races_tab, ui_lang.t("tab.races"))
         self.tabs.addTab(self.cars_tab, ui_lang.t("tab.cars"))
         self.tabs.addTab(self.tracks_tab, ui_lang.t("tab.tracks"))

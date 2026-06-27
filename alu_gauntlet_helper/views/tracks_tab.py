@@ -14,7 +14,7 @@ from alu_gauntlet_helper.services.maps import Map
 from alu_gauntlet_helper.services.tracks import TrackView
 from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_MAPS, DATA_PATH_TRACKS, pixmap_cover
 from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, enable_clear_button, \
-    enable_search_icon, preserved_scroll, set_lazy_image_tooltip
+    enable_search_icon, preserved_scroll, set_lazy_image_tooltip, edit_icon_button
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -57,7 +57,7 @@ class MapDialog(EditDialog):
 
 
 class MapListWidget(ListItemWidget):
-    def __init__(self, item: Map, parent=None):
+    def __init__(self, item: Map, on_edit=None, parent=None):
         super().__init__(item, parent)
         self.map_icon = QLabel()
         self.map_icon.setFixedSize(64, 64)
@@ -81,6 +81,9 @@ class MapListWidget(ListItemWidget):
         self.layout.setSpacing(8)
         self.layout.addWidget(self.map_icon)
         self.layout.addWidget(self.map_label, stretch=1)
+        if on_edit:
+            self.layout.addWidget(edit_icon_button(lambda: on_edit(item)),
+                                  alignment=Qt.AlignmentFlag.AlignVCenter)
         self.setLayout(self.layout)
 
 
@@ -145,7 +148,7 @@ class TrackDialog(EditDialog):
 
 
 class TrackListWidget(ListItemWidget):
-    def __init__(self, item: TrackView, parent=None):
+    def __init__(self, item: TrackView, on_edit=None, parent=None):
         super().__init__(item, parent)
         self.track_icon = QLabel()
         self.track_icon.setFixedSize(64, 64)
@@ -183,6 +186,9 @@ class TrackListWidget(ListItemWidget):
         self.layout.setSpacing(8)
         self.layout.addWidget(self.track_icon)
         self.layout.addLayout(text_layout, stretch=1)
+        if on_edit:
+            self.layout.addWidget(edit_icon_button(lambda: on_edit(item)),
+                                  alignment=Qt.AlignmentFlag.AlignVCenter)
         self.setLayout(self.layout)
 
 
@@ -205,7 +211,6 @@ class MapsPanel(QWidget):
 
         self.list_widget = QListWidget()
         self.list_widget.itemClicked.connect(self.on_item_clicked) # type: ignore
-        self.list_widget.itemDoubleClicked.connect(self.on_edit) # type: ignore
 
         self.debounce_timer = QTimer()
         self.debounce_timer.setSingleShot(True)
@@ -229,7 +234,7 @@ class MapsPanel(QWidget):
         with preserved_scroll(self.list_widget):
             self.list_widget.clear()
             for i in APP_CONTEXT.maps_service.autocomplete(self.query.text()):
-                MapListWidget(i).add_to_list(self.list_widget)
+                MapListWidget(i, on_edit=self.on_edit).add_to_list(self.list_widget)
 
         # restore selection after the list is rebuilt
         for row in range(self.list_widget.count()):
@@ -259,8 +264,8 @@ class MapsPanel(QWidget):
             if self.on_changed:
                 self.on_changed()
 
-    def on_edit(self, item: QListWidgetItem):
-        if MapDialog(item=item.data(Qt.ItemDataRole.UserRole), action=APP_CONTEXT.maps_service.save, parent=self).exec():
+    def on_edit(self, map_: Map):
+        if MapDialog(item=map_, action=APP_CONTEXT.maps_service.save, parent=self).exec():
             self.refresh()
             if self.on_changed:
                 self.on_changed()
@@ -281,7 +286,6 @@ class TracksPanel(QWidget):
         self.add_button.clicked.connect(self.on_add) # type: ignore
 
         self.list_widget = QListWidget()
-        self.list_widget.itemDoubleClicked.connect(self.on_edit) # type: ignore
 
         self.debounce_timer = QTimer()
         self.debounce_timer.setSingleShot(True)
@@ -309,7 +313,7 @@ class TracksPanel(QWidget):
         with preserved_scroll(self.list_widget):
             self.list_widget.clear()
             for t in APP_CONTEXT.tracks_service.autocomplete(self.query.text(), self.map_id):
-                TrackListWidget(t).add_to_list(self.list_widget)
+                TrackListWidget(t, on_edit=self.on_edit).add_to_list(self.list_widget)
 
     def on_search(self):
         self.refresh()
@@ -326,8 +330,8 @@ class TracksPanel(QWidget):
         if TrackDialog(item=item, action=APP_CONTEXT.tracks_service.save, parent=self).exec():
             self.refresh()
 
-    def on_edit(self, item: QListWidgetItem):
-        if TrackDialog(item=item.data(Qt.ItemDataRole.UserRole), action=APP_CONTEXT.tracks_service.save, parent=self).exec():
+    def on_edit(self, track: TrackView):
+        if TrackDialog(item=track, action=APP_CONTEXT.tracks_service.save, parent=self).exec():
             self.refresh()
 
 

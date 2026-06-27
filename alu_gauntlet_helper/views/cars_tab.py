@@ -13,7 +13,8 @@ from alu_gauntlet_helper.services.cars import Car
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.utils.utils import save_data_image, DATA_PATH_CARS, load_pixmap_cover, get_resource_path
 from alu_gauntlet_helper.views.components.common import CLEAR_ON_ESC_FILTER, ListItemWidget, vbox, \
-    enable_clear_button, enable_search_icon, RankClassBadge, preserved_scroll, set_lazy_image_tooltip
+    enable_clear_button, enable_search_icon, RankClassBadge, preserved_scroll, set_lazy_image_tooltip, \
+    edit_icon_button
 from alu_gauntlet_helper.views.components.image_line_edit import ImageLineEdit
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -79,7 +80,8 @@ class CarDialog(EditDialog):
 
 
 class CarListWidget(ListItemWidget):
-    def __init__(self, item: Car, on_favorite: Callable[[int], None] | None = None, parent=None):
+    def __init__(self, item: Car, on_favorite: Callable[[int], None] | None = None,
+                 on_edit: Callable[[Car], None] | None = None, parent=None):
         super().__init__(item, parent)
         self.on_favorite = on_favorite
         self.car_icon = QLabel()
@@ -121,6 +123,9 @@ class CarListWidget(ListItemWidget):
         self.layout.addLayout(vbox([self.brand_label, self.model_label], spacing=0), stretch=1)
         self.layout.addWidget(self.rank_badge, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.layout.addWidget(self.fav_button, alignment=Qt.AlignmentFlag.AlignVCenter)
+        if on_edit:
+            self.layout.addWidget(edit_icon_button(lambda: on_edit(item)),
+                                  alignment=Qt.AlignmentFlag.AlignVCenter)
         self.setLayout(self.layout)
 
     def update_fav_button(self):
@@ -181,7 +186,6 @@ class CarsTab(QWidget):
         self.add_button.clicked.connect(self.on_add) # type: ignore
 
         self.list_widget = QListWidget()
-        self.list_widget.itemDoubleClicked.connect(self.on_edit) # type: ignore
 
         self.debounce_timer = QTimer()
         self.debounce_timer.setSingleShot(True)
@@ -209,7 +213,7 @@ class CarsTab(QWidget):
             for i in APP_CONTEXT.cars_service.autocomplete(self.query.text(),
                                                            by_max_rank=self.sort_combo.currentIndex() == 1,
                                                            car_class="" if car_class == "All" else car_class):
-                CarListWidget(i, on_favorite=self.on_favorite).add_to_list(self.list_widget)
+                CarListWidget(i, on_favorite=self.on_favorite, on_edit=self.on_edit).add_to_list(self.list_widget)
 
     def on_filter_changed(self, *_):
         self.refresh()
@@ -224,6 +228,6 @@ class CarsTab(QWidget):
         if CarDialog(item=Car(name=self.query.text().strip()), action=APP_CONTEXT.cars_service.save, parent=self).exec():
             self.refresh()
 
-    def on_edit(self, item: QListWidgetItem):
-        if CarDialog(item=item.data(Qt.ItemDataRole.UserRole), action=APP_CONTEXT.cars_service.save, parent=self).exec():
+    def on_edit(self, car: Car):
+        if CarDialog(item=car, action=APP_CONTEXT.cars_service.save, parent=self).exec():
             self.refresh()

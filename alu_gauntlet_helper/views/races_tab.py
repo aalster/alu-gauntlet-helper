@@ -13,7 +13,7 @@ from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, pars
     get_resource_path
 from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, res_to_pixmap, hbox, \
     ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge, CarInfoWidget, TrackInfoWidget, \
-    preserved_scroll
+    preserved_scroll, edit_icon_button
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
@@ -58,7 +58,10 @@ class RaceDialog(EditDialog):
             selected_listener=self.on_car_selected
         )
 
-        super().__init__(action, parent)
+        # видаляти можна лише вже збережений заїзд (не драфти/нові)
+        delete_action = (lambda: APP_CONTEXT.races_service.delete(self.item)) if item.id else None
+        super().__init__(action, parent, delete_action=delete_action,
+                         delete_confirm=ui_lang.t("dialog.delete_race_confirm"))
         self.setWindowTitle(title or (ui_lang.t("dialog.edit_race") if item.id else ui_lang.t("dialog.add_race")))
 
     def prepare_layout(self):
@@ -103,7 +106,7 @@ class RaceDialog(EditDialog):
 
 
 class RaceListWidget(ListItemWidget):
-    def __init__(self, race: RaceView, parent=None):
+    def __init__(self, race: RaceView, on_edit=None, parent=None):
         super().__init__(race, parent)
         self.track_info = TrackInfoWidget(race.map_icon, race.track_icon,
                                           race.display_map_name, race.display_track_name)
@@ -149,6 +152,8 @@ class RaceListWidget(ListItemWidget):
         self.layout.addWidget(self.time_label, stretch=14)
         self.layout.addLayout(hbox([self.bad_timing_label, self.info_label], spacing=0), stretch=8)
         self.layout.addWidget(self.created_at_label, stretch=10)
+        if on_edit:
+            self.layout.addWidget(edit_icon_button(lambda: on_edit(race)))
         self.setLayout(self.layout)
 
 class RacesTab(QWidget):
@@ -173,7 +178,6 @@ class RacesTab(QWidget):
         self.add_button.clicked.connect(self.on_add) # type: ignore
 
         self.list_widget = QListWidget()
-        self.list_widget.itemDoubleClicked.connect(self.on_edit) # type: ignore
 
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.track_query)
@@ -209,7 +213,7 @@ class RacesTab(QWidget):
             track_query = self.track_query.text().strip()
             car_query = self.car_query.text().strip()
             for i in APP_CONTEXT.races_service.get_all(track_query, car_query):
-                RaceListWidget(i).add_to_list(self.list_widget)
+                RaceListWidget(i, on_edit=self.on_edit).add_to_list(self.list_widget)
         self._dirty = False
 
     def on_search(self):
@@ -220,6 +224,6 @@ class RacesTab(QWidget):
         if RaceDialog(item=RaceView(), action=APP_CONTEXT.races_service.save, parent=self).exec():
             self._rebuild()
 
-    def on_edit(self, item: QListWidgetItem):
-        if RaceDialog(item=item.data(Qt.ItemDataRole.UserRole), action=APP_CONTEXT.races_service.save, parent=self).exec():
+    def on_edit(self, race: RaceView):
+        if RaceDialog(item=race, action=APP_CONTEXT.races_service.save, parent=self).exec():
             self._rebuild()
