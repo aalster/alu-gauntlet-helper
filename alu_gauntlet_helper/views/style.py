@@ -5,26 +5,28 @@ from PyQt6.QtWidgets import QApplication
 
 from alu_gauntlet_helper.utils.utils import get_resource_path
 
-BG_TOP = "#1554C0"
-BG_BOTTOM = "#082058"
-CARD = "#161C5E"
-CARD_HOVER = "#1E2674"
-CARD_SELECTED = "#273090"
-PANEL = "#0B1545"
-INPUT_BG = "#0E1B4E"
-BORDER = "#33418F"
-CYAN = "#2BD2FF"
-YELLOW = "#FFD60A"
-YELLOW_HOVER = "#FFE552"
-YELLOW_PRESSED = "#E8C200"
-TIME_YELLOW = "#FFDD00"
+BG_TOP = "#10295C"
+BG_BOTTOM = "#05102C"
+BG_MID = "#0A1C45"
+DIALOG_TOP = "#10306E"
+CARD = "#16224F"
+CARD_HOVER = "#1E2C63"
+CARD_SELECTED = "#264084"
+PANEL = "#0A1638"
+INPUT_BG = "#0C1838"
+BORDER = "#2C3C72"
+CYAN = "#36C5F0"
+YELLOW = "#FFD200"
+YELLOW_HOVER = "#FFE04D"
+YELLOW_PRESSED = "#E6BD00"
+TIME_YELLOW = "#A6E22E"
 TEXT = "#FFFFFF"
-TEXT_MUTED = "#9DB2E6"
-TEXT_FAINT = "#6F7FB5"
-TEXT_DARK = "#10173F"
-ERROR = "#FF6B6B"
+TEXT_MUTED = "#A8BBE0"
+TEXT_FAINT = "#7384B3"
+TEXT_DARK = "#0A1024"
+ERROR = "#FF5C5C"
 FAVORITE = "#FF3B6B"
-RANK_UP = "#4CD964"
+RANK_UP = TIME_YELLOW
 RANK_DOWN = "#FF9F0A"
 
 CHECKMARK_ICON = get_resource_path("icons/check.svg").replace("\\", "/")
@@ -33,12 +35,12 @@ CHEVRON_DOWN_ICON = get_resource_path("icons/chevron-down.svg").replace("\\", "/
 APP_STYLE = f"""
 QMainWindow {{
     background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1,
-        stop: 0 {BG_TOP}, stop: 0.55 #0D3490, stop: 1 {BG_BOTTOM});
+        stop: 0 {BG_TOP}, stop: 0.55 {BG_MID}, stop: 1 {BG_BOTTOM});
 }}
 
 QDialog, QMessageBox {{
     background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1,
-        stop: 0 #123C97, stop: 1 {BG_BOTTOM});
+        stop: 0 {DIALOG_TOP}, stop: 1 {BG_BOTTOM});
 }}
 
 QLabel {{
