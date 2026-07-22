@@ -7,6 +7,6 @@ dist
 !main.spec
 
 app.db
-data
+/data
 installer/tesseract
 installer/innosetup
