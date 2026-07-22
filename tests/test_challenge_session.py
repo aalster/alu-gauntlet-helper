@@ -186,6 +186,53 @@ def test_is_complete_uses_drafts():
     assert s.is_complete()
 
 
+# --- toggle_bad_timing (перемикач 👎 на оверлеї) -------------------------
+
+
+def test_toggle_bad_timing_flips_flag():
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, track_score=0.9, time=22797)))
+    s.toggle_bad_timing(1)
+    assert s.effective(1).bad_timing is True
+    s.toggle_bad_timing(1)
+    assert s.effective(1).bad_timing is False
+
+
+def test_toggle_bad_timing_keeps_ocr_shining_through():
+    # перемикач не має «підтверджувати» OCR-поля, як це робить збереження модалки
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, track_score=0.5, car_score=0.9, time=22797)))
+    s.toggle_bad_timing(1)
+    e = s.effective(1)
+    assert e.track_id == 11 and e.track_uncertain is True
+    assert e.car_id == 21 and e.time == 22797
+
+
+def test_toggle_bad_timing_on_existing_draft_keeps_fields():
+    s = ChallengeSessionService()
+    s.set_draft(1, draft(track_id=77, time=20000, note="crash"))
+    s.toggle_bad_timing(1)
+    e = s.effective(1)
+    assert e.bad_timing is True and e.track_id == 77 and e.note == "crash"
+
+
+def test_toggle_bad_timing_noop_without_data():
+    s = ChallengeSessionService()
+    events = []
+    s.add_listener(lambda: events.append(1))
+    s.toggle_bad_timing(1)
+    assert s.effective(1) is None and s.drafts == {} and events == []
+
+
+def test_toggle_bad_timing_notifies_listeners():
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, time=1000)))
+    events = []
+    s.add_listener(lambda: events.append(1))
+    s.toggle_bad_timing(1)
+    assert events == [1]
+
+
 def test_effective_has_car_property():
     assert not EffectiveRace().has_car
     assert EffectiveRace(car_id=2).has_car

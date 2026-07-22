@@ -58,6 +58,8 @@ class CaptureController(QObject):
         # бо повністю дублює кнопку таба CAPTURE
         self.overlay.close_requested.connect(self.overlay.hide)
         self.overlay.capture_requested.connect(self.capture_now)
+        # 👎 у рядку таблиці — фліп bad_timing у сесії; listener сам оновить оверлей
+        self.overlay.dislike_toggled.connect(APP_CONTEXT.challenge_session.toggle_bad_timing)
         APP_CONTEXT.challenge_session.add_listener(self._refresh_overlay)
 
     def apply_settings(self) -> bool:

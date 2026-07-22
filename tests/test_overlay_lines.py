@@ -1,6 +1,7 @@
 from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.services.challenge_session import EffectiveRace
-from alu_gauntlet_helper.views.overlay import (UNCERTAIN_COLOR,
+from alu_gauntlet_helper.views.overlay import (COMPLETE_COLOR, PARTIAL_COLOR,
+                                               UNCERTAIN_COLOR,
                                                build_races_table, header_text)
 
 BRAND_TITLE = ui_lang.t("window.title")  # заголовок оверлея — статичний бренд, без лічильника
@@ -23,6 +24,7 @@ def test_complete_race_line():
     assert "Notre Dame" in table
     assert "Ultima RS" in table
     assert "00:22.797" in table
+    assert COMPLETE_COLOR in table  # повний рядок — зелений номер
 
 
 def test_partial_race_marked():
@@ -30,6 +32,8 @@ def test_partial_race_marked():
     table = build_races_table(races, {}, {})
     assert "00:21.000" in table
     assert "no data" in table  # гонка 1 без даних
+    assert PARTIAL_COLOR in table       # частковий рядок — амбер-номер
+    assert COMPLETE_COLOR not in table  # повних рядків немає
 
 
 def test_custom_car_name_counts_as_complete():
@@ -58,3 +62,13 @@ def test_certain_fields_not_highlighted():
     races = {1: EffectiveRace(track_id=11, car_id=21, time=22797)}
     table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"})
     assert UNCERTAIN_COLOR not in table
+
+
+def test_dislike_toggle_links_per_race():
+    races = {1: EffectiveRace(track_id=11, car_id=21, time=22797),
+             2: EffectiveRace(time=21000, bad_timing=True)}
+    table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"})
+    assert "dislike:1" in table and "dislike:2" in table
+    assert "dislike:3" not in table  # рядки без даних — без перемикача
+    assert "thumbs-down-dim.svg" in table  # гонка 1 — прапорець вимкнено
+    assert "thumbs-down.svg" in table      # гонка 2 — увімкнено

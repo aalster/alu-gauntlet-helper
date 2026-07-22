@@ -1,4 +1,5 @@
 from html import escape
+from pathlib import Path
 
 from PyQt6.QtCore import QPoint, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QGuiApplication, QPainter, QPen
@@ -7,7 +8,7 @@ from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QPushButton,
 
 from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, EffectiveRace
-from alu_gauntlet_helper.utils.utils import format_time
+from alu_gauntlet_helper.utils.utils import format_time, get_resource_path
 from alu_gauntlet_helper.views.components.common import res_to_pixmap
 from alu_gauntlet_helper.views.style import (BORDER, CARD_SELECTED, CYAN, TEXT,
                                              TEXT_DARK, YELLOW, YELLOW_HOVER,
@@ -15,6 +16,9 @@ from alu_gauntlet_helper.views.style import (BORDER, CARD_SELECTED, CYAN, TEXT,
 
 MARGIN = 16
 UNCERTAIN_COLOR = "#FFC107"  # ненадійні (low-confidence) поля підсвічуються амбер
+# Qt rich text підтримує vertical-align лише на <td> (не на <img>), тож центруємо
+# по висоті рядка весь вміст комірок — інакше іконка 👎 «випливає» над текстом
+_TD_MIDDLE = "vertical-align:middle"
 
 
 def _cell(text: str, uncertain: bool) -> str:
@@ -23,6 +27,26 @@ def _cell(text: str, uncertain: bool) -> str:
     if uncertain:
         return f"<span style='color:{UNCERTAIN_COLOR}'>{safe}</span>"
     return safe
+
+
+COMPLETE_COLOR = "#67d27a"  # колір номера гонки: всі поля заповнені
+PARTIAL_COLOR = "#e6c34a"   # колір номера гонки: дані часткові
+
+
+def _num_cell(n: int, complete: bool) -> str:
+    """Номер гонки; його колір показує заповненість рядка."""
+    color = COMPLETE_COLOR if complete else PARTIAL_COLOR
+    return (f"<td style='padding-right:8px;{_TD_MIDDLE}'>"
+            f"<span style='color:{color};font-weight:bold'>{n}</span></td>")
+
+
+def _dislike_cell(n: int, active: bool) -> str:
+    """Комірка-перемикач «некоректний час» (👎). Клік ловиться через
+    linkActivated — спрацьовує лише в режимі керування, коли вікно не click-through."""
+    icon = "icons/thumbs-down.svg" if active else "icons/thumbs-down-dim.svg"
+    src = Path(get_resource_path(icon)).as_uri()
+    return (f"<td style='padding-left:12px;{_TD_MIDDLE}'><a href='dislike:{n}'>"
+            f"<img src='{src}' width='14' height='14'></a></td>")
 
 
 def header_text(races: dict[int, EffectiveRace]) -> str:
@@ -44,24 +68,21 @@ def build_races_table(races: dict[int, EffectiveRace],
         if e is None:
             rows.append(
                 f"<tr><td style='padding-right:8px'>{n}</td>"
-                f"<td colspan='3' style='color:#9aa0c0'>{ui_lang.t('overlay.no_data')}</td></tr>"
+                f"<td colspan='4' style='color:#9aa0c0'>{ui_lang.t('overlay.no_data')}</td></tr>"
             )
             continue
         track = track_names.get(e.track_id, "?") if e.track_id else "?"
         car = car_names.get(e.car_id, "?") if e.car_id else (e.car_name or "?")
         time_str = format_time(e.time) if e.time else "?"
-        if e.is_complete:
-            mark, mark_color = "✓", "#67d27a"
-        else:
-            mark, mark_color = "⚠", "#e6c34a"
         track_cell = _cell(track, e.track_uncertain)
         car_cell = _cell(car, e.car_uncertain)
         rows.append(
             f"<tr>"
-            f"<td style='padding-right:8px'>{n}&nbsp;<span style='color:{mark_color}'>{mark}</span></td>"
-            f"<td style='padding-right:12px'>{track_cell}</td>"
-            f"<td style='padding-right:12px'>{car_cell}</td>"
-            f"<td>{escape(time_str)}</td>"
+            f"{_num_cell(n, e.is_complete)}"
+            f"<td style='padding-right:12px;{_TD_MIDDLE}'>{track_cell}</td>"
+            f"<td style='padding-right:12px;{_TD_MIDDLE}'>{car_cell}</td>"
+            f"<td style='{_TD_MIDDLE}'>{escape(time_str)}</td>"
+            f"{_dislike_cell(n, e.bad_timing)}"
             f"</tr>"
         )
     return "<table cellspacing='0' cellpadding='0'>" + "".join(rows) + "</table>"
@@ -198,6 +219,7 @@ class OverlayWindow(QWidget):
     save_requested = pyqtSignal()     # клік Save на оверлеї
     capture_requested = pyqtSignal()  # клік Capture на оверлеї
     close_requested = pyqtSignal()    # клік ✕ на оверлеї
+    dislike_toggled = pyqtSignal(int)  # клік 👎 у рядку гонки (номер гонки)
 
     def __init__(self):
         super().__init__(None, Qt.WindowType.FramelessWindowHint
@@ -255,6 +277,10 @@ class OverlayWindow(QWidget):
         self.table_label = QLabel()
         self.table_label.setTextFormat(Qt.TextFormat.RichText)
         self.table_label.setStyleSheet(_TEXT_STYLE)
+        # лінки-перемикачі 👎 у таблиці; поза режимом керування вікно click-through,
+        # тож кліки до них просто не долітають
+        self.table_label.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
+        self.table_label.linkActivated.connect(self._on_table_link)
 
         # нижній рядок: статус ліворуч; праворуч — підказка з хоткеями АБО
         # кнопка Save (видно лише одне, перемикається в set_actions_mode)
@@ -320,6 +346,11 @@ class OverlayWindow(QWidget):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(self.card)
+
+    def _on_table_link(self, href: str):
+        kind, _, arg = href.partition(":")
+        if kind == "dislike" and arg.isdigit():
+            self.dislike_toggled.emit(int(arg))
 
     def update_content(self, header: str, table_html: str, status: str, hint: str,
                        in_flight: int = 0):

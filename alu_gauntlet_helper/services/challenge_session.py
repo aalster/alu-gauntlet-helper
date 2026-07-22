@@ -95,6 +95,15 @@ class ChallengeSessionService:
         self.drafts[race_number] = draft
         self._notify()
 
+    def toggle_bad_timing(self, race_number: int):
+        """Перемикач 👎 на оверлеї: фліпає прапорець лише в драфті — інші поля
+        драфта лишаються порожніми, тож OCR-значення й далі «просвічують»."""
+        e = self.effective(race_number)
+        if e is None:
+            return
+        self.drafts.setdefault(race_number, RaceView()).bad_timing = not e.bad_timing
+        self._notify()
+
     def effective(self, race_number: int) -> EffectiveRace | None:
         capture = self.races.get(race_number)
         draft = self.drafts.get(race_number)
