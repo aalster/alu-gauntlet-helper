@@ -1,32 +1,29 @@
 import os
 import re
-import shutil
-import subprocess
 import sys
 
 import cv2
 import numpy as np
-import pytesseract
 from PIL import Image
 
-DEFAULT_TESSERACT_PATHS = [
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-]
+from alu_gauntlet_helper.screen_recognition import tesseract_api
 
 
-def _bundled_tesseract() -> str:
-    """Шлях до портативного Tesseract, що йде в комплекті з застосунком.
+def _bundled_dir() -> str:
+    """Тека портативного Tesseract (DLL + tessdata), що йде в комплекті.
 
     Frozen-збірка: тека `tesseract/` поруч з exe (її кладе інсталятор).
     Запуск із вихідників: та сама портативна копія з `installer/tesseract/`,
-    щоб і в розробці використовувати саме бандлений Tesseract, а не системний."""
-    name = "tesseract.exe" if sys.platform == "win32" else "tesseract"
+    щоб і в розробці використовувати саме бандлений Tesseract, а не системний.
+
+    tesseract.exe в цій теці на рантаймі не використовується (движок вантажиться
+    з DLL) — він лишається для перевірки збірки й ручної діагностики, див.
+    installer/README.md."""
     if getattr(sys, "frozen", False):
         base = os.path.dirname(sys.executable)
     else:
         base = os.path.join(os.path.dirname(__file__), "..", "..", "installer")
-    return os.path.normpath(os.path.join(base, "tesseract", name))
+    return os.path.normpath(os.path.join(base, "tesseract"))
 
 
 # Латиниця для англ. назв і авто. Російські назви читаються БЕЗ whitelist:
@@ -37,47 +34,24 @@ TIME_RE = re.compile(r"(\d{1,2})\s*:\s*(\d{2})\s*[.,]\s*(\d{2,3})")  # {2,3}: OC
 RANK_RE = re.compile(r"(\d)\s*[,.]?\s*(\d{3})")  # [,.]? необов'язковий: OCR інколи губить кому в "4,045"
 
 
-def configure_tesseract(path: str = "") -> bool:
-    """Виставляє tesseract_cmd: явний шлях → бандл → PATH → типові локації. True, якщо знайдено."""
-    candidates = [path] if path else []
-    bundled = _bundled_tesseract()
-    if bundled:
-        candidates.append(bundled)
-    which = shutil.which("tesseract")
-    if which:
-        candidates.append(which)
-    candidates += DEFAULT_TESSERACT_PATHS
+def configure_tesseract() -> bool:
+    """Вказує движку бандлену теку tesseract (DLL + tessdata).
 
-    for candidate in candidates:
-        if candidate and os.path.exists(candidate):
-            pytesseract.pytesseract.tesseract_cmd = candidate
-            return True
+    Завжди тільки комплектний Tesseract — системні установки не шукаємо:
+    застосунок має працювати однаково незалежно від того, що стоїть у системі.
+    True, якщо DLL на місці (робочість ініціалізації перевіряє is_available)."""
+    bundled = _bundled_dir()
+    if os.path.exists(os.path.join(bundled, tesseract_api.DLL_NAME)):
+        tesseract_api.configure(bundled)
+        return True
     return False
 
 
-_availability_cache: dict[str, bool] = {}
-
-
 def is_available() -> bool:
-    """Чи запускається поточний tesseract_cmd. Результат кешується на шлях.
+    """Чи ініціалізується движок (DLL завантажилась, tessdata на місці).
 
-    Власна перевірка замість pytesseract.get_tesseract_version(): та спавнить
-    консольний процес без прихованого вікна, і у windowed-збірці на кожну
-    перевірку блимає вікно консолі."""
-    cmd = pytesseract.pytesseract.tesseract_cmd
-    if cmd not in _availability_cache:
-        _availability_cache[cmd] = _probe_tesseract(cmd)
-    return _availability_cache[cmd]
-
-
-def _probe_tesseract(cmd: str) -> bool:
-    kwargs = {}
-    if sys.platform == "win32":
-        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-    try:
-        return subprocess.run([cmd, "--version"], capture_output=True, timeout=10, **kwargs).returncode == 0
-    except Exception:
-        return False
+    Ініціалізація лінива й кешується в tesseract_api — повторні виклики дешеві."""
+    return tesseract_api.get_engine("eng") is not None
 
 
 def preprocess(img: np.ndarray, scale: int = 3, channel: str = "gray") -> Image.Image:
@@ -102,15 +76,22 @@ def preprocess(img: np.ndarray, scale: int = 3, channel: str = "gray") -> Image.
     return Image.fromarray(binary)
 
 
+def _run_ocr(image: Image.Image, lang: str = "eng", psm: int = 7, whitelist: str = "") -> str:
+    """Єдина точка запуску OCR (движок у пам'яті).
+
+    Скрипти замірів (bench/survey) рахують виклики, підміняючи саме цю функцію."""
+    engine = tesseract_api.get_engine(lang)
+    if engine is None:
+        raise RuntimeError("Tesseract недоступний: configure_tesseract не знайшов DLL/tessdata")
+    return engine.read(image, psm, whitelist)
+
+
 def read_text(img: np.ndarray, whitelist: str = "", psm: int = 7, channel: str = "gray",
               lang: str = "eng") -> str:
     """lang: "eng" (латиниця/авто) або "rus" (кирилиця). whitelist="" — без обмеження
     символів (кириличні бейджі з логотипом краще читаються без whitelist)."""
-    config = f"--oem 3 --psm {psm}"
-    if whitelist:
-        config += f" -c tessedit_char_whitelist={whitelist}"
-    return pytesseract.image_to_string(preprocess(img, channel=channel),
-                                       lang=lang, config=config).strip()
+    return _run_ocr(preprocess(img, channel=channel), lang=lang, psm=psm,
+                    whitelist=whitelist).strip()
 
 
 TIME_CHANNELS = ("gray", "max", "min")
@@ -189,14 +170,13 @@ def read_bright_digit(img: np.ndarray, threshold: int = 150) -> int | None:
     gray = cv2.resize(gray, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
     _, binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
 
-    config = "--oem 3 --psm 10 -c tessedit_char_whitelist=12345"
     votes: list[int] = []
     h, w = binary.shape
     for shear in DIGIT_SHEARS:
         m = np.float32([[1, shear, 0], [0, 1, 0]])
         sheared = cv2.warpAffine(binary, m, (round(w + shear * h), h), borderValue=0)
         sheared = cv2.bitwise_not(sheared)  # tesseract: темний текст на білому
-        text = pytesseract.image_to_string(Image.fromarray(sheared), lang="eng", config=config)
+        text = _run_ocr(Image.fromarray(sheared), lang="eng", psm=10, whitelist="12345")
         match = re.search(r"[1-5]", text)
         if match:
             votes.append(int(match.group()))

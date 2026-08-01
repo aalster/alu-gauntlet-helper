@@ -14,7 +14,6 @@ import time
 from pathlib import Path
 
 import cv2
-import pytesseract
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -33,24 +32,24 @@ FIXTURES = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
 
 
 class OcrCounter:
-    """Рахує виклики pytesseract.image_to_string, окремо кириличні (lang=rus)."""
+    """Рахує OCR-виклики через єдину точку ocr._run_ocr, окремо кириличні."""
 
     def __enter__(self):
         self.count = 0
         self.rus = 0
-        self._orig = pytesseract.image_to_string
+        self._orig = ocr._run_ocr
 
-        def wrapped(*a, **k):
+        def wrapped(image, lang="eng", psm=7, whitelist=""):
             self.count += 1
-            if k.get("lang") == "rus":
+            if lang == "rus":
                 self.rus += 1
-            return self._orig(*a, **k)
+            return self._orig(image, lang=lang, psm=psm, whitelist=whitelist)
 
-        pytesseract.image_to_string = wrapped
+        ocr._run_ocr = wrapped
         return self
 
     def __exit__(self, *exc):
-        pytesseract.image_to_string = self._orig
+        ocr._run_ocr = self._orig
 
 
 def fmt_time(ms):

@@ -1,7 +1,7 @@
 """Замір продуктивності розпізнавання: OCR-виклики + час + коректність.
 
-Лічить, скільки разів кожен екстрактор спавнить tesseract (через monkeypatch
-pytesseract.image_to_string), скільки на це йде часу, і чи правильний результат.
+Лічить OCR-виклики кожного екстрактора (через monkeypatch ocr._run_ocr),
+скільки на це йде часу, і чи правильний результат.
 Порівнює поточний ChallengeAccordionExtractor зі швидким CarSelectionFastExtractor
 на повільних RU-скрінах (екран CAR SELECTION).
 
@@ -13,7 +13,6 @@ import time
 from pathlib import Path
 
 import cv2
-import pytesseract
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -60,21 +59,21 @@ EXPECTED = {
 
 
 class OcrCounter:
-    """Контекст: рахує виклики pytesseract.image_to_string."""
+    """Контекст: рахує OCR-виклики через єдину точку ocr._run_ocr."""
 
     def __enter__(self):
         self.count = 0
-        self._orig = pytesseract.image_to_string
+        self._orig = ocr._run_ocr
 
-        def wrapped(*a, **k):
+        def wrapped(image, lang="eng", psm=7, whitelist=""):
             self.count += 1
-            return self._orig(*a, **k)
+            return self._orig(image, lang=lang, psm=psm, whitelist=whitelist)
 
-        pytesseract.image_to_string = wrapped
+        ocr._run_ocr = wrapped
         return self
 
     def __exit__(self, *exc):
-        pytesseract.image_to_string = self._orig
+        ocr._run_ocr = self._orig
 
 
 def check(capture, exp, tv, cv) -> tuple[bool, str]:

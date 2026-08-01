@@ -12,6 +12,14 @@
    - перевір: `installer\tesseract\tesseract.exe --version` працює.
    Тека обов'язкова: без `tesseract.exe` чи `tessdata\eng.traineddata` збірка впаде з помилкою.
 
+   **Примітка про tesseract.exe:** на рантаймі застосунок його НЕ використовує —
+   OCR іде напряму через `libtesseract-5.dll` (ctypes, движок у пам'яті, див.
+   `screen_recognition/tesseract_api.py`). exe лишається в бандлі свідомо: ним
+   користується перевірка збірки в `build_installer.ps1`, і він зручний для ручної
+   діагностики (`tesseract.exe --version`). Якщо колись захочеться зменшити
+   інсталятор — можна прибрати exe і перевести перевірку збірки на наявність
+   DLL + tessdata.
+
 ## Збірка
 
     powershell -File scripts/build_installer.ps1

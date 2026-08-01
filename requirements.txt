@@ -3,7 +3,6 @@ pydantic
 opencv-python
 numpy
 pillow
-pytesseract
 mss
 keyboard
 rapidfuzz
