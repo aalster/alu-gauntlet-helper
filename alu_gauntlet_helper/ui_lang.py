@@ -31,6 +31,7 @@ TRANSLATIONS = {
         "field.car": "Car",
         "field.rank": "Rank",
         "field.time": "Time",
+        "field.diff": "Diff",
         "field.note": "Note",
         "field.date": "Date",
         "field.name": "Name",
@@ -79,8 +80,8 @@ TRANSLATIONS = {
         "races.aggregate": "Group",
         "races.aggregate_hint": "One card per car with run stats",
         "races.avg_over_n": "Avg of last {n}",
-        "races.row_best": "Best time",
-        "races.row_avg_ok": "Overall avg",
+        "races.row_best": "Best",
+        "races.row_avg_ok": "Avg",
         "races.row_avg_fail": "Failed",
         "races.desc_recent": "Average time of the last {n} successful runs",
         "races.desc_best": "Best time across all runs",
@@ -153,6 +154,7 @@ TRANSLATIONS = {
         "field.car": "Авто",
         "field.rank": "Ранг",
         "field.time": "Час",
+        "field.diff": "Різн.",
         "field.note": "Нотатка",
         "field.date": "Дата",
         "field.name": "Назва",
@@ -198,8 +200,8 @@ TRANSLATIONS = {
         "races.aggregate": "Групувати",
         "races.aggregate_hint": "Одна картка на авто зі статистикою заїздів",
         "races.avg_over_n": "Середнє за останні {n}",
-        "races.row_best": "Найкращий час",
-        "races.row_avg_ok": "Загальне середнє",
+        "races.row_best": "Найкращий",
+        "races.row_avg_ok": "Середнє",
         "races.row_avg_fail": "Невдалі",
         "races.desc_recent": "Середній час останніх {n} успішних заїздів",
         "races.desc_best": "Найкращий час серед усіх заїздів",
@@ -266,6 +268,15 @@ def t(key: str) -> str:
     if key in current:
         return current[key]
     return TRANSLATIONS["en"].get(key, key)
+
+
+def runs_word(n: int) -> str:
+    """Слово «заїзд» у формі множини для n: 1 заїзд / 2 заїзди / 5 заїздів; run / runs."""
+    if _language == UK:
+        # відкладений імпорт: utils так само ліниво імпортує ui_lang (format_relative_time)
+        from alu_gauntlet_helper.utils.utils import _uk_plural
+        return _uk_plural(n, "заїзд", "заїзди", "заїздів")
+    return "run" if n == 1 else "runs"
 
 
 def system_to_ui_language(locale_name: str) -> str:

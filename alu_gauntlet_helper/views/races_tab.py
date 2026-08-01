@@ -1,6 +1,6 @@
 # gui/maps_tab.py
 from PyQt6.QtCore import Qt, QSize, QObject, QEvent
-from PyQt6.QtGui import QIntValidator, QFont, QIcon
+from PyQt6.QtGui import QIntValidator, QFont, QFontMetrics, QIcon
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
     QLabel, QTextEdit, QFormLayout, QComboBox, QToolTip
 
@@ -13,7 +13,7 @@ from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, pars
     get_resource_path
 from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, res_to_pixmap, hbox, \
     vbox, ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge, CarInfoWidget, TrackInfoWidget, \
-    preserved_scroll, edit_icon_button
+    preserved_scroll, edit_icon_button, as_column
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
@@ -125,20 +125,27 @@ class RaceListWidget(ListItemWidget):
         time_font.setBold(True)
         time_font.setPointSize(self.font().pointSize() + 4)
 
-        self.time_label = QLabel(format_time(race.time))
+        self.time_label = QLabel(format_time(race.time) or "—")
         self.time_label.setObjectName("rowTimeLabel")
         self.time_label.setFont(time_font)
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # колонка шириною по вмісту — повітря зліва (від плашки авто) і справа
+        # (до іконок) треба задати явно
+        self.time_label.setContentsMargins(12, 0, 12, 0)
         self.created_at_label = QLabel(format_relative_time(race.created_at))
         self.created_at_label.setObjectName("rowCreatedLabel")
         self.created_at_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.created_at_label.setToolTip(race.created_at.strftime("%d.%m.%Y %H:%M:%S"))
 
+        # слот 18×18 резервується завжди, навіть без іконки: блок іконок має
+        # однакову ширину в усіх рядках і не зсуває межі сусідніх колонок
         self.bad_timing_label = QLabel()
+        self.bad_timing_label.setFixedSize(18, 18)
         if race.bad_timing:
             self.bad_timing_label.setPixmap(res_to_pixmap("icons/thumbs-down.svg", 18))
 
         self.info_label = QLabel()
+        self.info_label.setFixedSize(18, 18)
         if race.note:
             self.info_label.setPixmap(res_to_pixmap("icons/notepad-text.svg", 18))
             self.info_label.setToolTip(race.note)
@@ -150,22 +157,44 @@ class RaceListWidget(ListItemWidget):
         self.layout.setContentsMargins(margins.left() - 4, margins.top() // 2, margins.right(), margins.bottom() // 2)
         # AlignVCenter: без нього віджет розтягується на всю висоту рядка і затемнення
         # при наведенні прилипає до верхнього/нижнього країв
-        self.layout.addWidget(self.track_info, stretch=20, alignment=Qt.AlignmentFlag.AlignVCenter)
-        self.layout.addWidget(self.car_info, stretch=24)
-        self.layout.addWidget(self.time_label, stretch=14)
-        self.layout.addLayout(hbox([self.bad_timing_label, self.info_label], spacing=0), stretch=8)
-        self.layout.addWidget(self.created_at_label, stretch=10)
+        # stretch лише в колонок зі змінним текстом; час (формат mm:ss.xxx,
+        # табличні цифри Segoe UI) та іконки (фіксовані слоти) — константної
+        # ширини, тож розміряються по вмісту (stretch=0) і не ростуть з вікном
+        self.layout.addWidget(as_column(self.track_info), stretch=80, alignment=Qt.AlignmentFlag.AlignVCenter)
+        # авто — найширший компонент: місце, звільнене іншими колонками, віддано йому
+        self.layout.addWidget(as_column(self.car_info), stretch=140)
+        self.layout.addWidget(self.time_label)
+        icons = QWidget()
+        icons.setLayout(hbox([self.bad_timing_label, self.info_label], spacing=8))
+        self.layout.addWidget(icons)
+        self.layout.addWidget(as_column(self.created_at_label), stretch=50)
         if on_edit:
             self.layout.addWidget(edit_icon_button(lambda: on_edit(race)))
         self.setLayout(self.layout)
 
-def _races_table_html(races: list, car_rank: int) -> str:
+def _diff_cell_html(time: int, base_time: int, cell: str) -> str:
+    """Різниця часу заїзду з основним часом картки: менший час — зелений, більший — червоний."""
+    if not time or not base_time:
+        return f"<td align='right' style='{cell} color: {style.TEXT_MUTED};'>—</td>"
+    diff = time - base_time
+    if diff < 0:
+        color = style.DIFF_BETTER
+    elif diff > 0:
+        color = style.DIFF_WORSE
+    else:
+        color = style.TEXT
+    sign = "-" if diff < 0 else "+"
+    return f"<td align='right' style='{cell} color: {color};'>{sign}{format_time(abs(diff)) or '00:00.000'}</td>"
+
+
+def _races_table_html(races: list, car_rank: int, base_time: int) -> str:
     if not races:
         return ""
     header_cell = f"padding: 2px 16px 4px 0; color: {style.TEXT_MUTED}; font-size: 11px;"
     header_last_cell = f"padding: 2px 0 4px 0; color: {style.TEXT_MUTED}; font-size: 11px;"
     rows = [
-        f"<tr><td style='{header_cell}'>{ui_lang.t('field.time')}</td>"
+        f"<tr><td align='right' style='{header_cell}'>{ui_lang.t('field.time')}</td>"
+        f"<td align='right' style='{header_cell}'>{ui_lang.t('field.diff')}</td>"
         f"<td align='right' style='{header_cell}'>{ui_lang.t('field.rank')}</td>"
         f"<td style='{header_last_cell}'>{ui_lang.t('field.date')}</td></tr>"
     ]
@@ -183,7 +212,8 @@ def _races_table_html(races: list, car_rank: int) -> str:
         # nbsp: тултип загортає текст по ширині — відносна дата має лишатись одним рядком
         relative_date = format_relative_time(r.created_at).replace(" ", "&nbsp;")
         rows.append(
-            f"<tr><td style='{cell}'><b>{format_time(r.time)}</b></td>"
+            f"<tr><td align='right' style='{cell}'><b>{format_time(r.time)}</b></td>"
+            f"{_diff_cell_html(r.time, base_time, cell)}"
             f"<td align='right' style='{cell} color: {rank_color};'>{rank_text}</td>"
             f"<td style='{last_cell} color: {style.TEXT_MUTED};'>{relative_date}</td></tr>")
     return f"<table cellspacing='0' cellpadding='0'>{''.join(rows)}</table>"
@@ -210,9 +240,20 @@ def _metric_races(agg: RaceAggregate, kind: str) -> tuple[list, int]:
     return svc.get_recent_races_for_car_on_track(agg.track_id, agg.car_id, bad_timing=True), agg.fail_count
 
 
+def _metric_base_time(agg: RaceAggregate, kind: str) -> int:
+    """Основний час показника — той, що виводиться на елементі з тултипом."""
+    if kind == "recent":
+        return agg.avg_recent
+    if kind == "best":
+        return agg.best_time
+    if kind == "ok":
+        return agg.avg_time
+    return agg.avg_fail
+
+
 def _metric_tooltip_html(agg: RaceAggregate, kind: str) -> str:
     races, count = _metric_races(agg, kind)
-    table = _races_table_html(races, agg.car_rank)
+    table = _races_table_html(races, agg.car_rank, _metric_base_time(agg, kind))
     margin_top = " margin-top: 8px;" if table else ""
     # {n} є лише в описі recent-показника; для решти format нічого не міняє.
     # У recent кількість вже в описі, тож окремий рядок «Всього заїздів» зайвий.
@@ -263,11 +304,19 @@ class RaceAggregateWidget(ListItemWidget):
         stats_rows = [
             self._stat_row(agg, "best", ui_lang.t("races.row_best"), format_time(agg.best_time)),
             self._stat_row(agg, "ok", ui_lang.t("races.row_avg_ok"), format_time(agg.avg_time)),
+            # резерв ширини підпису під найширший відсоток, інакше «(100%)» проти
+            # «(0%)» дає різну ширину колонки і межі гуляють між рядками
             self._stat_row(agg, "fail", f"{ui_lang.t('races.row_avg_fail')} ({agg.dislike_pct}%)",
-                           format_time(agg.avg_fail)),
+                           format_time(agg.avg_fail),
+                           caption_reserve=f"{ui_lang.t('races.row_avg_fail')} (100%)"),
         ]
         stats_table = QWidget()
         stats_table.setLayout(vbox(stats_rows, spacing=2))
+        # Ignored-політика колонки дозволяє стискання нижче вмісту — з малим
+        # stretch на вузькому вікні текст обрізався б; мінімум = власний вміст
+        # (після резервів вище він однаковий у всіх картках)
+        stats_table.ensurePolished()
+        stats_table.setMinimumWidth(stats_table.sizeHint().width())
 
         self.layout = QHBoxLayout(self)
         # -4 зліва компенсує внутрішній відступ TrackInfoWidget
@@ -275,10 +324,16 @@ class RaceAggregateWidget(ListItemWidget):
         self.layout.setContentsMargins(margins.left() - 4, margins.top() // 2, margins.right(), margins.bottom() // 2)
         # AlignVCenter: без нього віджет розтягується на всю висоту рядка і затемнення
         # при наведенні прилипає до верхнього/нижнього країв
-        self.layout.addWidget(self.track_info, stretch=20, alignment=Qt.AlignmentFlag.AlignVCenter)
-        self.layout.addWidget(self.car_info, stretch=24)
-        self.layout.addWidget(self._main_stat(agg), stretch=14)
-        self.layout.addWidget(stats_table, stretch=20)
+        # головний час — по вмісту (найширший елемент колонки — підпис «середнє
+        # за N» — практично константний); лічильник і таблиця показників мають
+        # текст змінної довжини (форма слова, відсоток), тому лишаються на
+        # stretch — з шириною по вмісту їхні межі гуляли б між рядками
+        self.layout.addWidget(as_column(self.track_info), stretch=80, alignment=Qt.AlignmentFlag.AlignVCenter)
+        # авто — найширший компонент: місце, звільнене іншими колонками, віддано йому
+        self.layout.addWidget(as_column(self.car_info), stretch=148)
+        self.layout.addWidget(as_column(self._race_count_stat(agg)), stretch=32)
+        self.layout.addWidget(self._main_stat(agg))
+        self.layout.addWidget(as_column(stats_table), stretch=38)
         self.setLayout(self.layout)
 
     def _main_stat(self, agg: RaceAggregate) -> QWidget:
@@ -293,25 +348,64 @@ class RaceAggregateWidget(ListItemWidget):
         caption_label = QLabel(ui_lang.t("races.avg_over_n").format(n=agg.recent_count))
         caption_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 11px;")
         caption_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # підпис — найширший елемент колонки, а колонка розміряється по вмісту:
+        # резерв під двозначне N (максимум 10, див. get_recent_clean_races),
+        # щоб рядки з різним N не мали різну ширину колонки
+        caption_label.ensurePolished()
+        caption_label.setMinimumWidth(caption_label.fontMetrics().horizontalAdvance(
+            ui_lang.t("races.avg_over_n").format(n=10)))
 
         column = QWidget()
         # plain QWidget ігнорує QSS-фон без цього атрибута (затемнення при наведенні)
         column.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         column.setObjectName("aggMainStat")
-        column.setLayout(vbox([value_label, caption_label], spacing=2))
+        layout = vbox([value_label, caption_label], spacing=2)
+        # колонка тепер шириною по вмісту — відступи, щоб hover-підсвітка
+        # не прилипала до країв тексту
+        layout.setContentsMargins(8, 0, 8, 0)
+        column.setLayout(layout)
         _install_metric_tooltip(column, agg, "recent")
         return column
 
+    def _race_count_stat(self, agg: RaceAggregate) -> QWidget:
+        value_label = QLabel(str(agg.race_count))
+        # мало заїздів — статистика ненадійна: < 5 червона цифра, < 10 помаранчева
+        if agg.race_count < 5:
+            value_label.setStyleSheet(f"color: {style.DIFF_WORSE};")
+        elif agg.race_count < 10:
+            value_label.setStyleSheet(f"color: {style.RANK_DOWN};")
+        value_font = QFont()
+        value_font.setBold(True)
+        value_font.setPointSize(self.font().pointSize() + 4)
+        value_label.setFont(value_font)
+        value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        caption_label = QLabel(ui_lang.runs_word(agg.race_count))
+        caption_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 11px;")
+        caption_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        column = QWidget()
+        column.setLayout(vbox([value_label, caption_label], spacing=2))
+        return column
+
     @staticmethod
-    def _stat_row(agg: RaceAggregate, kind: str, caption: str, value: str) -> QWidget:
+    def _stat_row(agg: RaceAggregate, kind: str, caption: str, value: str,
+                  caption_reserve: str = "") -> QWidget:
         caption_label = QLabel(caption)
         caption_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 11px;")
+        if caption_reserve:
+            caption_label.ensurePolished()
+            caption_label.setMinimumWidth(
+                caption_label.fontMetrics().horizontalAdvance(caption_reserve))
 
         value_label = QLabel(value or "—")
         value_font = QFont()
         value_font.setBold(True)
         value_label.setFont(value_font)
         value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        # «—» вужче за час — без резерву рядки без значення були б вужчими
+        value_label.setMinimumWidth(
+            QFontMetrics(value_font).horizontalAdvance(format_time(599_999)))
 
         row = QWidget()
         # plain QWidget ігнорує QSS-фон без цього атрибута (затемнення при наведенні)

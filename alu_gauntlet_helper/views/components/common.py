@@ -4,7 +4,7 @@ from typing import Callable
 from PyQt6.QtCore import Qt, QTimer, QObject, QEvent, QRectF, QPointF, QBuffer, QIODevice
 from PyQt6.QtGui import QPixmap, QPainter, QPen, QColor, QIcon, QImageReader, QImage
 from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLayout, QWidget, QListWidget, QListWidgetItem, \
-    QToolButton, QLabel, QToolTip, QPushButton
+    QToolButton, QLabel, QToolTip, QPushButton, QSizePolicy
 
 from alu_gauntlet_helper.utils.utils import get_resource_path, load_pixmap_cover
 from alu_gauntlet_helper.views import style
@@ -100,14 +100,14 @@ class RankClassBadge(QWidget):
                 oc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 oc_label.setStyleSheet(
                     f"background-color: {style.TEXT_DARK}; border-top-left-radius: 3px;"
-                    " border-bottom-left-radius: 3px; padding: 2px 0 2px 8px;")
+                    " border-bottom-left-radius: 3px; padding: 2px 0 2px 4px;")
                 layout.addWidget(oc_label)
             rank_label = QLabel(rank_text, self)
             left_radius = "" if over_max else " border-top-left-radius: 3px; border-bottom-left-radius: 3px;"
             right_radius = "" if car_class else " border-top-right-radius: 3px; border-bottom-right-radius: 3px;"
             rank_label.setStyleSheet(
                 f"background-color: {style.TEXT_DARK}; color: {rank_color or style.TEXT}; font-weight: bold;"
-                f"{left_radius}{right_radius} padding: 2px 8px;")
+                f"{left_radius}{right_radius} padding: 2px 4px;")
             layout.addWidget(rank_label)
 
         if car_class:
@@ -115,7 +115,7 @@ class RankClassBadge(QWidget):
             left_radius = "" if rank_text else " border-top-left-radius: 3px; border-bottom-left-radius: 3px;"
             class_label.setStyleSheet(
                 f"background-color: {style.TEXT}; color: {style.TEXT_DARK}; font-weight: bold;"
-                f" border-top-right-radius: 3px; border-bottom-right-radius: 3px;{left_radius} padding: 2px 7px;")
+                f" border-top-right-radius: 3px; border-bottom-right-radius: 3px;{left_radius} padding: 2px 4px;")
             layout.addWidget(class_label)
 
 
@@ -370,6 +370,15 @@ def add_contents(layout, items, spacing=None, alignment=None):
         else:
             layout.addWidget(item, **kwargs)
     return layout
+
+def as_column(widget: QWidget) -> QWidget:
+    """Ширина віджета в рядку списку — лише від stretch-фактора, а не від вмісту:
+    інакше різна довжина назв (авто, треків) зсуває межі колонок між рядками."""
+    policy = widget.sizePolicy()
+    policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
+    widget.setSizePolicy(policy)
+    return widget
+
 
 def vbox(items, spacing=None, alignment=None) -> QVBoxLayout:
     return add_contents(QVBoxLayout(), items, spacing=spacing, alignment=alignment)

@@ -28,6 +28,8 @@ ERROR = "#FF5C5C"
 FAVORITE = "#FF3B6B"
 RANK_UP = TIME_YELLOW
 RANK_DOWN = "#FF9F0A"
+DIFF_BETTER = "#79B77E"
+DIFF_WORSE = "#D9736E"
 
 CHECKMARK_ICON = get_resource_path("icons/check.svg").replace("\\", "/")
 CHEVRON_DOWN_ICON = get_resource_path("icons/chevron-down.svg").replace("\\", "/")
