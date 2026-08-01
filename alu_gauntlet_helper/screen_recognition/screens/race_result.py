@@ -9,7 +9,7 @@ from alu_gauntlet_helper.screen_recognition.regions import (
     RACE_RESULT_PLAYER_TIME,
 )
 from alu_gauntlet_helper.screen_recognition.screens.base import (
-    HEADER_DY_OFFSETS, ScreenExtractor, encode_png, read_race_header,
+    EN_HEADER_TRIMS, HEADER_DY_OFFSETS, ScreenExtractor, encode_png, read_race_header,
 )
 
 # Кадр цілком (на відміну від панелі акордеона тут немає природного кропу),
@@ -37,9 +37,13 @@ class RaceResultExtractor(ScreenExtractor):
 
     def _race_number(self, img: np.ndarray) -> tuple[int | None, str | None]:
         """Якір екрана: зверху зліва "RACE N"/"ГОНКА N" (бейдж WON/LOST і
-        трикутне лого відфільтровує whitelist/канали). → (номер, мова)."""
+        трикутне лого відфільтровує whitelist/канали). → (номер, мова).
+
+        en_trims: квадратний логотип клубу зліва зливається з "RACE N" в один
+        рядок і ламає читання повного кропу (див. EN_HEADER_TRIMS у base)."""
         for dy in HEADER_DY_OFFSETS:
-            number, language = read_race_header(img, RACE_RESULT_HEADER.shifted(0.0, dy))
+            number, language = read_race_header(img, RACE_RESULT_HEADER.shifted(0.0, dy),
+                                                en_trims=EN_HEADER_TRIMS)
             if number is not None:
                 return number, language
         return None, None

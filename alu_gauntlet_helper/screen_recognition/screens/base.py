@@ -11,6 +11,14 @@ from alu_gauntlet_helper.screen_recognition.regions import RelRect
 # Якір "RACE N" — спільний для екранів, що ідентифікуються заголовком гонки.
 RACE_HEADER_RE = re.compile(r"RACE\s*([1-5])")
 
+# На race_result зліва від бейджа — квадратний логотип клубу гравця, що в OCR
+# зливається зі словом (читається 'CACE3', 'RRACE' або взагалі ''). Обрізання
+# лівого краю відсікають логотип (аналог _RU_HEADER_TRIMS нижче); на обрізаному
+# кропі слово може втратити початок, тож допускаємо хвіст "ACE N"/"CE N" —
+# лише для обрізаних варіантів, на повному кропі діє суворий регекс.
+EN_HEADER_TRIMS = (0.15, 0.22, 0.30)
+RACE_HEADER_TAIL_RE = re.compile(r"(?:RA?)?CE\s*([1-5])")
+
 # Скан невеликих вертикальних зсувів — стійкість до інших співвідношень сторін
 # і відмінностей лейауту між пристроями.
 HEADER_DY_OFFSETS = [0.0, -0.03, 0.03]
@@ -62,13 +70,17 @@ def _ru_header_number(img: np.ndarray, region: RelRect) -> int | None:
     return int(next(iter(found))) if len(found) == 1 else None
 
 
-def read_race_header(img: np.ndarray, region: RelRect) -> tuple[int | None, str | None]:
+def read_race_header(img: np.ndarray, region: RelRect,
+                     en_trims: tuple[float, ...] = ()) -> tuple[int | None, str | None]:
     """Бейдж "RACE N" / "ГОНКА N" в одній позиції → (номер|None, мова|None).
 
     Спершу англійський whitelist-шлях (дешевий, надійний). Якщо слова RACE немає —
     російський шлях (логотип і курсивна цифра вимагають кількох обрізань/каналів).
     Повертає мову навіть коли номер не зчитався — для авто-перемикання мови гри.
     Скан dy-зсувів — на боці викликача (йому потрібна dy й для решти геометрії).
+
+    en_trims — обрізання лівого краю для EN-шляху (ранній вихід на першому
+    збігу): передають екрани, де до бейджа прилипає логотип (race_result).
     """
     text = ocr.read_text(region.crop(img), "RACE12345")
     numbers = set(RACE_HEADER_RE.findall(text))
@@ -76,6 +88,13 @@ def read_race_header(img: np.ndarray, region: RelRect) -> tuple[int | None, str 
         return int(next(iter(numbers))), "en"
     if numbers:
         return None, None  # кілька різних номерів → кроп накрив кілька бейджів
+    for trim in en_trims:
+        sub = region.sub(RelRect(trim, 0.0, 1 - trim, 1.0))
+        tail = set(RACE_HEADER_TAIL_RE.findall(ocr.read_text(sub.crop(img), "RACE12345")))
+        if len(tail) == 1:
+            return int(next(iter(tail))), "en"
+        if tail:
+            return None, None
     if _ru_word_present(img, region):
         return _ru_header_number(img, region), "ru"
     return None, None

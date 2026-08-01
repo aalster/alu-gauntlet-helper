@@ -167,7 +167,9 @@ def read_name(img: np.ndarray, channel: str = "gray", lang: str = "eng") -> str:
 # нахилі читає їх ненадійно ("1"→нічого, "2"→"4"). Перед OCR розпрямляємо нахил
 # зсувом по x; одне значення зсуву крихке (різні цифри оптимальні за різного
 # нахилу), тож пробуємо кілька й голосуємо — як read_time голосує по каналах.
-DIGIT_SHEARS = (0.1, 0.2, 0.3)
+# 0.0 обов'язковий: деякі рендери "4" читаються ЛИШЕ без зсуву (будь-який
+# додатковий нахил дає порожнечу — див. tests/test_captures_regression.py).
+DIGIT_SHEARS = (0.0, 0.1, 0.2, 0.3)
 
 
 def read_bright_digit(img: np.ndarray, threshold: int = 150) -> int | None:
