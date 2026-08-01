@@ -9,12 +9,28 @@ from alu_gauntlet_helper.screen_recognition.regions import (
     RACE_RESULT_PLAYER_TIME,
 )
 from alu_gauntlet_helper.screen_recognition.screens.base import (
-    EN_HEADER_TRIMS, HEADER_DY_OFFSETS, ScreenExtractor, encode_png, read_race_header,
+    EN_HEADER_TRIMS, HEADER_DY_OFFSETS, ScreenExtractor, bright_fraction, dark_fraction,
+    encode_png, read_race_header,
 )
 
 # Кадр цілком (на відміну від панелі акордеона тут немає природного кропу),
 # зменшений удвічі — щоб не роздувати збережений PNG для рев'ю.
 REVIEW_IMAGE_SCALE = 0.5
+
+# Дешевий піксельний гейт (0 OCR) перед дорогим OCR-якорем. Калібровано на всіх
+# 48 фікстурах (у т.ч. lowres 1080p): у заголовку «RACE N WON/LOST!» частка
+# яскравого тексту на своїх скрінах ≥ 0.084 проти ≤ 0.011 на акордеоні та 0.000
+# на challenge_complete; плашка часу гравця темна ≥ 0.64 проти ≤ 0.07 на
+# акордеоні (там під цим регіоном яскравий фон сторінки). Пороги — приблизно
+# посередині, із щонайменше двократним запасом в обидва боки.
+_HEADER_BRIGHT_MIN = 0.04
+_TIME_DARK_MIN = 0.25
+
+
+def looks_like_race_result(img: np.ndarray) -> bool:
+    """Піксельна сигнатура екрана результату гонки — без жодного OCR."""
+    return (bright_fraction(RACE_RESULT_HEADER.crop(img)) >= _HEADER_BRIGHT_MIN
+            and dark_fraction(RACE_RESULT_PLAYER_TIME.crop(img)) >= _TIME_DARK_MIN)
 
 
 class RaceResultExtractor(ScreenExtractor):
@@ -49,6 +65,8 @@ class RaceResultExtractor(ScreenExtractor):
         return None, None
 
     def extract(self, img: np.ndarray) -> list[RaceCapture]:
+        if not looks_like_race_result(img):
+            return []
         race_number, language = self._race_number(img)
         if race_number is None:
             return []

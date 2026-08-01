@@ -7,8 +7,27 @@ from alu_gauntlet_helper.screen_recognition.regions import (
     COMPLETE_PLAYER_CAR, COMPLETE_PLAYER_TIME, COMPLETE_RACE_BADGE, COMPLETE_ROWS,
 )
 from alu_gauntlet_helper.screen_recognition.screens.base import (
-    HEADER_DY_OFFSETS, ScreenExtractor, encode_png, read_race_header,
+    HEADER_DY_OFFSETS, ScreenExtractor, bright_fraction, dark_fraction, encode_png,
+    read_race_header,
 )
+
+# Дешевий піксельний гейт (0 OCR) перед дорогим OCR-якорем. Калібровано на всіх
+# 48 фікстурах: на своєму екрані всі 5 рядків — темні панелі (частка темного
+# ≥ 0.687 проти ≤ 0.158 на акордеоні), і в бейджі КОЖНОГО рядка є яскравий
+# текст «RACE N» (частка яскравого ≥ 0.046 проти рівно 0.000 на before_race і
+# race_result). Пороги — із запасом у 1.5–3× в обидва боки.
+_ROW_DARK_MIN = 0.4
+_BADGE_BRIGHT_MIN = 0.015
+
+
+def looks_like_challenge_complete(img: np.ndarray) -> bool:
+    """Піксельна сигнатура підсумкового екрана: 5 темних рядків з бейджами."""
+    for row in COMPLETE_ROWS:
+        if dark_fraction(row.crop(img)) < _ROW_DARK_MIN:
+            return False
+        if bright_fraction(row.sub(COMPLETE_RACE_BADGE).crop(img)) < _BADGE_BRIGHT_MIN:
+            return False
+    return True
 
 
 class ChallengeCompleteExtractor(ScreenExtractor):
@@ -34,6 +53,8 @@ class ChallengeCompleteExtractor(ScreenExtractor):
         return None, 0.0, None
 
     def extract(self, img: np.ndarray) -> list[RaceCapture]:
+        if not looks_like_challenge_complete(img):
+            return []
         # Якір екрана: перший рядок читається як "RACE 1" / "ГОНКА 1".
         first_number, dy, language = self._badge_number(img, COMPLETE_ROWS[0])
         if first_number != 1:

@@ -189,11 +189,11 @@ class CaptureController(QObject):
         # словники будуються на кожне захоплення — завжди свіжі дані з БД
         track_resolver = TrackResolver(APP_CONTEXT.tracks_service.get_all_views())
         car_matcher = build_car_matcher(APP_CONTEXT.cars_service.get_all())
-        # Порядок — за ціною перевірки-якоря на чужому екрані: race_result і
-        # challenge_complete відсіюються за 1-3 OCR-виклики, before_race — за 1-2
-        # (частки білого без OCR + одна цифра). Акордеон спершу пробує геометричний
-        # гейт (C6, 0 OCR); на «своєму» екрані це ~9 викликів, інакше падає в
-        # дорогий OCR-пошук (англ. before-екран) — тож лишається останнім.
+        # Кожен екстрактор має дешевий піксельний гейт (0 OCR), що відсікає явно
+        # чужі екрани до будь-якого OCR (див. docs/optimizing-recognition-speed.md,
+        # «Піксельні гейти екранів»). Порядок — за залишковою ціною відмови на
+        # кадрі, що проскочив гейт: race_result/challenge_complete дешеві,
+        # акордеон із запасним OCR-пошуком найдорожчий — лишається останнім.
         return RecognitionEngine([
             RaceResultExtractor(car_matcher),
             ChallengeCompleteExtractor(car_matcher),

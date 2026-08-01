@@ -100,6 +100,21 @@ def read_race_header(img: np.ndarray, region: RelRect,
     return None, None
 
 
+def bright_fraction(roi: np.ndarray, threshold: int = 200) -> float:
+    """Частка яскравих пікселів по max-каналу — ловить і білий, і кольоровий
+    (напр. червоний «LOST!») текст. Для дешевих піксельних гейтів (0 OCR)."""
+    if roi.size == 0:
+        return 0.0
+    return float((roi.max(axis=2) > threshold).mean())
+
+
+def dark_fraction(roi: np.ndarray, threshold: int = 70) -> float:
+    """Частка темних пікселів (сірий < threshold) — «темна плашка під текстом»."""
+    if roi.size == 0:
+        return 0.0
+    return float((cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY) < threshold).mean())
+
+
 def encode_png(img: np.ndarray) -> bytes | None:
     ok, buffer = cv2.imencode(".png", img)
     return buffer.tobytes() if ok else None

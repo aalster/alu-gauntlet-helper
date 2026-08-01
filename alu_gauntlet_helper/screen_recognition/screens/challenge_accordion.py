@@ -13,7 +13,9 @@ from alu_gauntlet_helper.screen_recognition.regions import (
 from alu_gauntlet_helper.screen_recognition.screens.base import (
     HEADER_DY_OFFSETS, ScreenExtractor, encode_png, read_race_header,
 )
-from alu_gauntlet_helper.screen_recognition.screens.expanded_panel import detect_expanded_panel
+from alu_gauntlet_helper.screen_recognition.screens.expanded_panel import (
+    band_segments, find_expanded, has_accordion_columns,
+)
 
 # Канали препроцесу для назви треку (як у before_race): карта блакитна, трек
 # білий — різні канали ловлять їх по-різному, беремо найкращий resolve.
@@ -43,18 +45,24 @@ class ChallengeAccordionExtractor(ScreenExtractor):
     def _find_expanded(self, img: np.ndarray):
         """Шукає розгорнуту панель → (race_number, panel, language) або None.
 
-        C6: спершу геометричний пошук (detect_expanded_panel) — 0 OCR-викликів на
-        панель і номер. Якщо вдалося, мову визначаємо ОДНИМ читанням бейджа (B2:
-        латинське "RACE" → en, інакше ru), а panel беремо з відкаліброваної сітки
-        ACCORDION_AFTER_PANELS за номером. Якщо геометрія не спрацювала (напр.
-        англ. before-екран з іншим тлом) — падаємо у повний OCR-пошук нижче."""
-        geom = detect_expanded_panel(img)
+        C6: спершу геометричний пошук (find_expanded по сегментах смуги) — 0
+        OCR-викликів на панель і номер; покриває обидва варіанти екрана й обидві
+        мови. Якщо вдалося, мову визначаємо ОДНИМ читанням бейджа (B2: латинське
+        "RACE" → en, інакше ru), а panel беремо з відкаліброваної сітки
+        ACCORDION_AFTER_PANELS за номером. Якщо геометрія не спрацювала —
+        запасний OCR-пошук, але лише коли смуга взагалі схожа на акордеон
+        (has_accordion_columns, 0 OCR): на чужих екранах пошук коштував би
+        ~45–100 марних викликів."""
+        segments = band_segments(img)
+        geom = find_expanded(segments)
         if geom is not None:
             race_number = geom[2]
             panel = ACCORDION_AFTER_PANELS[race_number - 1]
             text = ocr.read_text(panel.sub(ACCORDION_HEADER).crop(img), "RACE12345")
             language = "en" if _RACE_WORD_RE.search(text) else "ru"
             return race_number, panel, language
+        if not has_accordion_columns(segments):
+            return None
         return self._find_expanded_by_ocr(img)
 
     def _find_expanded_by_ocr(self, img: np.ndarray):

@@ -5,8 +5,9 @@ from alu_gauntlet_helper.models import FieldGuess, RaceCapture
 from alu_gauntlet_helper.screen_recognition import ocr
 from alu_gauntlet_helper.screen_recognition.matching import TrackResolver, VocabularyMatcher
 from alu_gauntlet_helper.screen_recognition.regions import (
-    BEFORE_RACE_MIN_WHITE_FRAC, BEFORE_RACE_PLAYER_CAR, BEFORE_RACE_PLAYER_RANK,
-    BEFORE_RACE_SLOTS, BEFORE_RACE_TRACK, BEFORE_RACE_WHITE_THRESHOLD,
+    BEFORE_RACE_MAX_WHITE_FRAC, BEFORE_RACE_MIN_WHITE_FRAC, BEFORE_RACE_PLAYER_CAR,
+    BEFORE_RACE_PLAYER_RANK, BEFORE_RACE_SLOTS, BEFORE_RACE_TRACK,
+    BEFORE_RACE_WHITE_THRESHOLD,
 )
 from alu_gauntlet_helper.screen_recognition.screens.base import ScreenExtractor, encode_png
 
@@ -52,7 +53,11 @@ class BeforeRaceExtractor(ScreenExtractor):
 
         Перебираємо слоти від найбілішого: стороннє яскраве тло, що випадково
         перебило поточну цифру за яскравістю, не пройде перевірку цифри й
-        пропускається на користь справжнього номера."""
+        пропускається на користь справжнього номера.
+
+        Слоти, залиті білим понад BEFORE_RACE_MAX_WHITE_FRAC, пропускаємо ще до
+        OCR — це дешевий гейт екрана: на чужих екранах (акордеон/результат) усі
+        5 слотів яскраві на ~0.4, і раніше кожен коштував 4 марні OCR-проби."""
         scored = sorted(
             ((self._white_fraction(slot.crop(img)), i, slot) for i, slot in enumerate(BEFORE_RACE_SLOTS)),
             key=lambda t: t[0], reverse=True,
@@ -60,6 +65,8 @@ class BeforeRaceExtractor(ScreenExtractor):
         for frac, i, slot in scored:
             if frac < BEFORE_RACE_MIN_WHITE_FRAC:
                 break
+            if frac > BEFORE_RACE_MAX_WHITE_FRAC:
+                continue
             if ocr.read_bright_digit(slot.crop(img)) == i + 1:
                 return i + 1
         return None
