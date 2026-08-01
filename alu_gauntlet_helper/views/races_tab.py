@@ -1,18 +1,18 @@
 # gui/maps_tab.py
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QObject, QEvent
 from PyQt6.QtGui import QIntValidator, QFont, QIcon
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLineEdit, QListWidgetItem, QHBoxLayout, \
-    QLabel, QTextEdit, QFormLayout
+    QLabel, QTextEdit, QFormLayout, QComboBox, QToolTip
 
 from alu_gauntlet_helper import game_lang, ui_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
-from alu_gauntlet_helper.services.races import RaceView
+from alu_gauntlet_helper.services.races import RaceView, RaceAggregate
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.services.tracks import TrackView
 from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time, format_relative_time, \
     get_resource_path
 from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, res_to_pixmap, hbox, \
-    ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge, CarInfoWidget, TrackInfoWidget, \
+    vbox, ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge, CarInfoWidget, TrackInfoWidget, \
     preserved_scroll, edit_icon_button
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
@@ -144,10 +144,13 @@ class RaceListWidget(ListItemWidget):
             self.info_label.setToolTip(race.note)
 
         self.layout = QHBoxLayout(self)
-        # half the default vertical padding to keep race rows compact
+        # half the default vertical padding to keep race rows compact;
+        # -4 зліва компенсує внутрішній відступ TrackInfoWidget
         margins = self.layout.contentsMargins()
-        self.layout.setContentsMargins(margins.left(), margins.top() // 2, margins.right(), margins.bottom() // 2)
-        self.layout.addWidget(self.track_info, stretch=20)
+        self.layout.setContentsMargins(margins.left() - 4, margins.top() // 2, margins.right(), margins.bottom() // 2)
+        # AlignVCenter: без нього віджет розтягується на всю висоту рядка і затемнення
+        # при наведенні прилипає до верхнього/нижнього країв
+        self.layout.addWidget(self.track_info, stretch=20, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.layout.addWidget(self.car_info, stretch=24)
         self.layout.addWidget(self.time_label, stretch=14)
         self.layout.addLayout(hbox([self.bad_timing_label, self.info_label], spacing=0), stretch=8)
@@ -155,6 +158,173 @@ class RaceListWidget(ListItemWidget):
         if on_edit:
             self.layout.addWidget(edit_icon_button(lambda: on_edit(race)))
         self.setLayout(self.layout)
+
+def _races_table_html(races: list, car_rank: int) -> str:
+    if not races:
+        return ""
+    header_cell = f"padding: 2px 16px 4px 0; color: {style.TEXT_MUTED}; font-size: 11px;"
+    header_last_cell = f"padding: 2px 0 4px 0; color: {style.TEXT_MUTED}; font-size: 11px;"
+    rows = [
+        f"<tr><td style='{header_cell}'>{ui_lang.t('field.time')}</td>"
+        f"<td align='right' style='{header_cell}'>{ui_lang.t('field.rank')}</td>"
+        f"<td style='{header_last_cell}'>{ui_lang.t('field.date')}</td></tr>"
+    ]
+    for r in races:
+        rank_color = style.TEXT
+        if r.rank and car_rank:
+            if car_rank > r.rank:
+                rank_color = style.RANK_UP
+            elif car_rank < r.rank:
+                rank_color = style.RANK_DOWN
+        rank_text = f"{r.rank:,}" if r.rank else "—"
+        # відступ між колонками — padding-right комірки (cellspacing розтягнув би й вертикаль)
+        cell = "padding: 2px 16px 2px 0;"
+        last_cell = "padding: 2px 0;"
+        # nbsp: тултип загортає текст по ширині — відносна дата має лишатись одним рядком
+        relative_date = format_relative_time(r.created_at).replace(" ", "&nbsp;")
+        rows.append(
+            f"<tr><td style='{cell}'><b>{format_time(r.time)}</b></td>"
+            f"<td align='right' style='{cell} color: {rank_color};'>{rank_text}</td>"
+            f"<td style='{last_cell} color: {style.TEXT_MUTED};'>{relative_date}</td></tr>")
+    return f"<table cellspacing='0' cellpadding='0'>{''.join(rows)}</table>"
+
+
+_METRIC_DESC_KEYS = {
+    "recent": "races.desc_recent",
+    "best": "races.desc_best",
+    "ok": "races.desc_avg_ok",
+    "fail": "races.desc_avg_fail",
+}
+
+
+def _metric_races(agg: RaceAggregate, kind: str) -> tuple[list, int]:
+    """10 заїздів показника (найкращі — для best, інакше останні) та загальна
+    кількість заїздів у його агрегації."""
+    svc = APP_CONTEXT.races_service
+    if kind == "recent":
+        return svc.get_recent_clean_races(agg.track_id, agg.car_id), agg.recent_count
+    if kind == "best":
+        return svc.get_best_races_for_car_on_track(agg.track_id, agg.car_id), agg.timed_count
+    if kind == "ok":
+        return svc.get_recent_races_for_car_on_track(agg.track_id, agg.car_id, bad_timing=False), agg.ok_count
+    return svc.get_recent_races_for_car_on_track(agg.track_id, agg.car_id, bad_timing=True), agg.fail_count
+
+
+def _metric_tooltip_html(agg: RaceAggregate, kind: str) -> str:
+    races, count = _metric_races(agg, kind)
+    table = _races_table_html(races, agg.car_rank)
+    margin_top = " margin-top: 8px;" if table else ""
+    # {n} є лише в описі recent-показника; для решти format нічого не міняє.
+    # У recent кількість вже в описі, тож окремий рядок «Всього заїздів» зайвий.
+    lines = [ui_lang.t(_METRIC_DESC_KEYS[kind]).format(n=count)]
+    if kind != "recent":
+        lines.append(ui_lang.t("races.metric_races_n").format(n=count))
+    footer = (f"<p style='color: {style.TEXT_MUTED}; font-size: 11px; margin: 0;{margin_top}'>"
+              f"{'<br>'.join(lines)}</p>")
+    return table + footer
+
+
+class _LazyMetricTooltip(QObject):
+    """Тултип показника будується ліниво — запит у БД лише при наведенні,
+    результат кешується у властивості віджета до перебудови списку."""
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.ToolTip:
+            html = obj.property("_metric_html")
+            if html is None:
+                html = _metric_tooltip_html(obj.property("_metric_agg"), obj.property("_metric_kind"))
+                obj.setProperty("_metric_html", html)
+            QToolTip.showText(event.globalPos(), html, obj)
+            return True
+        return False
+
+
+# спільний фільтр на всі картки: стан тримається у властивостях віджета
+_METRIC_TOOLTIP = _LazyMetricTooltip()
+
+
+def _install_metric_tooltip(widget: QWidget, agg: RaceAggregate, kind: str):
+    widget.setProperty("_metric_agg", agg)
+    widget.setProperty("_metric_kind", kind)
+    widget.installEventFilter(_METRIC_TOOLTIP)
+
+
+class RaceAggregateWidget(ListItemWidget):
+    """Картка пари трек+авто в режимі агрегації: середнє за останні заїзди (головне)
+    та таблиця показників — найкращий час, загальне середнє успішних, середнє невдалих."""
+
+    def __init__(self, agg: RaceAggregate, parent=None):
+        super().__init__(agg, parent)
+        self.track_info = TrackInfoWidget(agg.map_icon, agg.track_icon,
+                                          agg.display_map_name, agg.display_track_name)
+        badge = RankClassBadge(agg.car_rank, agg.car_max_rank, agg.car_class)
+        self.car_info = CarInfoWidget(agg.car_icon, agg.car_brand, agg.car_model, badge)
+
+        stats_rows = [
+            self._stat_row(agg, "best", ui_lang.t("races.row_best"), format_time(agg.best_time)),
+            self._stat_row(agg, "ok", ui_lang.t("races.row_avg_ok"), format_time(agg.avg_time)),
+            self._stat_row(agg, "fail", f"{ui_lang.t('races.row_avg_fail')} ({agg.dislike_pct}%)",
+                           format_time(agg.avg_fail)),
+        ]
+        stats_table = QWidget()
+        stats_table.setLayout(vbox(stats_rows, spacing=2))
+
+        self.layout = QHBoxLayout(self)
+        # -4 зліва компенсує внутрішній відступ TrackInfoWidget
+        margins = self.layout.contentsMargins()
+        self.layout.setContentsMargins(margins.left() - 4, margins.top() // 2, margins.right(), margins.bottom() // 2)
+        # AlignVCenter: без нього віджет розтягується на всю висоту рядка і затемнення
+        # при наведенні прилипає до верхнього/нижнього країв
+        self.layout.addWidget(self.track_info, stretch=20, alignment=Qt.AlignmentFlag.AlignVCenter)
+        self.layout.addWidget(self.car_info, stretch=24)
+        self.layout.addWidget(self._main_stat(agg), stretch=14)
+        self.layout.addWidget(stats_table, stretch=20)
+        self.setLayout(self.layout)
+
+    def _main_stat(self, agg: RaceAggregate) -> QWidget:
+        value_label = QLabel(format_time(agg.avg_recent) or "—")
+        value_label.setObjectName("rowTimeLabel")
+        value_font = QFont()
+        value_font.setBold(True)
+        value_font.setPointSize(self.font().pointSize() + 4)
+        value_label.setFont(value_font)
+        value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        caption_label = QLabel(ui_lang.t("races.avg_over_n").format(n=agg.recent_count))
+        caption_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 11px;")
+        caption_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        column = QWidget()
+        # plain QWidget ігнорує QSS-фон без цього атрибута (затемнення при наведенні)
+        column.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        column.setObjectName("aggMainStat")
+        column.setLayout(vbox([value_label, caption_label], spacing=2))
+        _install_metric_tooltip(column, agg, "recent")
+        return column
+
+    @staticmethod
+    def _stat_row(agg: RaceAggregate, kind: str, caption: str, value: str) -> QWidget:
+        caption_label = QLabel(caption)
+        caption_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 11px;")
+
+        value_label = QLabel(value or "—")
+        value_font = QFont()
+        value_font.setBold(True)
+        value_label.setFont(value_font)
+        value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        row = QWidget()
+        # plain QWidget ігнорує QSS-фон без цього атрибута (затемнення при наведенні)
+        row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        row.setObjectName("aggStatRow")
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(4, 0, 4, 0)
+        row_layout.setSpacing(8)
+        row_layout.addWidget(caption_label, stretch=1)
+        row_layout.addWidget(value_label)
+        _install_metric_tooltip(row, agg, kind)
+        return row
+
 
 class RacesTab(QWidget):
     def __init__(self):
@@ -174,6 +344,20 @@ class RacesTab(QWidget):
         self.car_query.setPlaceholderText(ui_lang.t("field.car"))
         self.car_debounce = InputDebounce(self.car_query, on_change=self.on_search)
 
+        self.sort_combo = QComboBox()
+        self._sort_icon = QIcon(get_resource_path("icons/sort.svg"))
+        self.sort_combo.setToolTip(ui_lang.t("cars.sort_order"))
+        self.sort_combo.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._set_sort_items(aggregated=False)
+        self.sort_combo.currentIndexChanged.connect(self.on_search) # type: ignore
+
+        self.aggregate_button = QPushButton(ui_lang.t("races.aggregate"))
+        self.aggregate_button.setObjectName("secondary")
+        self.aggregate_button.setCheckable(True)
+        self.aggregate_button.setToolTip(ui_lang.t("races.aggregate_hint"))
+        self.aggregate_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.aggregate_button.toggled.connect(self.on_aggregate_toggled) # type: ignore
+
         self.add_button = QPushButton(ui_lang.t("common.add"))
         self.add_button.clicked.connect(self.on_add) # type: ignore
 
@@ -186,6 +370,9 @@ class RacesTab(QWidget):
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.track_query)
         top_layout.addWidget(self.car_query)
+        top_layout.addWidget(self.sort_combo)
+        top_layout.addWidget(self.aggregate_button)
+        top_layout.addSpacing(16)
         top_layout.addWidget(self.add_button)
 
         layout = QVBoxLayout()
@@ -217,9 +404,16 @@ class RacesTab(QWidget):
         car_query = self.car_query.text().strip()
         with preserved_scroll(self.list_widget):
             self.list_widget.clear()
-            for i in APP_CONTEXT.races_service.get_all(track_query, car_query):
-                RaceListWidget(i, on_edit=self.on_edit).add_to_list(self.list_widget)
-        total = APP_CONTEXT.races_service.count(track_query, car_query)
+            # в обох режимах другий пункт комбобокса — «найкращий час»
+            by_best_time = self.sort_combo.currentIndex() == 1
+            if self.aggregate_button.isChecked():
+                for a in APP_CONTEXT.races_service.get_aggregates(track_query, car_query, by_best_time):
+                    RaceAggregateWidget(a).add_to_list(self.list_widget)
+                total = APP_CONTEXT.races_service.count_aggregates(track_query, car_query)
+            else:
+                for i in APP_CONTEXT.races_service.get_all(track_query, car_query, by_best_time):
+                    RaceListWidget(i, on_edit=self.on_edit).add_to_list(self.list_widget)
+                total = APP_CONTEXT.races_service.count(track_query, car_query)
         shown = min(total, APP_CONTEXT.races_service.list_limit)
         self.count_label.setText(ui_lang.t("common.shown_count").format(shown=shown, total=total))
         self._dirty = False
@@ -227,6 +421,20 @@ class RacesTab(QWidget):
     def on_search(self):
         self._rebuild()  # фільтр змінився — перебудова обов'язкова
         self.list_widget.scrollToTop()  # результати з початку
+
+    def _set_sort_items(self, aggregated: bool):
+        first = ui_lang.t("races.sort_avg") if aggregated else ui_lang.t("races.sort_latest")
+        self.sort_combo.clear()
+        self.sort_combo.addItem(self._sort_icon, first)
+        self.sort_combo.addItem(self._sort_icon, ui_lang.t("races.sort_best"))
+
+    def on_aggregate_toggled(self, checked: bool):
+        # перемикання режиму скидає сортування на дефолтне; сигнали глушимо,
+        # щоб clear/addItem не викликали зайвих перебудов — on_search зробить одну
+        self.sort_combo.blockSignals(True)
+        self._set_sort_items(aggregated=checked)
+        self.sort_combo.blockSignals(False)
+        self.on_search()
 
     def on_add(self):
         if RaceDialog(item=RaceView(), action=APP_CONTEXT.races_service.save, parent=self).exec():

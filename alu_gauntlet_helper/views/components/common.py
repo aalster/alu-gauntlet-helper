@@ -209,6 +209,11 @@ class TrackInfoWidget(QWidget):
 
     def __init__(self, map_icon: str, track_icon: str, map_name: str, track_name: str, parent=None):
         super().__init__(parent)
+        # plain QWidget ігнорує QSS-фон без цього атрибута (затемнення при наведенні);
+        # порожній елемент (трек не вказано, capture-драфти) не підсвічуємо
+        if track_name:
+            self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            self.setObjectName("trackInfo")
 
         self.icon_label = QLabel()
         self.icon_label.setObjectName("rowMapIcon")
@@ -218,9 +223,9 @@ class TrackInfoWidget(QWidget):
             pixmap = load_pixmap_cover(map_icon, w=self.icon_label.width(), h=self.icon_label.height())
             if pixmap:
                 self.icon_label.setPixmap(pixmap)
-        # наведення на іконку карти показує іконку траси у тултипі
+        # наведення на будь-яку частину елемента (іконку, назви) показує маршрут у тултипі
         if track_icon:
-            set_lazy_image_tooltip(self.icon_label, track_icon)
+            set_lazy_image_tooltip(self, track_icon)
 
         self.map_label = QLabel(map_name)
         self.map_label.setObjectName("rowMapLabel")
@@ -231,7 +236,8 @@ class TrackInfoWidget(QWidget):
         self.track_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        # відступи, щоб іконка не прилипала до краю затемнення при наведенні
+        layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(10)
         layout.addWidget(self.icon_label)
         layout.addLayout(vbox([self.map_label, self.track_label], spacing=0), stretch=1)

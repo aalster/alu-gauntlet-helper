@@ -78,7 +78,9 @@ class CaptureRaceRow(ListItemWidget):
         margins = self.layout.contentsMargins()
         self.layout.setContentsMargins(margins.left(), margins.top() // 2, margins.right(), margins.bottom() // 2)
         self.layout.addWidget(self.checkbox, stretch=4)
-        self.layout.addWidget(self.track_info, stretch=18)
+        # AlignVCenter: без нього віджет розтягується на всю висоту рядка і затемнення
+        # при наведенні прилипає до верхнього/нижнього країв
+        self.layout.addWidget(self.track_info, stretch=18, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.layout.addWidget(self.car_info, stretch=24)
         self.layout.addWidget(self.time_label, stretch=10)
         self.layout.addLayout(hbox([self.bad_timing_label, self.note_label], spacing=0), stretch=6)

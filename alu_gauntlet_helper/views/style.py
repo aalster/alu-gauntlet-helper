@@ -62,6 +62,22 @@ QLabel#rowTimeLabel {{
     color: {TIME_YELLOW};
 }}
 
+QWidget#aggMainStat {{
+    border-radius: 6px;
+}}
+
+QWidget#aggStatRow {{
+    border-radius: 4px;
+}}
+
+QWidget#trackInfo {{
+    border-radius: 6px;
+}}
+
+QWidget#aggMainStat:hover, QWidget#aggStatRow:hover, QWidget#trackInfo:hover {{
+    background-color: rgba(10, 16, 36, 140);
+}}
+
 QLabel#captureStatus {{
     color: {TEXT_MUTED};
 }}
@@ -423,7 +439,7 @@ QToolTip {{
     background-color: {INPUT_BG};
     color: {TEXT};
     border: 1px solid {CYAN};
-    padding: 4px 8px;
+    padding: 4px;
 }}
 
 QMenu {{
