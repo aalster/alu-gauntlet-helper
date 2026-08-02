@@ -22,6 +22,10 @@ class RaceCapture(BaseModel):
     car: FieldGuess | None = None
     rank: int | None = None
     time: int | None = None  # мс, як Race.time
+    # Дані суперника з BEFORE-варіанта акордеона — НЕЗАЛЕЖНА група полів:
+    # ніколи не мержиться з полями гравця (car/rank/time) і навпаки.
+    opponent_time: int | None = None  # мс, "TIME TO BEAT"
+    opponent_car: FieldGuess | None = None
     source_screen: str = ""
     panel_image: bytes | None = None  # PNG-кроп панелі-джерела для рев'ю
     game_language: str | None = None  # "en"/"ru" — мова, визначена з якоря екрана

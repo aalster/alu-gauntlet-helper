@@ -220,6 +220,7 @@ class OverlayWindow(QWidget):
     capture_requested = pyqtSignal()  # клік Capture на оверлеї
     close_requested = pyqtSignal()    # клік ✕ на оверлеї
     dislike_toggled = pyqtSignal(int)  # клік 👎 у рядку гонки (номер гонки)
+    visibility_changed = pyqtSignal(bool)  # show/hide вікна — стан тогл-кнопки «Оверлей»
 
     def __init__(self):
         super().__init__(None, Qt.WindowType.FramelessWindowHint
@@ -420,6 +421,14 @@ class OverlayWindow(QWidget):
     def set_save_enabled(self, enabled: bool):
         """Віддзеркалює стан кнопки Save застосунку (нема що зберігати → сіра)."""
         self.save_button.setEnabled(enabled)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.visibility_changed.emit(True)
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.visibility_changed.emit(False)
 
     def resizeEvent(self, e):
         # будь-яка зміна розміру (контент, поява кнопок у Ctrl+Alt) не повинна

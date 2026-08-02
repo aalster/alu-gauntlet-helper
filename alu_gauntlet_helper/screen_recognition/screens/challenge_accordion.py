@@ -7,6 +7,7 @@ from alu_gauntlet_helper.screen_recognition import ocr
 from alu_gauntlet_helper.screen_recognition.matching import TrackResolver, VocabularyMatcher
 from alu_gauntlet_helper.screen_recognition.regions import (
     ACCORDION_AFTER_PANELS, ACCORDION_BEFORE_PANELS, ACCORDION_HEADER,
+    ACCORDION_OPPONENT_CAR, ACCORDION_OPPONENT_TIME,
     AFTER_PLAYER_CAR, AFTER_PLAYER_RANK, AFTER_PLAYER_TIME, AFTER_TRACK_NAME,
     BEFORE_TRACK_NAME,
 )
@@ -29,11 +30,12 @@ class ChallengeAccordionExtractor(ScreenExtractor):
 
     Два варіанти екрана:
       BEFORE (гонку ще не їхали) — зліва авто СУПЕРНИКА і його "TIME TO BEAT";
-        даних гравця немає, тож повертаємо лише номер гонки і трек.
-        Дані суперника НЕ зберігаємо — інакше вони помилково записувались
-        як результат гравця (саме це був баг).
+        даних гравця немає, тож повертаємо номер гонки, трек і дані суперника
+        в ОКРЕМИХ полях opponent_*.
       AFTER (гонку вже їхали) — справа авто ГРАВЦЯ, його ранг і "YOUR TIME";
-        повертаємо номер гонки, трек і дані гравця з правого боку.
+        повертаємо номер гонки, трек і дані гравця з правого боку, а також
+        дані суперника в opponent_* (вони НІКОЛИ не потрапляють у поля
+        гравця — саме плутанина боків раніше була багом).
     """
 
     name = "challenge_accordion"
@@ -122,6 +124,12 @@ class ChallengeAccordionExtractor(ScreenExtractor):
             return []
         race_number, panel, language = found
 
+        # Лівий бік — суперник (є в обох варіантах): авто + "TIME TO BEAT".
+        # Йдуть у ВИДІЛЕНІ поля opponent_* і ніколи — у поля гравця.
+        opponent_time = ocr.read_time(panel.sub(ACCORDION_OPPONENT_TIME).crop(img))
+        opponent_car = self.car_matcher.match(
+            ocr.read_name(panel.sub(ACCORDION_OPPONENT_CAR).crop(img)))
+
         # Варіант визначаємо за ВМІСТОМ, а не за списком, у якому знайшли панель
         # (див. _find_expanded для зауваження щодо розбіжності сіток у майбутньому).
         # AFTER підтверджує час "YOUR TIME" праворуч знизу або розпізнане авто гравця.
@@ -131,10 +139,12 @@ class ChallengeAccordionExtractor(ScreenExtractor):
         player_car = self.car_matcher.match(player_car_text)
 
         if player_time is None and player_car is None:
-            # BEFORE: лише номер гонки і трек; дані суперника не чіпаємо.
+            # BEFORE: номер гонки, трек і дані суперника в opponent_*.
             return [RaceCapture(
                 race_number=race_number,
                 track=self._resolve_track(panel.sub(BEFORE_TRACK_NAME).crop(img), language),
+                opponent_time=opponent_time,
+                opponent_car=opponent_car,
                 source_screen=self.name,
                 panel_image=encode_png(panel.crop(img)),
                 game_language=language,
@@ -146,6 +156,8 @@ class ChallengeAccordionExtractor(ScreenExtractor):
             car=player_car,
             rank=ocr.read_rank(panel.sub(AFTER_PLAYER_RANK).crop(img)),
             time=player_time,
+            opponent_time=opponent_time,
+            opponent_car=opponent_car,
             source_screen=self.name,
             panel_image=encode_png(panel.crop(img)),
             game_language=language,

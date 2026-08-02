@@ -59,8 +59,8 @@ class CaptureController(QObject):
         self.overlay.close_requested.connect(self.overlay.hide)
         self.overlay.capture_requested.connect(self.capture_now)
         # 👎 у рядку таблиці — фліп bad_timing у сесії; listener сам оновить оверлей
-        self.overlay.dislike_toggled.connect(APP_CONTEXT.challenge_session.toggle_bad_timing)
-        APP_CONTEXT.challenge_session.add_listener(self._refresh_overlay)
+        self.overlay.dislike_toggled.connect(self._toggle_bad_timing)
+        APP_CONTEXT.session_manager.add_listener(self._refresh_overlay)
 
     def apply_settings(self) -> bool:
         """(Пере)реєструє хоткеї та tesseract зі збережених налаштувань. False — хоткей не став."""
@@ -81,7 +81,7 @@ class CaptureController(QObject):
         return ok
 
     def shutdown(self):
-        APP_CONTEXT.challenge_session.remove_listener(self._refresh_overlay)
+        APP_CONTEXT.session_manager.remove_listener(self._refresh_overlay)
         self.hotkeys.unregister_all()
         self._queue.put(None)  # sentinel — зупиняє воркер
 
@@ -182,6 +182,8 @@ class CaptureController(QObject):
                 return True
             if c.car and c.car.score < LOW_CONFIDENCE:
                 return True
+            if c.opponent_car and c.opponent_car.score < LOW_CONFIDENCE:
+                return True
         return False
 
     @staticmethod
@@ -213,7 +215,12 @@ class CaptureController(QObject):
         self._status = ""
         if result.game_language:
             self._apply_game_language(result.game_language)
-        APP_CONTEXT.challenge_session.apply(result)  # listener оновить оверлей
+        APP_CONTEXT.session_manager.apply(result)  # listener оновить оверлей
+
+    @staticmethod
+    def _toggle_bad_timing(race_number: int):
+        # 👎 з оверлея завжди стосується активної сесії
+        APP_CONTEXT.session_manager.active.toggle_bad_timing(race_number)
 
     @staticmethod
     def _apply_game_language(language: str):
@@ -284,7 +291,7 @@ class CaptureController(QObject):
         # show=True лише у явних випадках (ручне відкриття чи старт розпізнавання);
         # як listener сесії викликається без аргументів — редагування/clear оверлей
         # не показують, лише оновлюють його вміст, якщо він уже видимий
-        session = APP_CONTEXT.challenge_session
+        session = APP_CONTEXT.session_manager.active
         effective = {n: e for n in range(1, RACE_COUNT + 1) if (e := session.effective(n)) is not None}
         track_ids = {e.track_id for e in effective.values() if e.track_id}
         car_ids = {e.car_id for e in effective.values() if e.car_id}

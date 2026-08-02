@@ -248,3 +248,191 @@ def test_effective_is_empty_property():
     assert not EffectiveRace(time=20000).is_empty
     assert not EffectiveRace(note="crash").is_empty
     assert not EffectiveRace(bad_timing=True).is_empty
+
+
+# --- дані суперника (opponent_time / opponent_car) -----------------------
+
+
+def opp_capture(n, opp_time=None, opp_car_score=None, **kw):
+    c = capture(n, **kw)
+    c.opponent_time = opp_time
+    if opp_car_score is not None:
+        c.opponent_car = FieldGuess(value=30 + n, score=opp_car_score)
+    return c
+
+
+def test_opponent_fields_default_none():
+    c = capture(1)
+    assert c.opponent_time is None and c.opponent_car is None
+
+
+def test_merge_opponent_fields_independent_of_mine():
+    # BEFORE-скан (суперник) і мій результат чергуються — не затирають одне одного
+    s = ChallengeSessionService()
+    s.apply(result(opp_capture(1, opp_time=19152, opp_car_score=0.9)))
+    s.apply(result(capture(1, car_score=0.9, rank=4795, time=19130)))
+    r = s.races[1]
+    assert r.opponent_time == 19152 and r.opponent_car.value == 31
+    assert r.time == 19130 and r.car.value == 21
+
+
+def test_merge_opponent_car_by_score():
+    s = ChallengeSessionService()
+    s.apply(result(opp_capture(1, opp_car_score=0.9)))
+    low = opp_capture(1)
+    low.opponent_car = FieldGuess(value=99, score=0.5)
+    s.apply(result(low))
+    assert s.races[1].opponent_car.value == 31  # впевненіше лишилось
+
+
+def test_effective_exposes_opponent_fields():
+    s = ChallengeSessionService()
+    s.apply(result(opp_capture(2, opp_time=26591, opp_car_score=0.9, track_score=0.9)))
+    e = s.effective(2)
+    assert e.opponent_time == 26591
+    assert e.opponent_car_id == 32
+
+
+def test_effective_not_none_for_opponent_only_capture():
+    # скан дав лише час суперника (без треку) — картка має бути видимою
+    s = ChallengeSessionService()
+    s.apply(result(opp_capture(3, opp_time=30000)))
+    assert s.effective(3) is not None
+    assert s.effective(3).opponent_time == 30000
+
+
+# --- вибір авто (draft.car_id) / одноразовість сесії ------------------------
+
+
+def assigned_car(s, n):
+    e = s.effective(n)
+    return e.car_id if e else 0
+
+
+def test_set_assigned_one_car_one_race():
+    s = ChallengeSessionService()
+    s.set_assigned(1, 501)
+    s.set_assigned(2, 502)
+    s.set_assigned(3, 501)  # перевибір: авто 501 переїжджає з гонки 1 на 3
+    assert assigned_car(s, 1) == 0
+    assert assigned_car(s, 2) == 502
+    assert assigned_car(s, 3) == 501
+    assert s.pinned_races == {2, 3}
+
+
+def test_set_assigned_none_unassigns():
+    s = ChallengeSessionService()
+    s.set_assigned(1, 501)
+    s.set_assigned(1, None)
+    assert assigned_car(s, 1) == 0 and s.pinned_races == set()
+
+
+def test_set_assigned_does_not_steal_from_driven_race():
+    # фактично проїхане авто (є мій час) не знімається перевибором на іншу гонку
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, car_score=0.9, time=20000)))  # факт: авто 21
+    s.set_assigned(2, 21)
+    assert assigned_car(s, 1) == 21  # зіграна гонка недоторкана
+    assert assigned_car(s, 2) == 21  # вибір записано (гра не дасть, але UI блокує раніше)
+
+
+def test_set_assignments_keeps_pins_and_driven():
+    s = ChallengeSessionService()
+    s.set_assigned(2, 502)                      # ручний пін
+    s.set_assigned(4, 504, pinned=False)        # авто-призначення
+    s.apply(result(capture(5, car_score=0.9, time=20000)))  # зіграна: факт 25
+    s.set_assignments({1: 501, 2: 999, 3: 503, 5: 888})  # автопідбір
+    assert assigned_car(s, 1) == 501
+    assert assigned_car(s, 2) == 502  # пін не перезаписано
+    assert assigned_car(s, 3) == 503
+    assert assigned_car(s, 4) == 0    # авто-призначення без нового — знято
+    assert assigned_car(s, 5) == 25   # зіграна — фактичне авто, не 888
+    assert s.pinned_races == {2}
+
+
+def test_clear_pins():
+    s = ChallengeSessionService()
+    s.set_assigned(2, 502)
+    s.clear_pins()
+    assert s.pinned_races == set()
+    assert assigned_car(s, 2) == 502  # вибір лишився, лише статус піна знято
+
+
+def test_assignment_notifies_listeners():
+    s = ChallengeSessionService()
+    events = []
+    s.add_listener(lambda: events.append(1))
+    s.set_assigned(1, 501)
+    s.set_assignments({2: 502})
+    assert len(events) == 2
+
+
+def test_clear_resets_assignments():
+    s = ChallengeSessionService()
+    s.set_assigned(1, 501)
+    s.clear()
+    assert assigned_car(s, 1) == 0 and s.pinned_races == set()
+
+
+def test_is_disposable():
+    s = ChallengeSessionService()
+    assert s.is_disposable  # порожня
+    s.apply(result(opp_capture(1, opp_time=19152, track_score=0.9)))
+    s.set_assigned(1, 501)
+    assert s.is_disposable  # дані суперника і вибір авто — все ще одноразова
+    s.apply(result(capture(2, time=20000)))
+    assert not s.is_disposable  # з'явився МІЙ час
+
+
+def test_is_disposable_false_with_draft():
+    s = ChallengeSessionService()
+    s.set_draft(1, draft(note="x"))
+    assert not s.is_disposable
+
+
+def test_is_disposable_true_with_car_only_draft():
+    # драфт лише з авто/рангом (= вибір з рекомендацій чи модалки) —
+    # сесія лишається одноразовою
+    s = ChallengeSessionService()
+    s.set_draft(1, draft(car_id=501, rank=4000))
+    assert s.is_disposable
+
+
+# --- фактичний заїзд затирає вибране авто -----------------------------------
+
+
+def test_new_run_scan_overwrites_chosen_car():
+    s = ChallengeSessionService()
+    s.set_assigned(1, 999)  # вибрав одне авто…
+    s.apply(result(capture(1, car_score=0.9, rank=4795, time=19130)))  # …проїхав іншим
+    e = s.effective(1)
+    assert e.car_id == 21      # фактичне авто зі скану, не 999
+    assert e.rank == 4795      # і фактичний ранг
+    assert 1 not in s.pinned_races
+
+
+def test_rescan_same_time_keeps_manual_fix():
+    # виправлення помилки OCR після заїзду не стирається повторним сканом
+    # того САМОГО результату (час не змінився)
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, car_score=0.9, time=19130)))
+    s.set_draft(1, draft(car_id=777, time=19130))
+    s.apply(result(capture(1, car_score=0.9, time=19130)))
+    assert s.effective(1).car_id == 777
+
+
+def test_new_time_overwrites_manual_car():
+    # а ось справжній НОВИЙ заїзд (інший час) — затирає і ручне авто
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, car_score=0.9, time=19130)))
+    s.set_draft(1, draft(car_id=777))
+    s.apply(result(capture(1, car_score=0.9, time=18500)))
+    assert s.effective(1).car_id == 21
+
+
+def test_timed_count():
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, time=20000)))
+    s.apply(result(opp_capture(2, opp_time=19152)))
+    s.set_draft(3, draft(time=21000))
+    assert s.timed_count == 2  # мій OCR-час + час у драфті; час суперника не рахується

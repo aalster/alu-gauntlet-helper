@@ -70,6 +70,7 @@ CAR_KOENIGSEGG_CCXR = 204
 CAR_LYKAN_HYPERSPORT = 205
 CAR_RIMAC_NEVERA_TA = 206
 CAR_VANDA_DENDROBIUM = 207
+CAR_MITSUBISHI_LANCER = 208
 CAR_VOCAB = [
     (CAR_ULTIMA_RS, "Ultima RS"),
     (CAR_BUGATTI_CHIRON, "Bugatti Chiron"),
@@ -78,6 +79,7 @@ CAR_VOCAB = [
     (CAR_LYKAN_HYPERSPORT, "W Motors Lykan Hypersport"),
     (CAR_RIMAC_NEVERA_TA, "Rimac Nevera Time Attack"),
     (CAR_VANDA_DENDROBIUM, "Vanda Electrics Dendrobium"),
+    (CAR_MITSUBISHI_LANCER, "Mitsubishi Lancer Evolution"),
 ]
 
 
@@ -111,6 +113,8 @@ def test_after_1_player_data():
     assert c.car.value != CAR_BUGATTI_CHIRON
     assert c.rank == 4795  # ранг гравця, не 5105 суперника
     assert c.time == 19130  # YOUR TIME, не 19152 (TIME TO BEAT)
+    assert c.opponent_car and c.opponent_car.value == CAR_BUGATTI_CHIRON
+    assert c.opponent_time == 19152
     assert c.panel_image
 
 
@@ -125,6 +129,8 @@ def test_after_2_player_data():
     assert c.car and c.car.value == CAR_KOENIGSEGG_CCXR
     assert c.rank == 4998
     assert c.time == 25782  # YOUR TIME, не 26591 (TIME TO BEAT)
+    assert c.opponent_car and c.opponent_car.value == CAR_KOENIGSEGG_CCXR
+    assert c.opponent_time == 26591
 
 
 @pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
@@ -140,6 +146,8 @@ def test_after_4_lost_race_red_time():
     assert c.car.value != CAR_LYKAN_HYPERSPORT
     assert c.rank == 5130
     assert c.time == 24182  # червоний час читається через max-канальний фолбек OCR
+    assert c.opponent_car and c.opponent_car.value == CAR_LYKAN_HYPERSPORT
+    assert c.opponent_time == 24164
 
 
 @pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
@@ -156,15 +164,18 @@ def test_after_shanghai_paris_of_the_east_track():
     assert c.car and c.car.value == CAR_BUGATTI_CHIRON
     assert c.rank == 5130
     assert c.time == 26665  # YOUR TIME, не 37672 (TIME TO BEAT)
+    assert c.opponent_car and c.opponent_car.value == CAR_MITSUBISHI_LANCER
+    assert c.opponent_time == 37672
 
 
 # --- BEFORE: гонку ще не їхали — лише номер гонки і трек ---------------------
-# Дані суперника (його авто і TIME TO BEAT) НЕ повертаються: саме їх раніше
-# помилково зберігали як результат гравця.
+# Дані суперника (його авто і TIME TO BEAT) йдуть в ОКРЕМІ поля opponent_*,
+# а не в поля гравця: саме плутанину боків раніше помилково зберігали як
+# результат гравця.
 
 @pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
 @fixture_guard("accordion_before_1.png")
-def test_before_1_no_opponent_data():
+def test_before_1_opponent_in_dedicated_fields():
     """Скріншот: RACE 1, зліва суперник BUGATTI CHIRON 5,105, TIME TO BEAT
     00:19.152, справа SELECT CAR; трек SAN FRANCISCO RAILROAD BUSTLE."""
     c = extract_one("accordion_before_1.png")
@@ -176,12 +187,14 @@ def test_before_1_no_opponent_data():
     assert c.car is None
     assert c.rank is None  # не 5105 суперника
     assert c.time is None  # не 19152 (TIME TO BEAT суперника)
+    assert c.opponent_car and c.opponent_car.value == CAR_BUGATTI_CHIRON
+    assert c.opponent_time == 19152
     assert c.panel_image
 
 
 @pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
 @fixture_guard("accordion_before_3.png")
-def test_before_3_no_opponent_data():
+def test_before_3_opponent_in_dedicated_fields():
     """Скріншот: RACE 3, зліва суперник RIMAC NEVERA TIME ATTACK 4,835,
     TIME TO BEAT 00:19.736; трек NORWAY FUTURE FUSION."""
     c = extract_one("accordion_before_3.png")
@@ -190,11 +203,13 @@ def test_before_3_no_opponent_data():
     assert c.car is None
     assert c.rank is None
     assert c.time is None
+    assert c.opponent_car and c.opponent_car.value == CAR_RIMAC_NEVERA_TA
+    assert c.opponent_time == 19736
 
 
 @pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
 @fixture_guard("accordion_before_5.png")
-def test_before_5_no_opponent_data():
+def test_before_5_opponent_in_dedicated_fields():
     """Скріншот: RACE 5, зліва суперник ULTIMA RS 4,644, TIME TO BEAT 00:30.847;
     трек SHANGHAI DOUBLE ROUNDABOUT."""
     c = extract_one("accordion_before_5.png")
@@ -203,20 +218,24 @@ def test_before_5_no_opponent_data():
     assert c.car is None
     assert c.rank is None
     assert c.time is None
+    assert c.opponent_car and c.opponent_car.value == CAR_ULTIMA_RS
+    assert c.opponent_time == 30847
 
 
 @pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
 @fixture_guard("accordion_race1.png")
 def test_old_fixture_race1_is_before_variant():
     """Стара фікстура (before-варіант, інший челендж): RACE 1, трек PARIS NOTRE
-    DAME, суперник ULTIMA RS 4,644, TIME TO BEAT 00:22.797. Семантика ЗМІНЕНА:
-    дані суперника більше не витягуються."""
+    DAME, суперник ULTIMA RS 4,644, TIME TO BEAT 00:22.797. Дані суперника
+    йдуть в окремі поля opponent_*, а не в поля гравця."""
     c = extract_one("accordion_race1.png")
     assert c.race_number == 1
     assert c.track and c.track.value == TRACK_PARIS_NOTRE_DAME
     assert c.car is None
     assert c.rank is None  # раніше тут помилково було 4644 (ранг суперника)
     assert c.time is None  # раніше тут помилково було 22797 (час суперника)
+    assert c.opponent_car and c.opponent_car.value == CAR_ULTIMA_RS
+    assert c.opponent_time == 22797
 
 
 # --- RU: екран "ВЫБОР АВТО" (вибір авто) російською мовою ---------------------

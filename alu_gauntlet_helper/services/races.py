@@ -179,6 +179,34 @@ class RacesRepository:
             rows = conn.execute(sql, params).fetchall()
             return [dict(row) for row in rows]
 
+    def get_aggregates_for_track(self, track_id: int) -> list[dict]:
+        """Зведення по всіх авто одного треку (за id, без текстового фільтра) —
+        та сама статистика, що й у get_aggregates; для підбору проти суперника."""
+        with connect() as conn:
+            sql = """
+            WITH ranked AS (
+                SELECT track_id, car_id, time, bad_timing,
+                       ROW_NUMBER() OVER (PARTITION BY car_id ORDER BY created_at DESC) AS rn
+                FROM races
+                WHERE track_id = :track_id AND car_id > 0
+            )
+            SELECT track_id, car_id,
+                   MIN(CASE WHEN time > 0 THEN time END) AS best_time,
+                   AVG(CASE WHEN bad_timing = 0 AND time > 0 THEN time END) AS avg_time,
+                   AVG(CASE WHEN bad_timing = 1 AND time > 0 THEN time END) AS avg_fail,
+                   AVG(CASE WHEN rn <= 10 AND bad_timing = 0 AND time > 0 THEN time END) AS avg_recent,
+                   COUNT(CASE WHEN rn <= 10 AND bad_timing = 0 AND time > 0 THEN 1 END) AS recent_count,
+                   COUNT(CASE WHEN time > 0 THEN 1 END) AS timed_count,
+                   COUNT(CASE WHEN bad_timing = 0 AND time > 0 THEN 1 END) AS ok_count,
+                   COUNT(CASE WHEN bad_timing = 1 AND time > 0 THEN 1 END) AS fail_count,
+                   COUNT(*) AS race_count,
+                   SUM(bad_timing) AS dislike_count
+            FROM ranked
+            GROUP BY track_id, car_id
+            """
+            rows = conn.execute(sql, {"track_id": track_id}).fetchall()
+            return [dict(row) for row in rows]
+
     def count_aggregates(self, track_query: str, car_query: str) -> int:
         with connect() as conn:
             from_where, params = self._build_filter(track_query, car_query)
@@ -241,6 +269,25 @@ class RacesRepository:
             """
             rows = conn.execute(sql, {"track_id": track_id}).fetchall()
             return [dict(row) for row in rows]
+
+    def get_recent_clean_times_by_car(self, track_id: int, limit: int = 10) -> dict[int, list[int]]:
+        """car_id → часи останніх `limit` ЧИСТИХ (без 👎) заїздів авто на треку.
+        Та сама вибірка, що й у avg_recent агрегатів — для підбору проти суперника."""
+        with connect() as conn:
+            sql = """
+            WITH ranked AS (
+                SELECT car_id, time,
+                       ROW_NUMBER() OVER (PARTITION BY car_id ORDER BY created_at DESC) AS rn
+                FROM races
+                WHERE track_id = :track_id AND car_id > 0 AND time > 0 AND bad_timing = 0
+            )
+            SELECT car_id, time FROM ranked WHERE rn <= :limit
+            """
+            rows = conn.execute(sql, {"track_id": track_id, "limit": limit}).fetchall()
+            times: dict[int, list[int]] = {}
+            for row in rows:
+                times.setdefault(row["car_id"], []).append(row["time"])
+            return times
 
     def get_best_races_for_car_on_track(self, track_id: int, car_id: int, limit: int = 10) -> list[Race]:
         with connect() as conn:
@@ -306,7 +353,12 @@ class RacesService(Observable):
         return self.repo.count(track_query, car_query)
 
     def get_aggregates(self, track_query: str, car_query: str, by_best_time: bool = False) -> list[RaceAggregate]:
-        stats = self.repo.get_aggregates(track_query, car_query, by_best_time)
+        return self._to_aggregates(self.repo.get_aggregates(track_query, car_query, by_best_time))
+
+    def get_aggregates_for_track(self, track_id: int) -> list[RaceAggregate]:
+        return self._to_aggregates(self.repo.get_aggregates_for_track(track_id))
+
+    def _to_aggregates(self, stats: list[dict]) -> list[RaceAggregate]:
         tracks = self.tracks.get_by_ids({s["track_id"] for s in stats})
         cars = self.cars.get_by_ids({s["car_id"] for s in stats})
         result = []
@@ -401,3 +453,6 @@ class RacesService(Observable):
 
     def get_best_races_for_car_on_track(self, track_id: int, car_id: int) -> list[Race]:
         return self.repo.get_best_races_for_car_on_track(track_id, car_id)
+
+    def get_recent_clean_times_by_car(self, track_id: int, limit: int = 10) -> dict[int, list[int]]:
+        return self.repo.get_recent_clean_times_by_car(track_id, limit)

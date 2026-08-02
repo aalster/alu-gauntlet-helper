@@ -30,6 +30,12 @@ RANK_UP = TIME_YELLOW
 RANK_DOWN = "#FF9F0A"
 DIFF_BETTER = "#79B77E"
 DIFF_WORSE = "#D9736E"
+# перемога/програш проти суперника на картці гонки — яскравіші за DIFF_*:
+# зелений = колір часу (TIME_YELLOW), червоний трохи соковитіший за DIFF_WORSE
+WIN_BRIGHT = TIME_YELLOW
+LOSS_BRIGHT = "#EE5A50"
+# «мало заїздів» у лічильнику агрегації — спокійніший за RANK_DOWN помаранчевий
+COUNT_WARN = "#D9A05A"
 
 CHECKMARK_ICON = get_resource_path("icons/check.svg").replace("\\", "/")
 CHEVRON_DOWN_ICON = get_resource_path("icons/chevron-down.svg").replace("\\", "/")
@@ -97,6 +103,14 @@ QLabel#rowCreatedLabel {{
 QLabel#carIconLabel {{
     border-radius: 4px;
     background-color: #271A62;
+}}
+
+/* заглушка іконки карти: синьо-фіолетовий квадрат у тон фону іконки Шанхая
+   (#2A1854 — семпл з країв resources/icons/maps/Shanghai.png); під реальною
+   іконкою невидимий — мапи непрозорі й закривають лейбл повністю */
+QLabel#rowMapIcon {{
+    border-radius: 4px;
+    background-color: #2A1854;
 }}
 
 QLabel#carBrandLabel {{
@@ -282,6 +296,12 @@ QPushButton#iconToggle:hover {{
 QPushButton#iconToggle:checked {{
     background-color: {CARD_SELECTED};
     border: 1px solid {CYAN};
+}}
+
+/* кнопки захоплення в куті таббара — компактніший паддінг, щоб не розтягувати
+   ряд табів по вертикалі (селектор специфічніший за QPushButton#secondary) */
+QWidget#captureActions QPushButton {{
+    padding: 5px 12px;
 }}
 
 QComboBox {{

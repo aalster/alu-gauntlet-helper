@@ -9,11 +9,11 @@ from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.races import RaceView, RaceAggregate
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.services.tracks import TrackView
-from alu_gauntlet_helper.utils.utils import format_time, time_format_regex, parse_time, format_relative_time, \
-    get_resource_path
+from alu_gauntlet_helper.utils.utils import format_time, format_signed_delta, time_format_regex, parse_time, \
+    format_relative_time, get_resource_path
 from alu_gauntlet_helper.views.components.common import InputDebounce, CLEAR_ON_ESC_FILTER, res_to_pixmap, hbox, \
     vbox, ListItemWidget, enable_clear_button, enable_search_icon, RankClassBadge, CarInfoWidget, TrackInfoWidget, \
-    preserved_scroll, edit_icon_button, as_column
+    preserved_scroll, edit_icon_button, as_column, INFO_PADDING
 from alu_gauntlet_helper.views.components.edit_dialog import EditDialog
 from alu_gauntlet_helper.views.components.validated_line_edit import ValidatedLineEdit
 from alu_gauntlet_helper.views.components.item_completer import ItemCompleter
@@ -152,17 +152,19 @@ class RaceListWidget(ListItemWidget):
 
         self.layout = QHBoxLayout(self)
         # half the default vertical padding to keep race rows compact;
-        # -4 зліва компенсує внутрішній відступ TrackInfoWidget
+        # зліва компенсуємо внутрішній відступ TrackInfoWidget
         margins = self.layout.contentsMargins()
-        self.layout.setContentsMargins(margins.left() - 4, margins.top() // 2, margins.right(), margins.bottom() // 2)
-        # AlignVCenter: без нього віджет розтягується на всю висоту рядка і затемнення
-        # при наведенні прилипає до верхнього/нижнього країв
+        self.layout.setContentsMargins(margins.left() - INFO_PADDING, margins.top() // 2,
+                                       margins.right(), margins.bottom() // 2)
+        # AlignVCenter: без нього віджет розтягується на всю висоту рядка (затемнення
+        # при наведенні прилипає до країв, а в плашки авто вертикальні відступи
+        # стають більшими за бокові)
         # stretch лише в колонок зі змінним текстом; час (формат mm:ss.xxx,
         # табличні цифри Segoe UI) та іконки (фіксовані слоти) — константної
         # ширини, тож розміряються по вмісту (stretch=0) і не ростуть з вікном
         self.layout.addWidget(as_column(self.track_info), stretch=80, alignment=Qt.AlignmentFlag.AlignVCenter)
         # авто — найширший компонент: місце, звільнене іншими колонками, віддано йому
-        self.layout.addWidget(as_column(self.car_info), stretch=140)
+        self.layout.addWidget(as_column(self.car_info), stretch=140, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.layout.addWidget(self.time_label)
         icons = QWidget()
         icons.setLayout(hbox([self.bad_timing_label, self.info_label], spacing=8))
@@ -183,8 +185,7 @@ def _diff_cell_html(time: int, base_time: int, cell: str) -> str:
         color = style.DIFF_WORSE
     else:
         color = style.TEXT
-    sign = "-" if diff < 0 else "+"
-    return f"<td align='right' style='{cell} color: {color};'>{sign}{format_time(abs(diff)) or '00:00.000'}</td>"
+    return f"<td align='right' style='{cell} color: {color};'>{format_signed_delta(diff)}</td>"
 
 
 def _races_table_html(races: list, car_rank: int, base_time: int) -> str:
@@ -294,10 +295,15 @@ class RaceAggregateWidget(ListItemWidget):
     """Картка пари трек+авто в режимі агрегації: середнє за останні заїзди (головне)
     та таблиця показників — найкращий час, загальне середнє успішних, середнє невдалих."""
 
-    def __init__(self, agg: RaceAggregate, parent=None):
+    def __init__(self, agg: RaceAggregate, parent=None,
+                 show_track: bool = True, vs_widget: QWidget | None = None):
+        """show_track=False — без колонки треку (він відомий з контексту, як у
+        підборі проти суперника); vs_widget — додаткова колонка одразу після авто."""
         super().__init__(agg, parent)
-        self.track_info = TrackInfoWidget(agg.map_icon, agg.track_icon,
-                                          agg.display_map_name, agg.display_track_name)
+        self.track_info = None
+        if show_track:
+            self.track_info = TrackInfoWidget(agg.map_icon, agg.track_icon,
+                                              agg.display_map_name, agg.display_track_name)
         badge = RankClassBadge(agg.car_rank, agg.car_max_rank, agg.car_class)
         self.car_info = CarInfoWidget(agg.car_icon, agg.car_brand, agg.car_model, badge)
 
@@ -319,18 +325,23 @@ class RaceAggregateWidget(ListItemWidget):
         stats_table.setMinimumWidth(stats_table.sizeHint().width())
 
         self.layout = QHBoxLayout(self)
-        # -4 зліва компенсує внутрішній відступ TrackInfoWidget
+        # зліва компенсуємо внутрішній відступ TrackInfoWidget
         margins = self.layout.contentsMargins()
-        self.layout.setContentsMargins(margins.left() - 4, margins.top() // 2, margins.right(), margins.bottom() // 2)
-        # AlignVCenter: без нього віджет розтягується на всю висоту рядка і затемнення
-        # при наведенні прилипає до верхнього/нижнього країв
+        self.layout.setContentsMargins(margins.left() - INFO_PADDING, margins.top() // 2,
+                                       margins.right(), margins.bottom() // 2)
+        # AlignVCenter: без нього віджет розтягується на всю висоту рядка (затемнення
+        # при наведенні прилипає до країв, а в плашки авто вертикальні відступи
+        # стають більшими за бокові)
         # головний час — по вмісту (найширший елемент колонки — підпис «середнє
         # за N» — практично константний); лічильник і таблиця показників мають
         # текст змінної довжини (форма слова, відсоток), тому лишаються на
         # stretch — з шириною по вмісту їхні межі гуляли б між рядками
-        self.layout.addWidget(as_column(self.track_info), stretch=80, alignment=Qt.AlignmentFlag.AlignVCenter)
+        if self.track_info is not None:
+            self.layout.addWidget(as_column(self.track_info), stretch=80, alignment=Qt.AlignmentFlag.AlignVCenter)
         # авто — найширший компонент: місце, звільнене іншими колонками, віддано йому
-        self.layout.addWidget(as_column(self.car_info), stretch=148)
+        self.layout.addWidget(as_column(self.car_info), stretch=148, alignment=Qt.AlignmentFlag.AlignVCenter)
+        if vs_widget is not None:
+            self.layout.addWidget(as_column(vs_widget), stretch=48)
         self.layout.addWidget(as_column(self._race_count_stat(agg)), stretch=32)
         self.layout.addWidget(self._main_stat(agg))
         self.layout.addWidget(as_column(stats_table), stretch=38)
@@ -373,7 +384,7 @@ class RaceAggregateWidget(ListItemWidget):
         if agg.race_count < 5:
             value_label.setStyleSheet(f"color: {style.DIFF_WORSE};")
         elif agg.race_count < 10:
-            value_label.setStyleSheet(f"color: {style.RANK_DOWN};")
+            value_label.setStyleSheet(f"color: {style.COUNT_WARN};")
         value_font = QFont()
         value_font.setBold(True)
         value_font.setPointSize(self.font().pointSize() + 4)

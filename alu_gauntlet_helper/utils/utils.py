@@ -70,6 +70,15 @@ def format_time(ms: int) -> str:
     minutes = seconds // 60
     return f"{minutes:02}:{seconds % 60:02}.{ms % 1000:03}"
 
+def format_signed_delta(ms: int) -> str:
+    """±дельта часу (мій мінус еталон): «−2.000» — я швидший; хвилини
+    показуються лише коли їх не нуль («+01:15.000»)."""
+    sign = "−" if ms < 0 else "+"
+    a = abs(ms)
+    if a < 60_000:
+        return f"{sign}{a / 1000:.3f}"
+    return f"{sign}{format_time(a)}"
+
 def parse_time(time: str) -> int:
     time = time.strip()
     if not time:

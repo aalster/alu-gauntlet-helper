@@ -9,6 +9,13 @@ from PyQt6.QtWidgets import QVBoxLayout, QLineEdit, QHBoxLayout, QLayout, QWidge
 from alu_gauntlet_helper.utils.utils import get_resource_path, load_pixmap_cover
 from alu_gauntlet_helper.views import style
 
+# префікс ⚠ для полів з низькою впевненістю розпізнавання (rich text)
+WARN_ICON = '<span style="color: #FFC107;">⚠</span> '
+
+# внутрішній відступ інфо-плашок (трек/авто): рядки списків і картки компенсують
+# його від'ємним зсувом, щоб іконки плашок вирівнювались із рештою контенту
+INFO_PADDING = 6
+
 
 class FocusWatcher(QObject):
 
@@ -205,6 +212,10 @@ class TrackInfoWidget(QWidget):
     Map name and track name are passed as ready-to-render strings (callers may embed
     rich-text markers, e.g. a warning glyph for uncertain captures)."""
 
+    # висота іконки = іконці авто в CarInfoWidget — компоненти в сусідніх
+    # колонках рядка мають однакову висоту й вирівняні верхи іконок. 44 — з
+    # запасом вище за текстові колонки обох компонентів (бейдж рангу + модель
+    # ≈ 41px), тож висоту завжди диктує іконка і паддінги 6px рівні всюди
     ICON_SIZE = 44
 
     def __init__(self, map_icon: str, track_icon: str, map_name: str, track_name: str, parent=None):
@@ -236,8 +247,9 @@ class TrackInfoWidget(QWidget):
         self.track_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 
         layout = QHBoxLayout(self)
-        # відступи, щоб іконка не прилипала до краю затемнення при наведенні
-        layout.setContentsMargins(4, 4, 4, 4)
+        # відступи, щоб іконка не прилипала до краю затемнення при наведенні;
+        # ті самі, що й у CarInfoWidget — компоненти виглядають однаково
+        layout.setContentsMargins(INFO_PADDING, INFO_PADDING, INFO_PADDING, INFO_PADDING)
         layout.setSpacing(10)
         layout.addWidget(self.icon_label)
         layout.addLayout(vbox([self.map_label, self.track_label], spacing=0), stretch=1)
@@ -257,7 +269,9 @@ class CarInfoWidget(QWidget):
 
         self.icon_label = QLabel()
         self.icon_label.setObjectName("carIconLabel")
-        self.icon_label.setFixedSize(80, 40)
+        # висота = TrackInfoWidget.ICON_SIZE: вища за текстову колонку (бейдж +
+        # модель), тож висоту плашки диктує іконка й паддінги 6px рівні всюди
+        self.icon_label.setFixedSize(80, TrackInfoWidget.ICON_SIZE)
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if icon_path:
             pixmap = load_pixmap_cover(icon_path, w=self.icon_label.width(), h=self.icon_label.height())
@@ -279,7 +293,7 @@ class CarInfoWidget(QWidget):
         brand_row.addWidget(rank_badge)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setContentsMargins(INFO_PADDING, INFO_PADDING, INFO_PADDING, INFO_PADDING)
         layout.setSpacing(10)
         layout.addWidget(self.icon_label)
         layout.addLayout(vbox([brand_row, self.model_label], spacing=3), stretch=1)
