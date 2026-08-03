@@ -7,11 +7,13 @@ from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QPushButton,
                              QStackedWidget, QVBoxLayout, QWidget)
 
 from alu_gauntlet_helper import ui_lang
+from alu_gauntlet_helper.services.assistant import laplace
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, EffectiveRace
 from alu_gauntlet_helper.utils.utils import format_time, get_resource_path
 from alu_gauntlet_helper.views.components.common import res_to_pixmap
-from alu_gauntlet_helper.views.style import (BORDER, CARD_SELECTED, CYAN, TEXT,
-                                             TEXT_DARK, YELLOW, YELLOW_HOVER,
+from alu_gauntlet_helper.views.style import (BORDER, CARD_SELECTED, CYAN,
+                                             LOSS_BRIGHT, TEXT, TEXT_DARK,
+                                             WIN_BRIGHT, YELLOW, YELLOW_HOVER,
                                              YELLOW_PRESSED)
 
 MARGIN = 16
@@ -21,11 +23,13 @@ UNCERTAIN_COLOR = "#FFC107"  # ненадійні (low-confidence) поля пі
 _TD_MIDDLE = "vertical-align:middle"
 
 
-def _cell(text: str, uncertain: bool) -> str:
-    """Текст комірки; ненадійне значення підсвічується амбер."""
+def _cell(text: str, uncertain: bool, color: str | None = None) -> str:
+    """Текст комірки; ненадійне значення підсвічується амбер (перекриває color)."""
     safe = escape(text)
     if uncertain:
-        return f"<span style='color:{UNCERTAIN_COLOR}'>{safe}</span>"
+        color = UNCERTAIN_COLOR
+    if color:
+        return f"<span style='color:{color}'>{safe}</span>"
     return safe
 
 
@@ -56,12 +60,16 @@ def header_text(races: dict[int, EffectiveRace]) -> str:
 
 def build_races_table(races: dict[int, EffectiveRace],
                       track_names: dict[int, str],
-                      car_names: dict[int, str]) -> str:
+                      car_names: dict[int, str],
+                      beat_stats: dict[int, tuple[int, int]] | None = None) -> str:
     """Будує rich-text (HTML) таблицю 5 гонок.
 
+    beat_stats {race_number: (wins, n)} — статистика показаного авто проти часу
+    суперника для незіграних гонок (як бейдж «7/10» на картці).
     Лише таблиця залишена в HTML: колонки треку/авто/часу так вирівнюються
     попри пропорційний шрифт; заголовок і footer — окремі віджети.
     """
+    beat_stats = beat_stats or {}
     rows = []
     for n in range(1, RACE_COUNT + 1):
         e = races.get(n)
@@ -72,17 +80,34 @@ def build_races_table(races: dict[int, EffectiveRace],
             )
             continue
         track = track_names.get(e.track_id, "?") if e.track_id else "?"
-        car = car_names.get(e.car_id, "?") if e.car_id else (e.car_name or "?")
-        time_str = format_time(e.time) if e.time else "?"
+        # без фактичного авто показуємо рекомендоване (shown_car_id) — воно і є
+        # підказкою «чим їхати», заради якої оверлей висить поверх гри;
+        # рекомендація фарбується блакитним, як бейдж на картці гонки
+        suggested = e.car_id <= 0 and e.suggested_car_id > 0
+        car = (car_names.get(e.shown_car_id, "?") if e.shown_car_id
+               else (e.car_name or "?"))
         track_cell = _cell(track, e.track_uncertain)
-        car_cell = _cell(car, e.car_uncertain)
+        car_cell = _cell(car, e.car_uncertain, CYAN if suggested else None)
+        # як на картці гонки: зіграна — мій час (+👎), незіграна з авто — шанс
+        # побити суперника «78% 7/10» без перемикача 👎 (без часу він безглуздий)
+        played = e.time > 0
+        beat = beat_stats.get(n) if not played else None
+        if beat:
+            p = laplace(*beat)
+            color = WIN_BRIGHT if p >= 0.5 else LOSS_BRIGHT
+            time_cell = (f"<span style='color:{color};font-weight:bold'>"
+                         f"{round(p * 100)}%</span> {beat[0]}/{beat[1]}")
+        else:
+            time_cell = escape(format_time(e.time) if e.time else "?")
+        with_car = e.shown_car_id > 0 or bool(e.car_name)
+        dislike = "<td></td>" if not played and with_car else _dislike_cell(n, e.bad_timing)
         rows.append(
             f"<tr>"
             f"{_num_cell(n, e.is_complete)}"
             f"<td style='padding-right:12px;{_TD_MIDDLE}'>{track_cell}</td>"
             f"<td style='padding-right:12px;{_TD_MIDDLE}'>{car_cell}</td>"
-            f"<td style='{_TD_MIDDLE}'>{escape(time_str)}</td>"
-            f"{_dislike_cell(n, e.bad_timing)}"
+            f"<td style='{_TD_MIDDLE}'>{time_cell}</td>"
+            f"{dislike}"
             f"</tr>"
         )
     return "<table cellspacing='0' cellpadding='0'>" + "".join(rows) + "</table>"

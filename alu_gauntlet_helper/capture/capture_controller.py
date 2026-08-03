@@ -294,9 +294,15 @@ class CaptureController(QObject):
         session = APP_CONTEXT.session_manager.active
         effective = {n: e for n in range(1, RACE_COUNT + 1) if (e := session.effective(n)) is not None}
         track_ids = {e.track_id for e in effective.values() if e.track_id}
-        car_ids = {e.car_id for e in effective.values() if e.car_id}
+        car_ids = {e.shown_car_id for e in effective.values() if e.shown_car_id}
         track_names = {t.id: f"{t.display_map_name} - {t.display_name}" for t in APP_CONTEXT.tracks_service.get_by_ids(track_ids).values()}
         car_names = {c.id: c.name for c in APP_CONTEXT.cars_service.get_by_ids(car_ids).values()}
+        # статистика «побито/шанс» показаного авто для незіграних гонок —
+        # та сама умова, що й для бейджа на картці гонки в табі асистента
+        beat_stats = {n: beat for n, e in effective.items()
+                      if e.track_id and e.shown_car_id and e.opponent_time and not e.time
+                      and (beat := APP_CONTEXT.assistant.beat_stats(
+                          e.track_id, e.shown_car_id, e.opponent_time)) is not None}
 
         status = self._compute_status(session)
         self.status_changed.emit(status)
@@ -310,7 +316,7 @@ class CaptureController(QObject):
             combo=combo)
         self.overlay.update_content(
             header_text(effective),
-            build_races_table(effective, track_names, car_names),
+            build_races_table(effective, track_names, car_names, beat_stats),
             status, hint, self._in_flight)
         if show and not self.overlay.isVisible():
             self.overlay.show()

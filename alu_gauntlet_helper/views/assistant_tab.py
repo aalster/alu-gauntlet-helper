@@ -105,7 +105,7 @@ class SessionView(QWidget):
             self.manual_checks = {}
 
         track_ids = {e.track_id for e in effective.values() if e.track_id}
-        cars_ids = {e.car_id for e in effective.values() if e.car_id}
+        cars_ids = {e.shown_car_id for e in effective.values() if e.shown_car_id}
         tracks = APP_CONTEXT.tracks_service.get_by_ids(track_ids)
         cars = APP_CONTEXT.cars_service.get_by_ids(cars_ids)
 
@@ -113,14 +113,16 @@ class SessionView(QWidget):
             n = card.race_number
             e = effective.get(n)
             track = tracks.get(e.track_id) if e and e.track_id else None
-            # авто гонки живе в одному полі: вибране з рекомендацій/модалки — у
-            # драфті, фактичне — з OCR (новий заїзд затирає вибір у _merge)
-            car = cars.get(e.car_id) if e and e.car_id else None
+            # показане авто: фактичне (модалка/OCR) з e.car_id, інакше —
+            # рекомендоване з окремого шару (e.suggested_car_id, з бейджем)
+            shown_id = e.shown_car_id if e else 0
+            car = cars.get(shown_id) if shown_id else None
+            suggested = bool(e) and not e.has_car and e.suggested_car_id > 0
             beat = None
-            if e and e.track_id and e.car_id and e.opponent_time and not e.time:
-                beat = APP_CONTEXT.assistant.beat_stats(e.track_id, e.car_id, e.opponent_time)
+            if e and e.track_id and shown_id and e.opponent_time and not e.time:
+                beat = APP_CONTEXT.assistant.beat_stats(e.track_id, shown_id, e.opponent_time)
             card.update_card(e, track, car, beat, checked=self._is_checked(n, e),
-                             selected=(n == self.selected_race))
+                             selected=(n == self.selected_race), suggested=suggested)
 
         self._refresh_suggestions(effective)
 
@@ -152,10 +154,10 @@ class SessionView(QWidget):
         if not items:
             self._show_status(ui_lang.t("assistant.no_suggestions"))
             return
-        # авто, зайняті іншими гонками (вибрані або фактично проїхані)
-        used_elsewhere = {ee.car_id for m, ee in effective.items()
-                          if m != self.selected_race and ee.car_id}
-        current = e.car_id
+        # авто, зайняті іншими гонками (фактичні або рекомендовані)
+        used_elsewhere = {ee.shown_car_id for m, ee in effective.items()
+                          if m != self.selected_race and ee.shown_car_id}
+        current = e.shown_car_id
         for agg, vs in items:
             w = VsSuggestionWidget(agg, vs, has_opponent_time=bool(opp))
             w.add_to_list(self.suggestions)
@@ -193,9 +195,13 @@ class SessionView(QWidget):
         if not isinstance(widget, VsSuggestionWidget):
             return
         e = self.session.effective(self.selected_race)
-        current = e.car_id if e else 0
+        # авто заїзду вже відоме (модалка/OCR) — рекомендації не клікаються;
+        # refresh скидає селекцію, яку Qt встиг намалювати від самого кліку,
+        # назад на фактичне авто
+        if e is not None and e.has_car:
+            self.refresh()
+            return
         # авто, фактично проїхане в іншій гонці, вже витрачене — клік ігноруємо
-        # (refresh скидає селекцію, яку Qt встиг намалювати від самого кліку)
         for m in range(1, RACE_COUNT + 1):
             if m == self.selected_race:
                 continue
@@ -203,7 +209,8 @@ class SessionView(QWidget):
             if em and em.car_id == widget.car_id and em.time > 0:
                 self.refresh()
                 return
-        # повторний клік — зняти вибір; клік по чужому/вільному — вибрати сюди
+        # повторний клік — зняти рекомендацію; клік по чужій/вільній — сюди
+        current = e.suggested_car_id if e else 0
         self.session.set_assigned(self.selected_race,
                                   None if widget.car_id == current else widget.car_id)
 

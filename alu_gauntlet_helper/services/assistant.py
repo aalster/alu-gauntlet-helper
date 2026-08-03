@@ -87,6 +87,14 @@ class AssistantService:
                 fixed[n] = e.car_id
                 continue
             suggestions = self.suggestions_vs(e.track_id, opp)
+            if e.car_id:
+                # авто заїзду вже відоме (скан вибору авто / модалка), але ще не
+                # зіграно: фіксуємо його, щоб інші гонки його не забрали
+                v = next((x for x in suggestions if x.car_id == e.car_id), None)
+                margin = (v.delta if opp else -v.avg_time) if v else 0
+                race_candidates[n] = [Candidate(e.car_id, v.p_smoothed if v else 0.5, margin)]
+                fixed[n] = e.car_id
+                continue
             if not suggestions:
                 continue
             # без часу суперника p=0.5 для всіх, margin=-avg: топ-K і тай-брейк
@@ -95,20 +103,20 @@ class AssistantService:
                 Candidate(v.car_id, v.p_smoothed, v.delta if opp else -v.avg_time)
                 for v in suggestions
             ]
-            if n in session.pinned_races and e.car_id:
-                fixed[n] = e.car_id
+            if n in session.pinned_races and e.suggested_car_id:
+                fixed[n] = e.suggested_car_id
         if not race_candidates:
             return
         session.set_assignments(pick_cars(race_candidates, pinned=fixed))
 
     def win_chance(self, session) -> float | None:
-        """P(виграти ≥3 з 5) за вибраними/фактичними авто. None — немає часів суперника."""
+        """P(виграти ≥3 з 5) за фактичними/рекомендованими авто. None — немає часів суперника."""
         probs = []
         has_opponent = False
         for n in range(1, RACE_COUNT + 1):
             e = session.effective(n)
             opp = e.opponent_time if e else 0
-            car_id = e.car_id if e else 0
+            car_id = e.shown_car_id if e else 0
             if e and opp and e.time > 0:
                 # гонка вже зіграна — результат відомий точно, не оцінка
                 has_opponent = True

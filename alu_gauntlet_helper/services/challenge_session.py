@@ -23,10 +23,19 @@ class EffectiveRace(BaseModel):
     car_uncertain: bool = False
     opponent_time: int = 0
     opponent_car_id: int = 0
+    # рекомендоване авто (клік по списку/автопідбір) — ОКРЕМИЙ шар: ніколи не
+    # потрапляє в car_id і не зберігається в БД; ненульове лише коли авто заїзду
+    # (car_id/car_name) порожнє
+    suggested_car_id: int = 0
 
     @property
     def has_car(self) -> bool:
         return self.car_id > 0 or bool(self.car_name)
+
+    @property
+    def shown_car_id(self) -> int:
+        """Авто для показу/оцінок: фактичне (драфт/OCR), інакше — рекомендоване."""
+        return self.car_id if self.car_id > 0 else self.suggested_car_id
 
     @property
     def is_empty(self) -> bool:
@@ -58,8 +67,10 @@ class ChallengeSessionService:
         self.last_event: str = ""
         self._listeners: list[Callable[[], None]] = []
         self.created_at = datetime.now()
-        # вибір авто зберігається прямо в draft.car_id (те саме поле, що й ручний
-        # ввід у модалці); тут — лише позначка «вибрано вручну» для автопідбору
+        # рекомендації авто на гонки — окремо від авто заїзду (draft/OCR):
+        # {race_number: car_id}; у драфт ніколи не пишуться
+        self.suggested: dict[int, int] = {}
+        # позначка «рекомендацію вибрано вручну» — для автопідбору
         self.pinned_races: set[int] = set()
 
     def add_listener(self, listener: Callable[[], None]):
@@ -113,6 +124,8 @@ class ChallengeSessionService:
                 draft.car_id = 0
                 draft.car_name = ""
                 draft.rank = 0
+            # рекомендація виконала свою роль — заїзд відбувся
+            self.suggested.pop(new.race_number, None)
             self.pinned_races.discard(new.race_number)
 
     def set_draft(self, race_number: int, draft: RaceView):
@@ -160,7 +173,13 @@ class ChallengeSessionService:
                 e.opponent_car_id = capture.opponent_car.value
         # порожній результат (напр. розпізнано лише номер гонки чи збережено порожню
         # модалку) має виглядати як нерозпізнана гонка, а не порожня картка
-        return e if not e.is_empty else None
+        if e.is_empty:
+            return None
+        # рекомендація видима лише поки авто заїзду невідоме: щойно авто
+        # з'явилось (скан вибору авто / модалка) — його правда, рекомендація зайва
+        if not e.has_car:
+            e.suggested_car_id = self.suggested.get(race_number, 0)
+        return e
 
     def is_complete(self) -> bool:
         return all(
@@ -168,53 +187,44 @@ class ChallengeSessionService:
             for n in range(1, RACE_COUNT + 1)
         )
 
-    # --- вибір авто на гонку (пишеться в draft.car_id, як і ручний ввід) ---
+    # --- рекомендації авто на гонку (окремий шар suggested, драфт не чіпаємо) ---
 
     def set_assigned(self, race_number: int, car_id: int | None, pinned: bool = True):
-        """Вибрати авто для гонки (None — зняти вибір). Одне авто — одна гонка:
-        вибір знімає це авто з іншої НЕзіграної гонки (фактичне авто зіграної
-        не чіпаємо — воно вже витрачене)."""
+        """Рекомендувати авто для гонки (None — зняти рекомендацію). Авто заїзду
+        (draft/OCR) не чіпається; якщо воно вже відоме — рекомендація не потрібна
+        і виклик ігнорується. Одне авто — одна гонка: вибір знімає це авто з
+        рекомендації іншої гонки."""
+        e = self.effective(race_number)
+        if e is not None and e.has_car:
+            return
         if car_id is None:
-            self._clear_draft_car(race_number)
+            self.suggested.pop(race_number, None)
             self.pinned_races.discard(race_number)
         else:
-            for n in range(1, RACE_COUNT + 1):
-                if n == race_number:
-                    continue
-                e = self.effective(n)
-                if e is not None and e.car_id == car_id and e.time <= 0:
-                    self._clear_draft_car(n)
-                    self.pinned_races.discard(n)
-            draft = self.drafts.setdefault(race_number, RaceView())
-            draft.car_id = car_id
-            draft.car_name = ""
+            for n in [n for n, c in self.suggested.items()
+                      if n != race_number and c == car_id]:
+                del self.suggested[n]
+                self.pinned_races.discard(n)
+            self.suggested[race_number] = car_id
             if pinned:
                 self.pinned_races.add(race_number)
             else:
                 self.pinned_races.discard(race_number)
         self._notify()
 
-    def _clear_draft_car(self, race_number: int):
-        draft = self.drafts.get(race_number)
-        if draft is not None:
-            draft.car_id = 0
-            draft.car_name = ""
-
     def set_assignments(self, assignment: dict[int, int]):
-        """Результат автопідбору: пише draft.car_id незапінених і незіграних гонок;
-        запінені (ручний вибір) і зіграні (фактичне авто) — недоторкані."""
+        """Результат автопідбору: пише рекомендації незапінених гонок без авто;
+        запінені (ручний вибір) і гонки з відомим авто заїзду — недоторкані."""
         for n in range(1, RACE_COUNT + 1):
             if n in self.pinned_races:
                 continue
             e = self.effective(n)
-            if e is not None and e.time > 0:
+            if e is not None and (e.has_car or e.time > 0):
                 continue
             if n in assignment:
-                draft = self.drafts.setdefault(n, RaceView())
-                draft.car_id = assignment[n]
-                draft.car_name = ""
+                self.suggested[n] = assignment[n]
             else:
-                self._clear_draft_car(n)
+                self.suggested.pop(n, None)
         self._notify()
 
     def clear_pins(self):
@@ -241,5 +251,6 @@ class ChallengeSessionService:
         self.races = {}
         self.drafts = {}
         self.last_event = ""
+        self.suggested = {}
         self.pinned_races = set()
         self._notify()

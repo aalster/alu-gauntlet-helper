@@ -78,11 +78,12 @@ QWidget#aggStatRow {{
     border-radius: 4px;
 }}
 
-QWidget#trackInfo {{
+QWidget#trackInfo, QWidget#vsStats {{
     border-radius: 6px;
 }}
 
-QWidget#aggMainStat:hover, QWidget#aggStatRow:hover, QWidget#trackInfo:hover {{
+QWidget#aggMainStat:hover, QWidget#aggStatRow:hover, QWidget#trackInfo:hover,
+QWidget#vsStats:hover {{
     background-color: rgba(10, 16, 36, 140);
 }}
 

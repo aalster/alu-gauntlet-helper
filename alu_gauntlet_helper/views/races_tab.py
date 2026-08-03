@@ -296,9 +296,12 @@ class RaceAggregateWidget(ListItemWidget):
     та таблиця показників — найкращий час, загальне середнє успішних, середнє невдалих."""
 
     def __init__(self, agg: RaceAggregate, parent=None,
-                 show_track: bool = True, vs_widget: QWidget | None = None):
+                 show_track: bool = True, vs_widget: QWidget | None = None,
+                 highlight_best: bool = False):
         """show_track=False — без колонки треку (він відомий з контексту, як у
-        підборі проти суперника); vs_widget — додаткова колонка одразу після авто."""
+        підборі проти суперника); vs_widget — додаткова колонка одразу після авто;
+        highlight_best — кольоровий акцент переноситься з головного середнього на
+        найкращий час (режим сортування за найкращим)."""
         super().__init__(agg, parent)
         self.track_info = None
         if show_track:
@@ -308,7 +311,8 @@ class RaceAggregateWidget(ListItemWidget):
         self.car_info = CarInfoWidget(agg.car_icon, agg.car_brand, agg.car_model, badge)
 
         stats_rows = [
-            self._stat_row(agg, "best", ui_lang.t("races.row_best"), format_time(agg.best_time)),
+            self._stat_row(agg, "best", ui_lang.t("races.row_best"), format_time(agg.best_time),
+                           highlight=highlight_best),
             self._stat_row(agg, "ok", ui_lang.t("races.row_avg_ok"), format_time(agg.avg_time)),
             # резерв ширини підпису під найширший відсоток, інакше «(100%)» проти
             # «(0%)» дає різну ширину колонки і межі гуляють між рядками
@@ -343,13 +347,16 @@ class RaceAggregateWidget(ListItemWidget):
         if vs_widget is not None:
             self.layout.addWidget(as_column(vs_widget), stretch=48)
         self.layout.addWidget(as_column(self._race_count_stat(agg)), stretch=32)
-        self.layout.addWidget(self._main_stat(agg))
+        self.layout.addWidget(self._main_stat(agg, highlight_best))
         self.layout.addWidget(as_column(stats_table), stretch=38)
         self.setLayout(self.layout)
 
-    def _main_stat(self, agg: RaceAggregate) -> QWidget:
+    def _main_stat(self, agg: RaceAggregate, highlight_best: bool = False) -> QWidget:
         value_label = QLabel(format_time(agg.avg_recent) or "—")
-        value_label.setObjectName("rowTimeLabel")
+        # при сортуванні за найкращим зелений акцент іде на рядок best,
+        # головний середній лишається білим (дефолтний колір QLabel)
+        if not highlight_best:
+            value_label.setObjectName("rowTimeLabel")
         value_font = QFont()
         value_font.setBold(True)
         value_font.setPointSize(self.font().pointSize() + 4)
@@ -401,7 +408,7 @@ class RaceAggregateWidget(ListItemWidget):
 
     @staticmethod
     def _stat_row(agg: RaceAggregate, kind: str, caption: str, value: str,
-                  caption_reserve: str = "") -> QWidget:
+                  caption_reserve: str = "", highlight: bool = False) -> QWidget:
         caption_label = QLabel(caption)
         caption_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 11px;")
         if caption_reserve:
@@ -410,6 +417,8 @@ class RaceAggregateWidget(ListItemWidget):
                 caption_label.fontMetrics().horizontalAdvance(caption_reserve))
 
         value_label = QLabel(value or "—")
+        if highlight:
+            value_label.setStyleSheet(f"color: {style.TIME_YELLOW};")
         value_font = QFont()
         value_font.setBold(True)
         value_label.setFont(value_font)
@@ -513,7 +522,7 @@ class RacesTab(QWidget):
             by_best_time = self.sort_combo.currentIndex() == 1
             if self.aggregate_button.isChecked():
                 for a in APP_CONTEXT.races_service.get_aggregates(track_query, car_query, by_best_time):
-                    RaceAggregateWidget(a).add_to_list(self.list_widget)
+                    RaceAggregateWidget(a, highlight_best=by_best_time).add_to_list(self.list_widget)
                 total = APP_CONTEXT.races_service.count_aggregates(track_query, car_query)
             else:
                 for i in APP_CONTEXT.races_service.get_all(track_query, car_query, by_best_time):

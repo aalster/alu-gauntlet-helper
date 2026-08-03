@@ -84,7 +84,8 @@ class RaceCard(QFrame):
         self.opponent_time_label.setFont(opponent_font)
         self.opponent_caption = QLabel(ui_lang.t("assistant.opponent_time_caption"))
         self.opponent_caption.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 11px;")
-        # контейнер, щоб без часу суперника рядок не займав висоту
+        # рядок видимий завжди: без часу суперника лишається порожнім (пробіл
+        # тримає висоту) — картки не «стрибають» відносно сусідніх
         self.opponent_widget = QWidget()
         opponent_row = QHBoxLayout(self.opponent_widget)
         opponent_row.setContentsMargins(INFO_PADDING, 0, INFO_PADDING, 0)
@@ -100,6 +101,18 @@ class RaceCard(QFrame):
         self.car_plate.setObjectName("carInfoPlate")
 
         self.car_icon = _CoverIcon(64)
+
+        # бейдж «рекомендація» поверх іконки авто (правий верхній кут): авто
+        # показане з окремого шару рекомендацій, а не з даних заїзду
+        self.suggested_badge = QLabel(ui_lang.t("assistant.suggested_badge"), self.car_icon)
+        self.suggested_badge.setStyleSheet(
+            f"background-color: {style.CYAN}; color: {style.TEXT_DARK};"
+            "font-size: 9px; font-weight: bold; padding: 1px 4px; border-radius: 4px;")
+        icon_overlay = QHBoxLayout(self.car_icon)
+        icon_overlay.setContentsMargins(3, 3, 3, 3)
+        icon_overlay.addStretch()
+        icon_overlay.addWidget(self.suggested_badge, alignment=Qt.AlignmentFlag.AlignTop)
+        self.suggested_badge.hide()
 
         self.brand_label = QLabel("")
         self.brand_label.setObjectName("carBrandLabel")
@@ -139,7 +152,9 @@ class RaceCard(QFrame):
         beat_row.setContentsMargins(INFO_PADDING, 0, INFO_PADDING, 0)
         beat_row.setSpacing(6)
         beat_row.addWidget(self.prob_label)
-        beat_row.addWidget(self.beat_label)
+        # притиснути до низу, а не центрувати: у центрованого дрібного напису
+        # базова лінія «спливає» над базовою лінією великого відсотка
+        beat_row.addWidget(self.beat_label, alignment=Qt.AlignmentFlag.AlignBottom)
         beat_row.addStretch()
 
         # --- мій час + іконки 👎/нотатки ---
@@ -200,10 +215,12 @@ class RaceCard(QFrame):
         self.rank_badge.deleteLater()
         self.rank_badge = widget
 
-    def update_card(self, e, track, car, beat, checked: bool, selected: bool):
+    def update_card(self, e, track, car, beat, checked: bool, selected: bool,
+                    suggested: bool = False):
         """e: EffectiveRace | None; track: TrackView | None; car: Car показаного
-        авто (фактичне з заїзду або закріплене) | None; beat: (wins, n) | None;
-        checked — стан чекбокса збереження; selected — чи це відкрита панель."""
+        авто (фактичне з заїзду або рекомендоване) | None; beat: (wins, n) | None;
+        checked — стан чекбокса збереження; selected — чи це відкрита панель;
+        suggested — показане авто є рекомендацією (бейдж на іконці)."""
         self.checkbox.setEnabled(e is not None)
         self.checkbox.setChecked(checked)
 
@@ -218,10 +235,12 @@ class RaceCard(QFrame):
         self.track_info.setVisible(track is not None)
 
         opp = e.opponent_time if e else 0
-        self.opponent_time_label.setText(format_time(opp) if opp else "")
-        self.opponent_widget.setVisible(bool(opp))
+        # пробіл замість порожнього тексту: порожній QLabel має нульовий
+        # sizeHint і рядок сплющився б — а він мусить тримати місце
+        self.opponent_time_label.setText(format_time(opp) if opp else " ")
+        self.opponent_caption.setVisible(bool(opp))
 
-        self._update_car(e, car)
+        self._update_car(e, car, suggested)
 
         # низ картки взаємовиключний: зіграна гонка показує мій час (з іконками),
         # незіграна — лише статистику шансів (👎/нотатка без часу не показуються);
@@ -252,10 +271,11 @@ class RaceCard(QFrame):
         border = CARD_BORDER_SELECTED if selected else style.BORDER
         self.setStyleSheet(f"QFrame#raceCard {{ border: 1px solid {border}; border-radius: 6px; }}")
 
-    def _update_car(self, e, car):
+    def _update_car(self, e, car, suggested: bool = False):
         """Плашка авто; car=None з e.car_name — кастомне авто з драфта (без
         іконки й рангу), зовсім без авто — плашка схована, місце порожнє."""
         custom_name = e.car_name if e is not None and not (e.car_id or 0) else ""
+        self.suggested_badge.setVisible(car is not None and suggested)
         if car is not None:
             self.car_icon.set_icon(car.icon)
             self.car_icon.show()

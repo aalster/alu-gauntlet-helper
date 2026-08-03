@@ -95,8 +95,9 @@ def track_service(by_track):
 
 
 def assigned_car(s, n):
+    # показане авто: фактичне (car_id) або рекомендоване (suggested_car_id)
     e = s.effective(n)
-    return e.car_id if e else 0
+    return e.shown_car_id if e else 0
 
 
 def test_auto_pick_assigns_unpinned():
@@ -109,6 +110,8 @@ def test_auto_pick_assigns_unpinned():
     # обидва авто мають призначення, різні; жодне не запінене
     assert {assigned_car(s, 1), assigned_car(s, 2)} == {501, 502}
     assert s.pinned_races == set()
+    # призначення — рекомендації: модель заїзду лишається без авто
+    assert s.effective(1).car_id == 0 and s.effective(2).car_id == 0
 
 
 def test_auto_pick_skips_when_pinned_and_not_forced():
@@ -148,6 +151,22 @@ def test_auto_pick_excludes_car_driven_in_other_race():
     svc.auto_pick(s)
     assert assigned_car(s, 1) == 501  # фактичне лишилось
     assert assigned_car(s, 2) == 502  # 501 зайняте зіграною гонкою
+
+
+def test_auto_pick_fixes_scanned_car_without_time():
+    # незіграна гонка з відомим авто (скан вибору авто): авто фіксується, не
+    # пропонується іншим гонкам, а рекомендація для цієї гонки не пишеться
+    svc = track_service({
+        7: {501: [19000] * 10},
+        8: {501: [19000] * 10, 502: [20000] * 10},
+    })
+    s = session_with(race(1, 7, opp_time=25000), race(2, 8, opp_time=25000))
+    s.apply(RecognitionResult(screen="test", captures=[RaceCapture(
+        race_number=1, car=FieldGuess(value=501, score=0.9))]))  # авто без часу
+    svc.auto_pick(s)
+    e1 = s.effective(1)
+    assert e1.car_id == 501 and e1.suggested_car_id == 0
+    assert assigned_car(s, 2) == 502  # 501 зайняте гонкою 1
 
 
 def test_win_chance_none_without_opponent_times():

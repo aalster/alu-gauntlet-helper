@@ -301,61 +301,110 @@ def test_effective_not_none_for_opponent_only_capture():
     assert s.effective(3).opponent_time == 30000
 
 
-# --- вибір авто (draft.car_id) / одноразовість сесії ------------------------
+# --- рекомендації авто (шар suggested) / одноразовість сесії -----------------
 
 
-def assigned_car(s, n):
+def track_capture(n):
+    return capture(n, track_score=0.9)
+
+
+def suggested_car(s, n):
     e = s.effective(n)
-    return e.car_id if e else 0
+    return e.suggested_car_id if e else 0
+
+
+def shown_car(s, n):
+    e = s.effective(n)
+    return e.shown_car_id if e else 0
+
+
+def test_set_assigned_fills_suggestion_not_race_car():
+    s = ChallengeSessionService()
+    s.apply(result(track_capture(1)))
+    s.set_assigned(1, 501)
+    e = s.effective(1)
+    assert e.suggested_car_id == 501 and e.shown_car_id == 501
+    assert e.car_id == 0  # модель заїзду лишилась порожньою
 
 
 def test_set_assigned_one_car_one_race():
     s = ChallengeSessionService()
+    for n in (1, 2, 3):
+        s.apply(result(track_capture(n)))
     s.set_assigned(1, 501)
     s.set_assigned(2, 502)
     s.set_assigned(3, 501)  # перевибір: авто 501 переїжджає з гонки 1 на 3
-    assert assigned_car(s, 1) == 0
-    assert assigned_car(s, 2) == 502
-    assert assigned_car(s, 3) == 501
+    assert suggested_car(s, 1) == 0
+    assert suggested_car(s, 2) == 502
+    assert suggested_car(s, 3) == 501
     assert s.pinned_races == {2, 3}
 
 
 def test_set_assigned_none_unassigns():
     s = ChallengeSessionService()
+    s.apply(result(track_capture(1)))
     s.set_assigned(1, 501)
     s.set_assigned(1, None)
-    assert assigned_car(s, 1) == 0 and s.pinned_races == set()
+    assert suggested_car(s, 1) == 0 and s.pinned_races == set()
+
+
+def test_set_assigned_ignored_when_race_has_car():
+    # авто заїзду вже відоме (скан вибору авто чи модалка) — клік по
+    # рекомендації нічого не змінює
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, car_score=0.9)))  # факт: авто 21, часу ще немає
+    s.set_assigned(1, 999)
+    e = s.effective(1)
+    assert e.car_id == 21 and e.suggested_car_id == 0 and e.shown_car_id == 21
+    assert s.suggested == {} and s.pinned_races == set()
+
+
+def test_scanned_car_suppresses_stored_suggestion():
+    # сценарій скарги: вибрав рекомендацію, потім просканував екран, де явно
+    # вибрано авто — показуватись має авто зі скріншота, не рекомендація
+    s = ChallengeSessionService()
+    s.apply(result(track_capture(1)))
+    s.set_assigned(1, 501)
+    s.apply(result(capture(1, car_score=0.9)))  # OCR: авто 21 (без часу)
+    e = s.effective(1)
+    assert e.car_id == 21 and e.suggested_car_id == 0
+    assert e.shown_car_id == 21
 
 
 def test_set_assigned_does_not_steal_from_driven_race():
     # фактично проїхане авто (є мій час) не знімається перевибором на іншу гонку
     s = ChallengeSessionService()
     s.apply(result(capture(1, car_score=0.9, time=20000)))  # факт: авто 21
+    s.apply(result(track_capture(2)))
     s.set_assigned(2, 21)
-    assert assigned_car(s, 1) == 21  # зіграна гонка недоторкана
-    assert assigned_car(s, 2) == 21  # вибір записано (гра не дасть, але UI блокує раніше)
+    assert shown_car(s, 1) == 21  # зіграна гонка недоторкана
+    assert suggested_car(s, 2) == 21  # вибір записано (гра не дасть, але UI блокує раніше)
 
 
-def test_set_assignments_keeps_pins_and_driven():
+def test_set_assignments_keeps_pins_and_known_cars():
     s = ChallengeSessionService()
+    for n in (1, 2, 3, 4):
+        s.apply(result(track_capture(n)))
     s.set_assigned(2, 502)                      # ручний пін
     s.set_assigned(4, 504, pinned=False)        # авто-призначення
     s.apply(result(capture(5, car_score=0.9, time=20000)))  # зіграна: факт 25
     s.set_assignments({1: 501, 2: 999, 3: 503, 5: 888})  # автопідбір
-    assert assigned_car(s, 1) == 501
-    assert assigned_car(s, 2) == 502  # пін не перезаписано
-    assert assigned_car(s, 3) == 503
-    assert assigned_car(s, 4) == 0    # авто-призначення без нового — знято
-    assert assigned_car(s, 5) == 25   # зіграна — фактичне авто, не 888
+    assert suggested_car(s, 1) == 501
+    assert suggested_car(s, 2) == 502  # пін не перезаписано
+    assert suggested_car(s, 3) == 503
+    assert suggested_car(s, 4) == 0    # авто-призначення без нового — знято
+    assert shown_car(s, 5) == 25       # зіграна — фактичне авто, не 888
+    assert suggested_car(s, 5) == 0
     assert s.pinned_races == {2}
 
 
 def test_clear_pins():
     s = ChallengeSessionService()
+    s.apply(result(track_capture(2)))
     s.set_assigned(2, 502)
     s.clear_pins()
     assert s.pinned_races == set()
-    assert assigned_car(s, 2) == 502  # вибір лишився, лише статус піна знято
+    assert suggested_car(s, 2) == 502  # рекомендація лишилась, лише пін знято
 
 
 def test_assignment_notifies_listeners():
@@ -369,9 +418,10 @@ def test_assignment_notifies_listeners():
 
 def test_clear_resets_assignments():
     s = ChallengeSessionService()
+    s.apply(result(track_capture(1)))
     s.set_assigned(1, 501)
     s.clear()
-    assert assigned_car(s, 1) == 0 and s.pinned_races == set()
+    assert s.suggested == {} and s.pinned_races == set()
 
 
 def test_is_disposable():
@@ -403,11 +453,13 @@ def test_is_disposable_true_with_car_only_draft():
 
 def test_new_run_scan_overwrites_chosen_car():
     s = ChallengeSessionService()
+    s.apply(result(track_capture(1)))
     s.set_assigned(1, 999)  # вибрав одне авто…
     s.apply(result(capture(1, car_score=0.9, rank=4795, time=19130)))  # …проїхав іншим
     e = s.effective(1)
     assert e.car_id == 21      # фактичне авто зі скану, не 999
     assert e.rank == 4795      # і фактичний ранг
+    assert s.suggested == {}   # рекомендація «витрачена» заїздом
     assert 1 not in s.pinned_races
 
 
