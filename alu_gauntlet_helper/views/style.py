@@ -37,6 +37,13 @@ LOSS_BRIGHT = "#EE5A50"
 # «мало заїздів» у лічильнику агрегації — спокійніший за RANK_DOWN помаранчевий
 COUNT_WARN = "#D9A05A"
 
+
+def win_chance_color(pct: int) -> str:
+    """Колір загального шансу перемоги в матчі (P(≥3 з 5), у відсотках):
+    >75 — зелений, >50 — помаранчевий, інакше червоний. Спільні пороги для
+    низу таба асистента й заголовка оверлея."""
+    return WIN_BRIGHT if pct > 75 else RANK_DOWN if pct > 50 else LOSS_BRIGHT
+
 CHECKMARK_ICON = get_resource_path("icons/check.svg").replace("\\", "/")
 CHEVRON_DOWN_ICON = get_resource_path("icons/chevron-down.svg").replace("\\", "/")
 

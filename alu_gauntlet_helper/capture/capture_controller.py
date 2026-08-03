@@ -315,7 +315,7 @@ class CaptureController(QObject):
             hide=settings.overlay_hotkey.upper(),
             combo=combo)
         self.overlay.update_content(
-            header_text(effective),
+            header_text(effective, APP_CONTEXT.assistant.win_chance(session)),
             build_races_table(effective, track_names, car_names, beat_stats),
             status, hint, self._in_flight)
         if show and not self.overlay.isVisible():

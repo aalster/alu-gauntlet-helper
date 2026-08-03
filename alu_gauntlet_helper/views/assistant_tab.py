@@ -129,10 +129,8 @@ class SessionView(QWidget):
         chance = APP_CONTEXT.assistant.win_chance(self.session)
         if chance is not None:
             pct = round(chance * 100)
-            color = (style.WIN_BRIGHT if pct > 75
-                     else style.RANK_DOWN if pct > 50 else style.LOSS_BRIGHT)
             self.win_chance_value.setText(f"{pct}%")
-            self.win_chance_value.setStyleSheet(f"color: {color};")
+            self.win_chance_value.setStyleSheet(f"color: {style.win_chance_color(pct)};")
         else:
             self.win_chance_value.setText("")
         self.win_chance_label.setVisible(chance is not None)

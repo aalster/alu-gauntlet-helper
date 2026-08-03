@@ -14,7 +14,7 @@ from alu_gauntlet_helper.views.components.common import res_to_pixmap
 from alu_gauntlet_helper.views.style import (BORDER, CARD_SELECTED, CYAN,
                                              LOSS_BRIGHT, TEXT, TEXT_DARK,
                                              WIN_BRIGHT, YELLOW, YELLOW_HOVER,
-                                             YELLOW_PRESSED)
+                                             YELLOW_PRESSED, win_chance_color)
 
 MARGIN = 16
 UNCERTAIN_COLOR = "#FFC107"  # ненадійні (low-confidence) поля підсвічуються амбер
@@ -53,9 +53,17 @@ def _dislike_cell(n: int, active: bool) -> str:
             f"<img src='{src}' width='14' height='14'></a></td>")
 
 
-def header_text(races: dict[int, EffectiveRace]) -> str:
-    """Статичний заголовок оверлея (бренд, без лічильника гонок)."""
-    return ui_lang.t("window.title")
+def header_text(races: dict[int, EffectiveRace],
+                win_chance: float | None = None) -> str:
+    """Заголовок оверлея: бренд + «72%» — шанс виграти матч (P(≥3 з 5)),
+    коли в сесії є часи суперника. Без них — статичний бренд, як раніше.
+    QLabel з дефолтним AutoText сам розпізнає rich-text за тегом <span>."""
+    title = ui_lang.t("window.title")
+    if win_chance is None:
+        return title
+    pct = round(win_chance * 100)
+    return (f"{escape(title)} <span style='color:{win_chance_color(pct)};"
+            f"font-weight:bold'>{pct}%</span>")
 
 
 def build_races_table(races: dict[int, EffectiveRace],
