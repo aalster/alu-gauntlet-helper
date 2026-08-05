@@ -6,11 +6,14 @@ from PyQt6.QtWidgets import (QAbstractItemView, QHBoxLayout, QLabel, QListWidget
 
 from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
+from alu_gauntlet_helper.services.assistant import sort_tracks_by_probability
 from alu_gauntlet_helper.services.challenge_session import (RACE_COUNT, ChallengeSessionService,
                                                             EffectiveRace)
 from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.views import style
-from alu_gauntlet_helper.views.components.common import WARN_ICON, ListItemWidget
+from alu_gauntlet_helper.views.components.chip_tooltip import chip_tooltip_html, prob_percent
+from alu_gauntlet_helper.views.components.common import (WARN_ICON, ListItemWidget,
+                                                         image_preview_html)
 from alu_gauntlet_helper.views.components.race_card import RaceCard
 from alu_gauntlet_helper.views.components.vs_suggestion import VsSuggestionWidget
 from alu_gauntlet_helper.views.races_tab import RaceDialog
@@ -189,17 +192,31 @@ class SessionView(QWidget):
         if not ids:
             self.chips_widget.hide()
             return
+        # map-кейс (без OCR-кандидатів): частки схожості часу суперника на
+        # треки карти — сортуємо за спаданням, показуємо відсоток у чипі;
+        # суто візуальний сигнал, песимістичні оцінки він не змінює
+        probs = {}
+        if e and not e.track_candidates:
+            probs = APP_CONTEXT.assistant.track_probabilities(ids, e.opponent_time)
+            ids = sort_tracks_by_probability(ids, probs)
         tracks = APP_CONTEXT.tracks_service.get_by_ids(set(ids))
         for tid in ids:
             track = tracks.get(tid)
             name = track.display_name if track else str(tid)
+            if tid in probs:
+                name = f"{name} · {prob_percent(probs[tid])}%"
             chip = QPushButton(name)
             chip.setObjectName("secondary")
             chip.setCheckable(True)
             chip.setChecked(bool(e) and e.track_id == tid)
-            if e and e.track_id == tid and e.track_inferred:
-                chip.setText(name + " ?")
-                chip.setToolTip(ui_lang.t("assistant.track_probable_tooltip"))
+            # єдиний тултіп чипа: складається з наявного (відсоток, часи,
+            # маршрут); коли інформації немає зовсім — тултіпа немає
+            icon_html = image_preview_html(track.icon) if track and track.icon else ""
+            tooltip = chip_tooltip_html(probs.get(tid),
+                                        APP_CONTEXT.assistant.track_time_stats(tid),
+                                        e.opponent_time if e else 0, icon_html)
+            if tooltip:
+                chip.setToolTip(tooltip)
             chip.clicked.connect(lambda _, t=tid: self._on_chip_clicked(t))
             self.chips_row.addWidget(chip)
         self.chips_row.addStretch()

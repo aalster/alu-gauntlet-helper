@@ -1,9 +1,8 @@
 from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.services.challenge_session import EffectiveRace
 from alu_gauntlet_helper.views.overlay import (COMPLETE_COLOR, CYAN, LOSS_BRIGHT,
-                                               PARTIAL_COLOR, UNCERTAIN_COLOR,
-                                               WIN_BRIGHT, build_races_table,
-                                               header_text)
+                                               UNCERTAIN_COLOR, WIN_BRIGHT,
+                                               build_races_table, header_text)
 
 BRAND_TITLE = ui_lang.t("window.title")  # заголовок оверлея — статичний бренд, без лічильника
 
@@ -33,7 +32,8 @@ def test_partial_race_marked():
     table = build_races_table(races, {}, {})
     assert "00:21.000" in table
     assert "no data" in table  # гонка 1 без даних
-    assert PARTIAL_COLOR in table       # частковий рядок — амбер-номер
+    assert "#e6c34a" not in table       # жовтого номера більше немає
+    assert "color:white;font-weight:bold'>2</span>" in table  # частковий — білий
     assert COMPLETE_COLOR not in table  # повних рядків немає
 
 
@@ -132,25 +132,25 @@ def test_map_only_race_shows_map_name():
     assert "The Caribbean" in table
 
 
-def test_fixed_track_cyan_with_white_map():
-    # трек вибрано чипом: карта звичайним кольором, трек — cyan
+def test_fixed_track_cyan_with_white_map_and_dash():
+    # трек вибрано чипом: «Карта - » звичайним кольором (з тире), трек — cyan
     races = {1: EffectiveRace(track_id=26, map_id=5, track_fixed=True,
                               opponent_time=25000)}
     table = build_races_table(races, {26: "Hell Vale"}, {},
                               track_maps={26: "The Caribbean"},
                               map_names={5: "The Caribbean"})
-    assert f"<span style='color:{CYAN}'>Hell Vale</span>" in table
-    assert "The Caribbean" in table
+    assert f"The Caribbean - <span style='color:{CYAN}'>Hell Vale</span>" in table
     assert "The Caribbean - Hell Vale" not in table  # карта не в cyan-спані
 
 
-def test_inferred_track_has_question_suffix():
-    # трек виведено звуженням за часом — позначка «?» і на оверлеї (спека §6)
+def test_inferred_track_has_no_question_suffix():
+    # трек виведено звуженням за часом — без позначки «?» (прибрано на прохання)
     races = {1: EffectiveRace(track_id=26, map_id=5, track_fixed=True,
                               track_inferred=True, opponent_time=25000)}
     table = build_races_table(races, {26: "Hell Vale"}, {},
                               map_names={5: "The Caribbean"})
-    assert "Hell Vale ?" in table
+    assert "Hell Vale ?" not in table
+    assert f"<span style='color:{CYAN}'>Hell Vale</span>" in table
 
 
 def test_scanned_track_composes_map_dash_track():
@@ -160,6 +160,32 @@ def test_scanned_track_composes_map_dash_track():
                               track_maps={11: "Paris"})
     assert "Paris - Notre Dame" in table
     assert CYAN not in table
+
+
+# --- колір номера гонки: програш проти суперника — червоний ----------------
+
+
+def test_lost_race_number_red():
+    # мій час гірший (або рівний) за час суперника — номер червоний
+    races = {1: EffectiveRace(track_id=11, car_id=21, time=25000, opponent_time=24000)}
+    table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"})
+    assert f"color:{LOSS_BRIGHT};font-weight:bold'>1</span>" in table
+    assert COMPLETE_COLOR not in table
+
+
+def test_won_race_number_green():
+    races = {1: EffectiveRace(track_id=11, car_id=21, time=23000, opponent_time=24000)}
+    table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"})
+    assert f"color:{COMPLETE_COLOR};font-weight:bold'>1</span>" in table
+    assert LOSS_BRIGHT not in table
+
+
+def test_played_race_without_opponent_time_not_red():
+    # без часу суперника програшу немає — номер за заповненістю, як раніше
+    races = {1: EffectiveRace(track_id=11, car_id=21, time=25000)}
+    table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"})
+    assert LOSS_BRIGHT not in table
+    assert COMPLETE_COLOR in table
 
 
 # --- win_chance_color: спільні пороги таба асистента й оверлея -------------

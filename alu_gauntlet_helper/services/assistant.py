@@ -1,3 +1,6 @@
+import math
+import statistics
+
 from alu_gauntlet_helper.services.races import CarSuggestion
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT
 from alu_gauntlet_helper.services.opponent_picker import Candidate, pick_cars, prob_at_least
@@ -9,11 +12,19 @@ CHIP_SCORE_WINDOW = 0.05
 CHIP_LIMIT = 3
 # запас діапазону моїх часів при звуженні треку за часом суперника (спека §6)
 NARROW_MARGIN = 0.10
+# масштаб спаду ваги треку з відстанню часу суперника від моєї медіани:
+# точний збіг → 1.0, відхилення 10% → ~0.37, 20% → ~0.02 (узгоджено з ±10% narrow)
+TRACK_PROB_TAU = 0.10
 
 
 def laplace(wins: int, n: int) -> float:
     """Згладжена ймовірність (wins+1)/(n+2): 2/2 (~0.75) не переважає 9/10 (~0.83)."""
     return (wins + 1) / (n + 2)
+
+
+def sort_tracks_by_probability(track_ids: list[int], probs: dict[int, float]) -> list[int]:
+    """Чипи за спаданням ймовірності; треки без оцінки — в кінці, в поточному порядку."""
+    return sorted(track_ids, key=lambda tid: -probs.get(tid, -1.0))
 
 
 class VsSuggestion(CarSuggestion):
@@ -205,6 +216,39 @@ class AssistantService:
             ids = self._map_tracks(e.map_id)
             return ids if len(ids) > 1 else []
         return []
+
+    def track_probabilities(self, track_ids: list[int],
+                            opponent_time: int | None) -> dict[int, float]:
+        """Частки «наскільки час суперника схожий на трек» для чипів map-гонки.
+
+        Вага треку — exp(−(d/τ)²) від відносної відстані часу суперника до
+        медіани моїх останніх 50 чистих часів на треку (будь-яким авто);
+        частки нормовані до 1. СУТО візуальний сигнал: на narrow_track,
+        win_chance і підбір авто не впливає. Порожній dict — оцінювати немає
+        сенсу: немає часу суперника або дані є менш ніж у двох кандидатів
+        (єдиний трек з даними завжди отримував би оманливі 100%)."""
+        if not opponent_time:
+            return {}
+        weights = {}
+        for tid in track_ids:
+            times = self.races.get_recent_clean_times(tid)
+            if not times:
+                continue
+            median = statistics.median(times)
+            d = abs(opponent_time - median) / median
+            weights[tid] = math.exp(-(d / TRACK_PROB_TAU) ** 2)
+        if len(weights) < 2:
+            return {}
+        total = sum(weights.values())
+        return {tid: w / total for tid, w in weights.items()}
+
+    def track_time_stats(self, track_id: int) -> tuple[int, int] | None:
+        """(медіана, кількість) моїх останніх 50 чистих часів трека — для
+        тултіпа чипа з ймовірністю. None — заїздів немає."""
+        times = self.races.get_recent_clean_times(track_id)
+        if not times:
+            return None
+        return round(statistics.median(times)), len(times)
 
     def narrow_track(self, track_ids: list[int], opponent_time: int) -> int | None:
         """Звуження: час суперника влучає в діапазон моїх часів (±10%) рівно

@@ -151,10 +151,10 @@ class RaceCard(QFrame):
         beat_row = QHBoxLayout(self.beat_widget)
         beat_row.setContentsMargins(INFO_PADDING, 0, INFO_PADDING, 0)
         beat_row.setSpacing(6)
+        # обидва лейбли без alignment: розтягуються на всю висоту рядка, і
+        # QLabel центрує текст сам — однаковий механізм, однакова вертикаль
         beat_row.addWidget(self.prob_label)
-        # притиснути до низу, а не центрувати: у центрованого дрібного напису
-        # базова лінія «спливає» над базовою лінією великого відсотка
-        beat_row.addWidget(self.beat_label, alignment=Qt.AlignmentFlag.AlignBottom)
+        beat_row.addWidget(self.beat_label)
         beat_row.addStretch()
 
         # --- мій час + іконки 👎/нотатки ---
@@ -228,16 +228,14 @@ class RaceCard(QFrame):
 
         if track is not None:
             warn = WARN_ICON if e is not None and e.track_uncertain else ""
-            # трек, виведений звуженням за часом, — з позначкою «?» (спека §4)
-            probable = " ?" if e is not None and e.track_inferred else ""
             self._set_track_info(TrackInfoWidget(
                 track.map_icon or "", track.icon or "",
-                track.display_map_name, warn + track.display_name + probable))
+                track.display_map_name, warn + track.display_name))
         elif map_ is not None:
-            # карта відома (екран 3), трек — ще ні: іконка карти + «Трек?»
+            # карта відома (екран 3), трек — ще ні: іконка й назва карти,
+            # місце треку лишається порожнім
             self._set_track_info(TrackInfoWidget(
-                map_.icon or "", "", map_.display_name,
-                ui_lang.t("assistant.track_unknown")))
+                map_.icon or "", "", map_.display_name, ""))
         else:
             # ні треку, ні карти — компонент не показуємо зовсім (порожнє місце)
             self._set_track_info(TrackInfoWidget("", "", "", ""))

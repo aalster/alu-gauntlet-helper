@@ -214,19 +214,24 @@ class FakeTracks:
 
 
 class RangeFakeRaces(TrackAwareFakeRaces):
-    """+ діапазони часів треків: {track_id: (lo, hi)}."""
-    def __init__(self, by_track, ranges=None):
+    """+ діапазони часів треків: {track_id: (lo, hi)};
+    + чисті часи трека всіма авто: {track_id: [times]}."""
+    def __init__(self, by_track, ranges=None, clean_times=None):
         super().__init__(by_track)
         self.ranges = ranges or {}
+        self.clean_times = clean_times or {}
 
     def get_time_range_for_track(self, track_id):
         return self.ranges.get(track_id)
 
+    def get_recent_clean_times(self, track_id, limit=50):
+        return self.clean_times.get(track_id, [])[:limit]
 
-def stage3_service(by_track=None, ranges=None, by_map=None):
+
+def stage3_service(by_track=None, ranges=None, by_map=None, clean_times=None):
     by_track = by_track or {}
     ids = {c for cars in by_track.values() for c in cars}
-    return AssistantService(RangeFakeRaces(by_track, ranges),
+    return AssistantService(RangeFakeRaces(by_track, ranges, clean_times),
                             FakeCars([fake_car(i) for i in ids]),
                             FakeTracks(by_map or {}))
 
@@ -433,6 +438,58 @@ def test_track_without_any_data_ignored_in_selection():
     # p̂ рівні (10/10 у обох проти 27000), тай-брейк маржином: 502 має 8000
     # проти 1000 у 501 (порядок id навмисне протилежний «першому» в set)
     assert s.effective(1).suggested_car_id == 502
+
+
+# --- ймовірність треку за часом суперника (map-кейс, лише чипи) -------------
+
+
+def test_track_probabilities_closer_median_dominates():
+    svc = stage3_service(clean_times={21: [19800, 20000, 20200],
+                                      22: [29800, 30000, 30200]})
+    probs = svc.track_probabilities([21, 22], 20500)
+    assert abs(sum(probs.values()) - 1.0) < 1e-9
+    assert probs[21] > 0.99
+
+
+def test_track_probabilities_exact_match_beats_near_track():
+    svc = stage3_service(clean_times={21: [20000] * 3, 22: [22000] * 3})
+    probs = svc.track_probabilities([21, 22], 20000)
+    assert probs[21] > probs[22]
+    assert probs[21] > 0.6
+
+
+def test_track_probabilities_empty_without_opponent_time():
+    svc = stage3_service(clean_times={21: [20000], 22: [21000]})
+    assert svc.track_probabilities([21, 22], 0) == {}
+
+
+def test_track_probabilities_empty_when_less_than_two_tracks_have_data():
+    # єдиний трек з даними показував би оманливі «100%»
+    svc = stage3_service(clean_times={21: [20000] * 5})
+    assert svc.track_probabilities([21, 22], 20000) == {}
+    assert stage3_service().track_probabilities([21, 22], 20000) == {}
+
+
+def test_track_probabilities_median_ignores_outlier():
+    # викид 99999 зіпсував би середнє (і трек 22 виграв би), медіану — ні
+    svc = stage3_service(clean_times={21: [19900, 20000, 20100, 20200, 99999],
+                                      22: [20600] * 5})
+    probs = svc.track_probabilities([21, 22], 20050)
+    assert probs[21] > probs[22]
+
+
+def test_track_time_stats_median_and_count():
+    svc = stage3_service(clean_times={21: [19900, 20000, 99999]})
+    assert svc.track_time_stats(21) == (20000, 3)   # медіана, не середнє
+    assert svc.track_time_stats(22) is None         # немає заїздів
+
+
+def test_sort_tracks_by_probability_keeps_no_data_last():
+    from alu_gauntlet_helper.services.assistant import sort_tracks_by_probability
+    ids = [21, 22, 23, 24]
+    probs = {22: 0.7, 24: 0.3}
+    assert sort_tracks_by_probability(ids, probs) == [22, 24, 21, 23]
+    assert sort_tracks_by_probability(ids, {}) == ids
 
 
 def test_unknown_car_on_data_track_still_penalized():

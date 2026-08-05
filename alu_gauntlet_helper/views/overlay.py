@@ -34,12 +34,12 @@ def _cell(text: str, uncertain: bool, color: str | None = None) -> str:
 
 
 COMPLETE_COLOR = "#67d27a"  # колір номера гонки: всі поля заповнені
-PARTIAL_COLOR = "#e6c34a"   # колір номера гонки: дані часткові
 
 
-def _num_cell(n: int, complete: bool) -> str:
-    """Номер гонки; його колір показує заповненість рядка."""
-    color = COMPLETE_COLOR if complete else PARTIAL_COLOR
+def _num_cell(n: int, complete: bool, lost: bool = False) -> str:
+    """Номер гонки: червоний — програна гонка проти суперника, зелений — рядок
+    повністю заповнений, білий — дані часткові."""
+    color = LOSS_BRIGHT if lost else (COMPLETE_COLOR if complete else "white")
     return (f"<td style='padding-right:8px;{_TD_MIDDLE}'>"
             f"<span style='color:{color};font-weight:bold'>{n}</span></td>")
 
@@ -69,16 +69,13 @@ def header_text(races: dict[int, EffectiveRace],
 def _track_cell(e: EffectiveRace, track_names: dict[int, str],
                 track_maps: dict[int, str], map_names: dict[int, str]) -> str:
     """Комірка треку: «Карта - Трек» для треку зі скану/драфта; трек, вибраний
-    чипом чи виведений звуженням (track_fixed), — cyan поруч із білою картою,
-    виведений — ще й з позначкою «?» (спека §6); гонка лише з картою — назва
-    карти замість «?»."""
+    чипом чи виведений звуженням (track_fixed), — cyan поруч із білими
+    «Карта - »; гонка лише з картою — назва карти замість «?»."""
     if e.track_id:
         track = track_names.get(e.track_id, "?")
         if e.track_fixed:
-            if e.track_inferred:
-                track += " ?"
             map_name = map_names.get(e.map_id, "") or track_maps.get(e.track_id, "")
-            prefix = f"{escape(map_name)} " if map_name else ""
+            prefix = f"{escape(map_name)} - " if map_name else ""
             return f"{prefix}<span style='color:{CYAN}'>{escape(track)}</span>"
         map_name = track_maps.get(e.track_id, "")
         label = f"{map_name} - {track}" if map_name else track
@@ -136,9 +133,12 @@ def build_races_table(races: dict[int, EffectiveRace],
             time_cell = escape(format_time(e.time) if e.time else "?")
         with_car = e.shown_car_id > 0 or bool(e.car_name)
         dislike = "<td></td>" if not played and with_car else _dislike_cell(n, e.bad_timing)
+        # програш проти суперника (лише коли його час відомий): нічия = програш,
+        # як у win_chance
+        lost = played and e.opponent_time > 0 and e.time >= e.opponent_time
         rows.append(
             f"<tr>"
-            f"{_num_cell(n, e.is_complete)}"
+            f"{_num_cell(n, e.is_complete, lost)}"
             f"<td style='padding-right:12px;{_TD_MIDDLE}'>{track_cell}</td>"
             f"<td style='padding-right:12px;{_TD_MIDDLE}'>{car_cell}</td>"
             f"<td style='{_TD_MIDDLE}'>{time_cell}</td>"

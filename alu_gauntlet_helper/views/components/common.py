@@ -221,8 +221,9 @@ class TrackInfoWidget(QWidget):
     def __init__(self, map_icon: str, track_icon: str, map_name: str, track_name: str, parent=None):
         super().__init__(parent)
         # plain QWidget ігнорує QSS-фон без цього атрибута (затемнення при наведенні);
-        # порожній елемент (трек не вказано, capture-драфти) не підсвічуємо
-        if track_name:
+        # порожній елемент (capture-драфти) не підсвічуємо; map-only гонка
+        # (карта без треку) — повноцінний елемент, підсвічується
+        if track_name or map_name:
             self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
             self.setObjectName("trackInfo")
 
