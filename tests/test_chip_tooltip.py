@@ -1,5 +1,8 @@
+from alu_gauntlet_helper import ui_lang
+from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.views.components.chip_tooltip import (chip_tooltip_html,
-                                                               prob_percent)
+                                                               prob_percent,
+                                                               win_chance_tooltip)
 
 # Єдиний тултіп чипа треку: з наявних частин — «Збіг ... {p}%», таблиця часів
 # (суперник / моя медіана / різниця), превʼю маршруту внизу. Чого немає —
@@ -54,3 +57,45 @@ def test_tooltip_icon_only():
 
 def test_tooltip_empty_without_any_info():
     assert chip_tooltip_html(None, None, 0) == ""
+
+
+# --- Тултіп загального шансу перемоги: P(≥3), P(≥4), P(≥5) -----------------
+# за 4 і 5 перемог дають додаткові очки — бонус поверх перемоги (≥3);
+# таблиця (відсоток вирівняний праворуч | підпис), кольори відсотків —
+# пороги win_chance_color (як велика цифра)
+
+
+def chance_row(pct: int, label: str) -> str:
+    value = f"<span style='color:{style.win_chance_color(pct)}'>{pct}%</span>"
+    return (f"<tr><td align='right'>{value}</td>"
+            f"<td style='padding-left:8px;white-space:nowrap'>{label}</td></tr>")
+
+
+def test_win_chance_tooltip_cumulative_table():
+    dist = [0.05, 0.1, 0.2, 0.3, 0.25, 0.1]
+    assert win_chance_tooltip(dist) == (
+        "<table cellspacing='0' cellpadding='1'>"
+        + chance_row(65, "chance to win at least 3 races")   # 0.3 + 0.25 + 0.1
+        + chance_row(35, "chance to win at least 4 races")   # 0.25 + 0.1
+        + chance_row(10, "chance to win all races")
+        + "</table>")
+
+
+def test_win_chance_tooltip_percent_colors():
+    # 100 (>75) зелений, 50 (≤50) червоний, 20 — теж червоний
+    html = win_chance_tooltip([0.0, 0.0, 0.0, 0.5, 0.3, 0.2])
+    assert f"color:{style.WIN_BRIGHT}'>100%" in html
+    assert f"color:{style.LOSS_BRIGHT}'>50%" in html
+    assert f"color:{style.LOSS_BRIGHT}'>20%" in html
+
+
+def test_win_chance_tooltip_uk_labels():
+    original = ui_lang.current_ui_language()
+    ui_lang.set_ui_language(ui_lang.UK)
+    try:
+        html = win_chance_tooltip([0.0, 0.0, 0.0, 0.5, 0.3, 0.2])
+    finally:
+        ui_lang.set_ui_language(original)
+    assert chance_row(100, "шанс виграти щонайменше 3 гонки") in html
+    assert chance_row(50, "шанс виграти щонайменше 4 гонки") in html
+    assert chance_row(20, "шанс виграти всі гонки") in html

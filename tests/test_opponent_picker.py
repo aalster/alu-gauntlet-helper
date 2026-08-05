@@ -1,4 +1,5 @@
-from alu_gauntlet_helper.services.opponent_picker import Candidate, pick_cars, prob_at_least
+from alu_gauntlet_helper.services.opponent_picker import (Candidate, pick_cars,
+                                                          prob_at_least, win_distribution)
 
 
 def test_prob_at_least_exact_values():
@@ -7,6 +8,17 @@ def test_prob_at_least_exact_values():
     assert abs(prob_at_least([0.5] * 5, 3) - 0.5) < 1e-9  # симетрія біноміального
     # 4 гонки по 0.5: P(>=3) = (C(4,3)+C(4,4))/16 = 5/16
     assert abs(prob_at_least([0.5] * 4, 3) - 5 / 16) < 1e-9
+
+
+def test_win_distribution_exact_values():
+    assert win_distribution([]) == [1.0]
+    assert win_distribution([0.5, 0.5]) == [0.25, 0.5, 0.25]  # біноміальний
+    probs = [0.9, 0.5, 0.3, 0.7, 0.5]
+    dist = win_distribution(probs)
+    assert len(dist) == 6
+    assert abs(sum(dist) - 1.0) < 1e-9
+    # узгодженість із prob_at_least: хвіст розподілу і є P(≥3)
+    assert abs(sum(dist[3:]) - prob_at_least(probs, 3)) < 1e-9
 
 
 def test_pick_assigns_distinct_cars():

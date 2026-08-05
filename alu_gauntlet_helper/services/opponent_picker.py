@@ -17,15 +17,21 @@ class Candidate(NamedTuple):
     margin: int  # запас, мс: opponent_time - avg_recent (або -avg без часу суперника)
 
 
-def prob_at_least(probs: list[float], k: int) -> float:
-    """Точна P(≥k успіхів) незалежних подій — Пуассон-біноміальний DP."""
-    dist = [1.0]  # dist[j] = P(рівно j успіхів серед оброблених)
+def win_distribution(probs: list[float]) -> list[float]:
+    """dist[j] = точна P(рівно j успіхів) незалежних подій — Пуассон-біноміальний DP."""
+    dist = [1.0]
     for p in probs:
         nxt = [0.0] * (len(dist) + 1)
         for j, q in enumerate(dist):
             nxt[j] += q * (1 - p)
             nxt[j + 1] += q * p
         dist = nxt
+    return dist
+
+
+def prob_at_least(probs: list[float], k: int) -> float:
+    """Точна P(≥k успіхів) незалежних подій — хвіст win_distribution."""
+    dist = win_distribution(probs)
     return sum(dist[k:]) if k < len(dist) else 0.0
 
 

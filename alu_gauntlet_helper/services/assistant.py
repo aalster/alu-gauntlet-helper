@@ -3,7 +3,7 @@ import statistics
 
 from alu_gauntlet_helper.services.races import CarSuggestion
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT
-from alu_gauntlet_helper.services.opponent_picker import Candidate, pick_cars, prob_at_least
+from alu_gauntlet_helper.services.opponent_picker import Candidate, pick_cars, win_distribution
 
 
 # вікно скорів, у якому OCR-кандидати треку вважаються нерозрізненними
@@ -161,6 +161,12 @@ class AssistantService:
 
     def win_chance(self, session) -> float | None:
         """P(виграти ≥3 з 5) за фактичними/рекомендованими авто. None — немає часів суперника."""
+        dist = self.win_distribution(session)
+        return sum(dist[3:]) if dist else None
+
+    def win_distribution(self, session) -> list[float] | None:
+        """P(рівно j перемог), j=0..5, за фактичними/рекомендованими авто —
+        для тултіпа-розбивки загального шансу. None — немає часів суперника."""
         probs = []
         has_opponent = False
         for n in range(1, RACE_COUNT + 1):
@@ -182,7 +188,7 @@ class AssistantService:
                 if opp:
                     has_opponent = True
                 probs.append(0.5)  # невідома гонка — монетка
-        return prob_at_least(probs, 3) if has_opponent else None
+        return win_distribution(probs) if has_opponent else None
 
     def beat_stats(self, track_id: int, car_id: int, opponent_time: int) -> tuple[int, int] | None:
         """(скільки побито, розмір вибірки) для бейджа «7/10». None — немає заїздів."""

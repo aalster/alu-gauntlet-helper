@@ -9,28 +9,47 @@ def prob_percent(p: float) -> int:
     return min(99, round(p * 100))
 
 
+def _row(value: str, label: str) -> str:
+    """Рядок двоколонкової таблиці тултіпа: значення (праве вирівнювання) + підпис.
+    nowrap: rich-text тултіпи Qt мають примусовий word-wrap і без нього
+    переносять підпис на другий рядок."""
+    return (f"<tr><td align='right'>{value}</td>"
+            f"<td style='padding-left:8px;white-space:nowrap'>{label}</td></tr>")
+
+
+def win_chance_tooltip(dist: list[float]) -> str:
+    """Тултіп загального шансу перемоги — таблиця «{p}% | шанс виграти
+    щонайменше N гонки» для N=3..4 і «... всі гонки» для N=5: за 4 і 5 перемог
+    дають додаткові очки, тож це бонус поверх перемоги (≥3). Перший відсоток
+    збігається з великою цифрою; кольори — ті самі пороги win_chance_color."""
+    rows = []
+    for n in range(3, len(dist)):
+        pct = round(sum(dist[n:]) * 100)
+        p = f"<span style='color:{style.win_chance_color(pct)}'>{pct}%</span>"
+        label = (ui_lang.t("assistant.win_all") if n == len(dist) - 1
+                 else ui_lang.t("assistant.win_at_least").format(n=n))
+        rows.append(_row(p, label))
+    return "<table cellspacing='0' cellpadding='1'>" + "".join(rows) + "</table>"
+
+
 def chip_tooltip_html(p: float | None, stats: tuple[int, int] | None,
                       opponent_time: int, icon_html: str = "") -> str:
     """Єдиний тултіп чипа треку — з наявних частин: «Збіг ... {p}%», таблиця
     часів у стилі тултіпа VsStatsWidget (суперник / моя медіана / різниця
     «мій мінус суперника»), превʼю маршруту внизу (готовий <img> від
     image_preview_html). Чого немає — не виводиться; "" — не вішати тултіп."""
-    def row(value: str, label: str) -> str:
-        return (f"<tr><td align='right'>{value}</td>"
-                f"<td style='padding-left:8px'>{label}</td></tr>")
-
     rows = []
     if opponent_time:
-        rows.append(row(format_time(opponent_time),
-                        ui_lang.t("assistant.vs_tooltip_opponent")))
+        rows.append(_row(format_time(opponent_time),
+                         ui_lang.t("assistant.vs_tooltip_opponent")))
     if stats:
         median, n = stats
-        rows.append(row(format_time(median),
-                        ui_lang.t("assistant.chip_tooltip_median").format(n=n)))
+        rows.append(_row(format_time(median),
+                         ui_lang.t("assistant.chip_tooltip_median").format(n=n)))
         if opponent_time:
             delta = median - opponent_time
             delta_color = style.DIFF_BETTER if delta <= 0 else style.DIFF_WORSE
-            rows.append(row(
+            rows.append(_row(
                 f"<span style='color:{delta_color}'>{format_signed_delta(delta)}</span>",
                 ui_lang.t("assistant.vs_tooltip_delta")))
     parts = []

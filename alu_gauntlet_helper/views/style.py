@@ -85,12 +85,12 @@ QWidget#aggStatRow {{
     border-radius: 4px;
 }}
 
-QWidget#trackInfo, QWidget#vsStats {{
+QWidget#trackInfo, QWidget#vsStats, QWidget#winChance {{
     border-radius: 6px;
 }}
 
 QWidget#aggMainStat:hover, QWidget#aggStatRow:hover, QWidget#trackInfo:hover,
-QWidget#vsStats:hover {{
+QWidget#vsStats:hover, QWidget#winChance:hover {{
     background-color: rgba(10, 16, 36, 140);
 }}
 

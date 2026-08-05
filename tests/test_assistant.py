@@ -185,6 +185,23 @@ def test_win_chance_uses_assigned_cars():
     assert abs(chance - prob_at_least([11 / 12, 0.5, 0.5, 0.5, 0.5], 3)) < 1e-9
 
 
+def test_win_distribution_none_without_opponent_times():
+    svc = track_service({7: {501: [19000] * 10}})
+    s = session_with(race(1, 7))
+    assert svc.win_distribution(s) is None
+
+
+def test_win_distribution_matches_win_chance():
+    svc = track_service({7: {501: [19000] * 10}})
+    s = session_with(race(1, 7, opp_time=25000))
+    svc.auto_pick(s)
+    dist = svc.win_distribution(s)
+    from alu_gauntlet_helper.services.opponent_picker import win_distribution
+    expected = win_distribution([11 / 12, 0.5, 0.5, 0.5, 0.5])
+    assert all(abs(a - b) < 1e-9 for a, b in zip(dist, expected, strict=True))
+    assert abs(sum(dist[3:]) - svc.win_chance(s)) < 1e-9
+
+
 def test_win_chance_driven_race_is_exact():
     # зіграна гонка враховується як факт (1.0/0.0), а не як оцінка по вибірці
     svc = track_service({7: {501: [19000] * 10}})

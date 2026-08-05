@@ -11,7 +11,9 @@ from alu_gauntlet_helper.services.challenge_session import (RACE_COUNT, Challeng
                                                             EffectiveRace)
 from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.views import style
-from alu_gauntlet_helper.views.components.chip_tooltip import chip_tooltip_html, prob_percent
+from alu_gauntlet_helper.views.components.chip_tooltip import (chip_tooltip_html,
+                                                               prob_percent,
+                                                               win_chance_tooltip)
 from alu_gauntlet_helper.views.components.common import (WARN_ICON, ListItemWidget,
                                                          image_preview_html)
 from alu_gauntlet_helper.views.components.race_card import RaceCard
@@ -65,7 +67,16 @@ class SessionView(QWidget):
         self.win_chance_value = QLabel("")
         self.win_chance_value.setFont(chance_font)
         self.win_chance_label = QLabel(ui_lang.t("assistant.win_chance"))
-        self.win_chance_label.setVisible(False)
+        # контейнер цифри+підпису: тултіп-розбивка P(≥3/4/5) і ховер-фон
+        # (QSS #winChance; plain QWidget ігнорує QSS-фон без WA_StyledBackground)
+        self.win_chance_box = QWidget()
+        self.win_chance_box.setObjectName("winChance")
+        self.win_chance_box.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        chance_row = QHBoxLayout(self.win_chance_box)
+        chance_row.setContentsMargins(8, 2, 8, 2)
+        chance_row.addWidget(self.win_chance_value)
+        chance_row.addWidget(self.win_chance_label)
+        self.win_chance_box.setVisible(False)
         self.warning_label = QLabel()
         self.warning_label.setTextFormat(Qt.TextFormat.RichText)
         self.warning_label.setWordWrap(True)
@@ -82,8 +93,7 @@ class SessionView(QWidget):
 
         bottom = QHBoxLayout()
         bottom.addWidget(self.warning_label, stretch=1)
-        bottom.addWidget(self.win_chance_value)
-        bottom.addWidget(self.win_chance_label)
+        bottom.addWidget(self.win_chance_box)
         bottom.addStretch()
         bottom.addWidget(self.auto_button)
         bottom.addWidget(self.save_button)
@@ -142,14 +152,13 @@ class SessionView(QWidget):
         self._refresh_chips(effective)
         self._refresh_suggestions(effective)
 
-        chance = APP_CONTEXT.assistant.win_chance(self.session)
-        if chance is not None:
-            pct = round(chance * 100)
+        dist = APP_CONTEXT.assistant.win_distribution(self.session)
+        if dist is not None:
+            pct = round(sum(dist[3:]) * 100)
             self.win_chance_value.setText(f"{pct}%")
             self.win_chance_value.setStyleSheet(f"color: {style.win_chance_color(pct)};")
-        else:
-            self.win_chance_value.setText("")
-        self.win_chance_label.setVisible(chance is not None)
+            self.win_chance_box.setToolTip(win_chance_tooltip(dist))
+        self.win_chance_box.setVisible(dist is not None)
 
         has_uncertain = any(e.track_uncertain or e.car_uncertain for e in effective.values())
         self.warning_label.setText(
