@@ -488,3 +488,146 @@ def test_timed_count():
     s.apply(result(opp_capture(2, opp_time=19152)))
     s.set_draft(3, draft(time=21000))
     assert s.timed_count == 2  # мій OCR-час + час у драфті; час суперника не рахується
+
+
+# --- поле карти (map) і кандидати треку — етап 3 ---------------------------
+
+
+def map_capture(n, map_id, map_score=0.9, opp_time=None, track_score=None):
+    c = capture(n, track_score=track_score)
+    c.map = FieldGuess(value=map_id, score=map_score)
+    c.opponent_time = opp_time
+    return c
+
+
+def test_map_field_default_none():
+    assert capture(1).map is None
+
+
+def test_map_only_capture_visible():
+    # скан екрана 3 дав лише карту — картка гонки має зʼявитись
+    s = ChallengeSessionService()
+    s.apply(result(map_capture(3, map_id=5)))
+    e = s.effective(3)
+    assert e is not None
+    assert e.map_id == 5 and e.track_id == 0
+
+
+def test_map_hidden_when_track_confident():
+    # трек визначено впевнено — карта зайва (трек сам її дає)
+    s = ChallengeSessionService()
+    s.apply(result(map_capture(1, map_id=5, track_score=0.9)))
+    e = s.effective(1)
+    assert e.track_id == 11 and e.map_id == 0
+
+
+def test_map_merge_by_score():
+    s = ChallengeSessionService()
+    s.apply(result(map_capture(2, map_id=5, map_score=0.9)))
+    s.apply(result(map_capture(2, map_id=7, map_score=0.5)))
+    assert s.races[2].map.value == 5  # упевненіша лишилась
+
+
+def test_track_candidates_exposed_when_uncertain():
+    s = ChallengeSessionService()
+    c = capture(4)
+    c.track = FieldGuess(value=41, score=0.6, candidates=[(41, 0.93), (42, 0.91)])
+    s.apply(result(c))
+    e = s.effective(4)
+    assert e.track_id == 41 and e.track_uncertain
+    assert e.track_candidates == [(41, 0.93), (42, 0.91)]
+
+
+def test_track_candidates_empty_when_confident():
+    s = ChallengeSessionService()
+    c = capture(4)
+    c.track = FieldGuess(value=41, score=0.95, candidates=[(41, 0.95), (42, 0.7)])
+    s.apply(result(c))
+    assert s.effective(4).track_candidates == []
+
+
+# --- track_fix: ручний/виведений вибір треку при неоднозначності -----------
+
+
+def uncertain_track_capture(n, best=41, second=42):
+    c = capture(n)
+    c.track = FieldGuess(value=best, score=0.6, candidates=[(best, 0.93), (second, 0.91)])
+    return c
+
+
+def test_track_fix_overrides_uncertain_scan():
+    s = ChallengeSessionService()
+    s.apply(result(uncertain_track_capture(1)))
+    s.set_track_fix(1, 42)
+    e = s.effective(1)
+    assert e.track_id == 42
+    assert not e.track_uncertain and not e.track_inferred
+    assert e.track_candidates == [(41, 0.93), (42, 0.91)]  # чипи лишаються видимі
+
+
+def test_confident_scan_overrides_track_fix():
+    # «пізніший упевнений скан може скоригувати» (спека §1)
+    s = ChallengeSessionService()
+    s.apply(result(uncertain_track_capture(1)))
+    s.set_track_fix(1, 42)
+    sure = capture(1)
+    sure.track = FieldGuess(value=43, score=0.95)
+    s.apply(result(sure))
+    assert s.effective(1).track_id == 43
+
+
+def test_track_fix_applies_without_scan_track():
+    # map-only гонка (екран 3): треку з OCR немає взагалі
+    s = ChallengeSessionService()
+    s.apply(result(map_capture(2, map_id=5)))
+    s.set_track_fix(2, 21, inferred=True)
+    e = s.effective(2)
+    assert e.track_id == 21 and e.track_inferred
+    assert e.map_id == 5  # карта видима — чипи не зникають після вибору
+
+
+def test_draft_track_beats_fix():
+    s = ChallengeSessionService()
+    s.apply(result(map_capture(2, map_id=5)))
+    s.set_track_fix(2, 21)
+    s.set_draft(2, RaceView(track_id=99))
+    assert s.effective(2).track_id == 99
+
+
+def test_set_track_fix_none_clears():
+    s = ChallengeSessionService()
+    s.apply(result(map_capture(2, map_id=5)))
+    s.set_track_fix(2, 21, inferred=True)
+    s.set_track_fix(2, None)
+    e = s.effective(2)
+    assert e.track_id == 0 and not e.track_inferred
+    assert s.track_fix == {} and s.inferred_tracks == set()
+
+
+def test_track_fixed_flag_exposed():
+    # оверлей/UI мають знати, що трек узято з фікса (чип/звуження) — cyan
+    s = ChallengeSessionService()
+    s.apply(result(map_capture(2, map_id=5)))
+    assert s.effective(2).track_fixed is False
+    s.set_track_fix(2, 21)
+    e = s.effective(2)
+    assert e.track_fixed is True and not e.track_inferred
+    s.set_track_fix(2, 21, inferred=True)
+    e = s.effective(2)
+    assert e.track_fixed is True and e.track_inferred
+
+
+def test_track_fixed_false_for_confident_scan():
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, track_score=0.9)))
+    assert s.effective(1).track_fixed is False
+
+
+def test_track_fix_notifies_and_clears():
+    s = ChallengeSessionService()
+    events = []
+    s.add_listener(lambda: events.append(1))
+    s.set_track_fix(3, 31)
+    assert len(events) == 1
+    s.clear()
+    assert s.track_fix == {} and s.inferred_tracks == set()

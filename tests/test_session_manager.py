@@ -123,3 +123,51 @@ def test_empty_result_is_noop():
     m.add_listener(lambda: events.append(1))
     m.apply(result())
     assert events == [] and len(m.sessions) == 1
+
+
+def test_auto_pick_called_after_map_scan():
+    # скан скаут-екрана (є лише карта) теж має запускати автопідбір:
+    # він тягне resolve_tracks → звуження треку за часом (спека §6)
+    from alu_gauntlet_helper.models import FieldGuess
+    picked = []
+    m = SessionManager(auto_pick=lambda s: picked.append(s))
+    c = capture(1)
+    c.map = FieldGuess(value=5, score=0.9)
+    m.apply(result(c))
+    assert picked == [m.active]
+
+
+def test_map_mismatch_is_conflict_replaces_disposable():
+    # скани скаут-екранів РІЗНИХ суперників не зливаються (спека, «Ігровий контекст»)
+    from alu_gauntlet_helper.models import FieldGuess
+    m = SessionManager()
+    a = capture(1)
+    a.map = FieldGuess(value=5, score=0.9)
+    m.apply(result(a))
+    old = m.active
+    b = capture(1)
+    b.map = FieldGuess(value=7, score=0.9)
+    m.apply(result(b))
+    assert len(m.sessions) == 1 and m.active is not old
+    assert m.active.races[1].map.value == 7
+
+
+def test_same_map_rescan_merges():
+    from alu_gauntlet_helper.models import FieldGuess
+    m = SessionManager()
+    a = capture(1)
+    a.map = FieldGuess(value=5, score=0.9)
+    m.apply(result(a))
+    b = capture(1, opp_time=20000)
+    b.map = FieldGuess(value=5, score=0.9)
+    m.apply(result(b))
+    assert len(m.sessions) == 1
+    assert m.active.races[1].opponent_time == 20000
+
+
+def test_auto_pick_called_after_track_only_scan():
+    # екран 2 з нерозпізнаною іконкою: лише трек — підбір все одно запускається
+    picked = []
+    m = SessionManager(auto_pick=lambda s: picked.append(s))
+    m.apply(result(capture(1, track_score=0.9)))
+    assert picked == [m.active]

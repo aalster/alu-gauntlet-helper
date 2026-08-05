@@ -120,6 +120,8 @@ TRANSLATIONS = {
         "assistant.no_track_selected": "Pick a track to view suggestions",
         "assistant.session_current": "▶ current",
         "assistant.session_paused": "⏸ {time} · {n}",
+        "assistant.track_unknown": "Track?",
+        "assistant.track_probable_tooltip": "Likely track — narrowed down by the opponent's time. Click a chip to change.",
         # car selection
         "car_selection.race_history": "Run History — {name}",
         "car_selection.race_n": "Run {n}",
@@ -254,6 +256,8 @@ TRANSLATIONS = {
         "assistant.no_track_selected": "Обери трек для перегляду рекомендацій",
         "assistant.session_current": "▶ поточна",
         "assistant.session_paused": "⏸ {time} · {n}",
+        "assistant.track_unknown": "Трек?",
+        "assistant.track_probable_tooltip": "Ймовірний трек — звужено за часом суперника. Клікни чип, щоб змінити.",
         "car_selection.race_history": "Історія заїздів — {name}",
         "car_selection.race_n": "Заїзд {n}",
         "car_selection.select_track_placeholder": "Оберіть трек...",

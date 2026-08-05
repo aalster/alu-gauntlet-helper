@@ -66,18 +66,46 @@ def header_text(races: dict[int, EffectiveRace],
             f"font-weight:bold'>{pct}%</span>")
 
 
+def _track_cell(e: EffectiveRace, track_names: dict[int, str],
+                track_maps: dict[int, str], map_names: dict[int, str]) -> str:
+    """Комірка треку: «Карта - Трек» для треку зі скану/драфта; трек, вибраний
+    чипом чи виведений звуженням (track_fixed), — cyan поруч із білою картою,
+    виведений — ще й з позначкою «?» (спека §6); гонка лише з картою — назва
+    карти замість «?»."""
+    if e.track_id:
+        track = track_names.get(e.track_id, "?")
+        if e.track_fixed:
+            if e.track_inferred:
+                track += " ?"
+            map_name = map_names.get(e.map_id, "") or track_maps.get(e.track_id, "")
+            prefix = f"{escape(map_name)} " if map_name else ""
+            return f"{prefix}<span style='color:{CYAN}'>{escape(track)}</span>"
+        map_name = track_maps.get(e.track_id, "")
+        label = f"{map_name} - {track}" if map_name else track
+        return _cell(label, e.track_uncertain)
+    if e.map_id and e.map_id in map_names:
+        return _cell(map_names[e.map_id], False)
+    return _cell("?", e.track_uncertain)
+
+
 def build_races_table(races: dict[int, EffectiveRace],
                       track_names: dict[int, str],
                       car_names: dict[int, str],
-                      beat_stats: dict[int, tuple[int, int]] | None = None) -> str:
+                      beat_stats: dict[int, tuple[int, int]] | None = None,
+                      track_maps: dict[int, str] | None = None,
+                      map_names: dict[int, str] | None = None) -> str:
     """Будує rich-text (HTML) таблицю 5 гонок.
 
     beat_stats {race_number: (wins, n)} — статистика показаного авто проти часу
     суперника для незіграних гонок (як бейдж «7/10» на картці).
+    track_names — назви треків (БЕЗ карти), track_maps {track_id: назва карти},
+    map_names {map_id: назва карти} — для map-only гонок і cyan-треків з фікса.
     Лише таблиця залишена в HTML: колонки треку/авто/часу так вирівнюються
     попри пропорційний шрифт; заголовок і footer — окремі віджети.
     """
     beat_stats = beat_stats or {}
+    track_maps = track_maps or {}
+    map_names = map_names or {}
     rows = []
     for n in range(1, RACE_COUNT + 1):
         e = races.get(n)
@@ -87,14 +115,13 @@ def build_races_table(races: dict[int, EffectiveRace],
                 f"<td colspan='4' style='color:#9aa0c0'>{ui_lang.t('overlay.no_data')}</td></tr>"
             )
             continue
-        track = track_names.get(e.track_id, "?") if e.track_id else "?"
         # без фактичного авто показуємо рекомендоване (shown_car_id) — воно і є
         # підказкою «чим їхати», заради якої оверлей висить поверх гри;
         # рекомендація фарбується блакитним, як бейдж на картці гонки
         suggested = e.car_id <= 0 and e.suggested_car_id > 0
         car = (car_names.get(e.shown_car_id, "?") if e.shown_car_id
                else (e.car_name or "?"))
-        track_cell = _cell(track, e.track_uncertain)
+        track_cell = _track_cell(e, track_names, track_maps, map_names)
         car_cell = _cell(car, e.car_uncertain, CYAN if suggested else None)
         # як на картці гонки: зіграна — мій час (+👎), незіграна з авто — шанс
         # побити суперника «78% 7/10» без перемикача 👎 (без часу він безглуздий)

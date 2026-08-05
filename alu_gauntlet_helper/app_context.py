@@ -22,7 +22,8 @@ class AppContext:
         self.tracks_service = TracksService(TracksRepository(), self.maps_service)
         self.cars_service = CarsService(CarsRepository())
         self.races_service = RacesService(RacesRepository(), self.tracks_service, self.cars_service)
-        self.assistant = AssistantService(self.races_service, self.cars_service)
+        self.assistant = AssistantService(self.races_service, self.cars_service,
+                                          self.tracks_service)
         self.session_manager = SessionManager(auto_pick=self.assistant.auto_pick)
 
 APP_CONTEXT: AppContext = AppContext()

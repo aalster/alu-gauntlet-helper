@@ -64,8 +64,15 @@ class SessionManager:
     def _conflicts(session: ChallengeSessionService, result: RecognitionResult) -> bool:
         for c in result.captures:
             current = session.races.get(c.race_number)
-            if (current is not None and current.opponent_time and c.opponent_time
+            if current is None:
+                continue
+            if (current.opponent_time and c.opponent_time
                     and current.opponent_time != c.opponent_time):
+                return True
+            # Карта з іконки — детермінований матч: рескан того самого екрана дає
+            # ту саму карту, тож розбіжність = інший суперник/челендж (скаут-екрани
+            # різних суперників не мають зливатись — спека, «Ігровий контекст»)
+            if (current.map and c.map and current.map.value != c.map.value):
                 return True
         return False
 
@@ -77,7 +84,12 @@ class SessionManager:
                 self._drop(self.active)  # скаутинг: свіжий кандидат затирає старого
             self._new_session()
             self._notify()  # структурна зміна — UI перемикається на нову активну
-        has_opponent_data = any(c.opponent_time or c.opponent_car for c in result.captures)
+        # карта/трек зі скаут-екрана — теж дані суперника: тригерить
+        # resolve_tracks (звуження за часом) і підбір одразу після скану;
+        # скан лише з треками (іконка карти не зматчилась) теж має запускати
+        # підбір, тож track у переліку тригерів так само, як map/opponent_*
+        has_opponent_data = any(c.opponent_time or c.opponent_car or c.map or c.track
+                                for c in result.captures)
         self.active.apply(result)  # сесія сама нотифікує через ретрансляцію
         if has_opponent_data and self._auto_pick:
             self._auto_pick(self.active)

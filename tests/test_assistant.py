@@ -199,3 +199,249 @@ def test_beat_stats():
     svc = track_service({7: {501: [19000, 19100, 21000]}})
     assert svc.beat_stats(7, 501, 20000) == (2, 3)
     assert svc.beat_stats(7, 999, 20000) is None
+
+
+# --- Етап 3: chip_tracks / narrow_track / resolve_tracks -------------------
+
+
+class FakeTracks:
+    """{map_id: [track_id, ...]} — сигнатура TracksService.autocomplete."""
+    def __init__(self, by_map):
+        self.by_map = by_map
+
+    def autocomplete(self, query, map_id=None):
+        return [SimpleNamespace(id=t) for t in self.by_map.get(map_id, [])]
+
+
+class RangeFakeRaces(TrackAwareFakeRaces):
+    """+ діапазони часів треків: {track_id: (lo, hi)}."""
+    def __init__(self, by_track, ranges=None):
+        super().__init__(by_track)
+        self.ranges = ranges or {}
+
+    def get_time_range_for_track(self, track_id):
+        return self.ranges.get(track_id)
+
+
+def stage3_service(by_track=None, ranges=None, by_map=None):
+    by_track = by_track or {}
+    ids = {c for cars in by_track.values() for c in cars}
+    return AssistantService(RangeFakeRaces(by_track, ranges),
+                            FakeCars([fake_car(i) for i in ids]),
+                            FakeTracks(by_map or {}))
+
+
+def map_race(n, map_id, opp_time=None):
+    return RaceCapture(race_number=n,
+                       map=FieldGuess(value=map_id, score=0.9),
+                       opponent_time=opp_time)
+
+
+def test_chip_tracks_from_map():
+    svc = stage3_service(by_map={5: [21, 22]})
+    s = session_with(map_race(1, 5))
+    assert svc.chip_tracks(s.effective(1)) == [21, 22]
+
+
+def test_chip_tracks_from_ocr_candidates_window():
+    svc = stage3_service()
+    s = ChallengeSessionService()
+    c = RaceCapture(race_number=1,
+                    track=FieldGuess(value=41, score=0.6,
+                                     candidates=[(41, 0.93), (42, 0.91), (43, 0.70)]))
+    s.apply(RecognitionResult(screen="test", captures=[c]))
+    # 43 відпадає: далі за вікно 0.05 від топового 0.93
+    assert svc.chip_tracks(s.effective(1)) == [41, 42]
+
+
+def test_chip_tracks_empty_when_confident():
+    svc = stage3_service(by_map={5: [21, 22]})
+    s = session_with(race(1, 7))  # упевнений трек — без чипів
+    assert svc.chip_tracks(s.effective(1)) == []
+
+
+def test_narrow_track_unique_hit():
+    svc = stage3_service(ranges={21: (19000, 21000), 22: (30000, 33000)})
+    assert svc.narrow_track([21, 22], 20000) == 21
+    assert svc.narrow_track([21, 22], 31000) == 22
+
+
+def test_narrow_track_margin_10_percent():
+    svc = stage3_service(ranges={21: (20000, 21000)})
+    assert svc.narrow_track([21], 18000) == 21   # 18000 == 20000*0.9 — на межі
+    assert svc.narrow_track([21], 17999) is None
+
+
+def test_narrow_track_ambiguous_or_missed():
+    svc = stage3_service(ranges={21: (19000, 25000), 22: (20000, 26000)})
+    assert svc.narrow_track([21, 22], 21000) is None  # в обидва — невизначено
+    assert svc.narrow_track([21, 22], 50000) is None  # в жоден
+    # кандидат без моїх заїздів: виключити його неможливо → невизначено (спека §6)
+    svc2 = stage3_service(ranges={21: (19000, 25000)})
+    assert svc2.narrow_track([21, 22], 21000) is None
+
+
+def test_resolve_tracks_sets_inferred_fix():
+    svc = stage3_service(ranges={21: (19000, 21000), 22: (30000, 33000)},
+                         by_map={5: [21, 22]})
+    s = session_with(map_race(1, 5, opp_time=20000))
+    svc.resolve_tracks(s)
+    e = s.effective(1)
+    assert e.track_id == 21 and e.track_inferred
+
+
+def test_resolve_tracks_single_track_map():
+    svc = stage3_service(by_map={5: [21]})
+    s = session_with(map_race(1, 5))
+    svc.resolve_tracks(s)
+    assert s.effective(1).track_id == 21
+
+
+def test_resolve_tracks_keeps_manual_fix():
+    svc = stage3_service(ranges={21: (19000, 21000), 22: (30000, 33000)},
+                         by_map={5: [21, 22]})
+    s = session_with(map_race(1, 5, opp_time=20000))
+    s.set_track_fix(1, 22)  # ручний вибір користувача
+    svc.resolve_tracks(s)
+    assert s.effective(1).track_id == 22 and not s.effective(1).track_inferred
+
+
+def test_auto_pick_runs_resolve_tracks():
+    svc = stage3_service(by_track={21: {501: [19000] * 10}},
+                         ranges={21: (19000, 21000), 22: (30000, 33000)},
+                         by_map={5: [21, 22]})
+    s = session_with(map_race(1, 5, opp_time=20000))
+    svc.auto_pick(s)
+    e = s.effective(1)
+    assert e.track_id == 21 and e.suggested_car_id == 501
+
+
+# --- Етап 3: песимістична оцінка min-p̂ по треках-кандидатах ----------------
+
+
+def test_auto_pick_pessimistic_min_over_candidates():
+    # авто 501 сильне лише на треку 21 (на 22 даних немає → 0.5);
+    # авто 502 стабільне на обох → песимістично краще, його і беремо
+    svc = stage3_service(
+        by_track={21: {501: [19000] * 10, 502: [21000] * 10},
+                  22: {502: [21500] * 10}},
+        ranges={21: (19000, 25000), 22: (20000, 26000)},  # звуження не спрацює
+        by_map={5: [21, 22]})
+    s = session_with(map_race(1, 5, opp_time=24000))
+    svc.auto_pick(s)
+    assert s.effective(1).suggested_car_id == 502
+
+
+def test_auto_pick_pessimistic_without_opponent_time():
+    # без часу суперника: p=0.5 всюди, margin = min(-avg) — найкращий гірший avg
+    svc = stage3_service(
+        by_track={21: {501: [19000] * 5, 502: [20000] * 5},
+                  22: {501: [30000] * 5, 502: [20500] * 5}},
+        by_map={5: [21, 22]})
+    s = session_with(map_race(1, 5))
+    svc.auto_pick(s)
+    assert s.effective(1).suggested_car_id == 502  # min(-avg): 502 стабільніше
+
+
+def test_win_chance_pessimistic_min():
+    svc = stage3_service(
+        by_track={21: {501: [19000] * 10}},  # на 22 даних немає
+        ranges={21: (19000, 25000), 22: (20000, 26000)},
+        by_map={5: [21, 22]})
+    s = session_with(map_race(1, 5, opp_time=24000))
+    svc.auto_pick(s)
+    assert s.effective(1).suggested_car_id == 501
+    from alu_gauntlet_helper.services.opponent_picker import prob_at_least
+    # p гонки 1 = min(11/12 на треку 21, 0.5 на 22) = 0.5; решта — монетки
+    expected = prob_at_least([0.5, 0.5, 0.5, 0.5, 0.5], 3)
+    assert abs(svc.win_chance(s) - expected) < 1e-9
+
+
+# --- фікси фінального ревʼю: песимізм для невпевненого OCR-треку та ін. ----
+
+
+def uncertain_race(n, opp_time=None, best=41, second=42):
+    return RaceCapture(
+        race_number=n,
+        track=FieldGuess(value=best, score=0.6, candidates=[(best, 0.93), (second, 0.91)]),
+        opponent_time=opp_time,
+    )
+
+
+def test_auto_pick_pessimistic_for_uncertain_ocr_track():
+    # UI каже «не впевнені, обери трек» — оцінка теж має бути песимістичною
+    svc = stage3_service(by_track={41: {501: [19000] * 10, 502: [21000] * 10},
+                                   42: {502: [21500] * 10}})
+    s = session_with(uncertain_race(1, opp_time=24000))
+    svc.auto_pick(s)
+    assert s.effective(1).suggested_car_id == 502  # стабільний на обох кандидатах
+
+
+def test_manual_chip_fix_returns_optimistic_estimate():
+    # ручний вибір треку чипом — довіряємо йому, оцінка по вибраному треку
+    svc = stage3_service(by_track={41: {501: [19000] * 10, 502: [21000] * 10},
+                                   42: {502: [21500] * 10}})
+    s = session_with(uncertain_race(1, opp_time=24000))
+    s.set_track_fix(1, 41)
+    svc.auto_pick(s)
+    assert s.effective(1).suggested_car_id == 501  # найкращий саме на 41
+
+
+def test_win_chance_pessimistic_for_uncertain_ocr_track():
+    svc = stage3_service(by_track={41: {501: [19000] * 10}})  # на 42 даних немає
+    s = session_with(uncertain_race(1, opp_time=24000))
+    svc.auto_pick(s)
+    assert s.effective(1).suggested_car_id == 501
+    from alu_gauntlet_helper.services.opponent_picker import prob_at_least
+    expected = prob_at_least([0.5, 0.5, 0.5, 0.5, 0.5], 3)  # min(11/12, 0.5) = 0.5
+    assert abs(svc.win_chance(s) - expected) < 1e-9
+
+
+def test_chip_limit_holds_after_fix_insert():
+    svc = stage3_service()
+    s = ChallengeSessionService()
+    c = RaceCapture(race_number=1,
+                    track=FieldGuess(value=41, score=0.6,
+                                     candidates=[(41, 0.93), (42, 0.91), (43, 0.90)]))
+    s.apply(RecognitionResult(screen="test", captures=[c]))
+    s.set_track_fix(1, 44)  # трек поза кандидатами (наприклад, з Edit-діалогу раніше)
+    assert len(svc.chip_tracks(s.effective(1))) <= 3
+
+
+def test_auto_pick_reserves_known_car_on_unknown_track():
+    # авто вже вибране (драфт) на map-гонці без треку — інші гонки його не беруть
+    from alu_gauntlet_helper.services.races import RaceView
+    svc = stage3_service(by_track={21: {501: [19000] * 10, 502: [25000] * 10}},
+                         by_map={5: [21, 22]})
+    s = session_with(map_race(1, 5, opp_time=24000), race(2, 21, opp_time=24000))
+    s.set_draft(1, RaceView(car_id=501))
+    svc.auto_pick(s)
+    assert s.effective(2).suggested_car_id == 502  # 501 зарезервоване гонкою 1
+
+
+# --- трек-кандидат без жодних даних не «зрівнює» всі авто --------------------
+
+
+def test_track_without_any_data_ignored_in_selection():
+    # трек 22 без жодного заїзду: у підборі не бере участі — інакше всі авто
+    # мали б p=0.5/margin=0 і вибір був би довільним; перемагає авто, що
+    # найкраще на відомому треку карти
+    svc = stage3_service(by_track={21: {501: [26000] * 10, 502: [19000] * 10}},
+                         by_map={5: [21, 22]})
+    s = session_with(map_race(1, 5, opp_time=27000))
+    svc.auto_pick(s)
+    # p̂ рівні (10/10 у обох проти 27000), тай-брейк маржином: 502 має 8000
+    # проти 1000 у 501 (порядок id навмисне протилежний «першому» в set)
+    assert s.effective(1).suggested_car_id == 502
+
+
+def test_unknown_car_on_data_track_still_penalized():
+    # авто, відоме лише на одному з треків З ДАНИМИ, штрафується: суперник міг
+    # вибрати другий трек, де про це авто нічого не відомо
+    svc = stage3_service(
+        by_track={21: {501: [20000] * 10, 502: [21000] * 10},
+                  22: {502: [21500] * 10}},  # 501 на треку 22 невідоме
+        by_map={5: [21, 22, 23]})            # 23 — без даних узагалі, ігнорується
+    s = session_with(map_race(1, 5, opp_time=27000))
+    svc.auto_pick(s)
+    assert s.effective(1).suggested_car_id == 502  # стабільний на обох треках з даними

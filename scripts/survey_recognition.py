@@ -12,12 +12,14 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import cv2
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from alu_gauntlet_helper.screen_recognition import ocr  # noqa: E402
+from alu_gauntlet_helper.screen_recognition.map_icon_matcher import MapIconMatcher  # noqa: E402
 from alu_gauntlet_helper.screen_recognition.screens.before_race import BeforeRaceExtractor  # noqa: E402
 from alu_gauntlet_helper.screen_recognition.screens.challenge_accordion import (  # noqa: E402
     ChallengeAccordionExtractor,
@@ -25,10 +27,19 @@ from alu_gauntlet_helper.screen_recognition.screens.challenge_accordion import (
 from alu_gauntlet_helper.screen_recognition.screens.challenge_complete import (  # noqa: E402
     ChallengeCompleteExtractor,
 )
+from alu_gauntlet_helper.screen_recognition.screens.opponent_scout import OpponentScoutExtractor  # noqa: E402
 from alu_gauntlet_helper.screen_recognition.screens.race_result import RaceResultExtractor  # noqa: E402
 from tests.recognition_vocab import build_resolvers, car_label, track_label  # noqa: E402
 
 FIXTURES = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
+# Скрипт працює без БД (як тести) — іконки карт беремо напряму з ресурсів,
+# так само, як matcher() у tests/test_map_icon_matcher.py.
+MAP_ICONS = Path(__file__).resolve().parent.parent / "resources" / "icons" / "maps"
+
+
+def build_map_matcher() -> MapIconMatcher:
+    return MapIconMatcher(SimpleNamespace(id=i, icon=str(p), name=p.stem)
+                          for i, p in enumerate(sorted(MAP_ICONS.glob("*.png"))))
 
 
 class OcrCounter:
@@ -84,11 +95,13 @@ def main():
     if not ocr.is_available():
         raise SystemExit("tesseract недоступний")
     track_resolver, car_matcher, tv, cv = build_resolvers()
+    map_matcher = build_map_matcher()
 
     extractors = [
         RaceResultExtractor(car_matcher),
         ChallengeCompleteExtractor(car_matcher),
         BeforeRaceExtractor(track_resolver, car_matcher),
+        OpponentScoutExtractor(track_resolver, map_matcher),
         ChallengeAccordionExtractor(track_resolver, car_matcher),
     ]
 

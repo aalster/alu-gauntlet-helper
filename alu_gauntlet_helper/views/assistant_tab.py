@@ -47,6 +47,13 @@ class SessionView(QWidget):
         self.suggestions.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.suggestions.itemClicked.connect(self.on_suggestion_clicked)
 
+        # чипи вибору треку при неоднозначності (спека §4): [Трек A] [Трек B]
+        self.chips_widget = QWidget()
+        self.chips_row = QHBoxLayout(self.chips_widget)
+        self.chips_row.setContentsMargins(0, 0, 0, 0)
+        self.chips_row.setSpacing(6)
+        self.chips_widget.hide()
+
         # --- низ ---
         # шанс перемоги: крупна кольорова цифра + підпис праворуч
         chance_font = QFont()
@@ -84,6 +91,7 @@ class SessionView(QWidget):
         # таба (дефолтним маржинам цього layout) — рівний ритм по всій вкладці
         layout.setSpacing(layout.contentsMargins().left())
         layout.addLayout(cards_row)
+        layout.addWidget(self.chips_widget)
         layout.addWidget(self.suggestions, stretch=1)
         layout.addLayout(bottom)
 
@@ -108,6 +116,8 @@ class SessionView(QWidget):
         cars_ids = {e.shown_car_id for e in effective.values() if e.shown_car_id}
         tracks = APP_CONTEXT.tracks_service.get_by_ids(track_ids)
         cars = APP_CONTEXT.cars_service.get_by_ids(cars_ids)
+        map_ids = {e.map_id for e in effective.values() if e.map_id and not e.track_id}
+        maps = APP_CONTEXT.maps_service.get_by_ids(map_ids)
 
         for card in self.cards:
             n = card.race_number
@@ -121,9 +131,12 @@ class SessionView(QWidget):
             beat = None
             if e and e.track_id and shown_id and e.opponent_time and not e.time:
                 beat = APP_CONTEXT.assistant.beat_stats(e.track_id, shown_id, e.opponent_time)
+            map_ = maps.get(e.map_id) if e and e.map_id and not e.track_id else None
             card.update_card(e, track, car, beat, checked=self._is_checked(n, e),
-                             selected=(n == self.selected_race), suggested=suggested)
+                             selected=(n == self.selected_race), suggested=suggested,
+                             map_=map_)
 
+        self._refresh_chips(effective)
         self._refresh_suggestions(effective)
 
         chance = APP_CONTEXT.assistant.win_chance(self.session)
@@ -165,6 +178,43 @@ class SessionView(QWidget):
             widget = self.suggestions.itemWidget(self.suggestions.item(i))
             if isinstance(widget, VsSuggestionWidget):
                 self.suggestions.item(i).setSelected(widget.car_id == current)
+
+    def _refresh_chips(self, effective):
+        while self.chips_row.count():
+            item = self.chips_row.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        e = effective.get(self.selected_race)
+        ids = APP_CONTEXT.assistant.chip_tracks(e) if e else []
+        if not ids:
+            self.chips_widget.hide()
+            return
+        tracks = APP_CONTEXT.tracks_service.get_by_ids(set(ids))
+        for tid in ids:
+            track = tracks.get(tid)
+            name = track.display_name if track else str(tid)
+            chip = QPushButton(name)
+            chip.setObjectName("secondary")
+            chip.setCheckable(True)
+            chip.setChecked(bool(e) and e.track_id == tid)
+            if e and e.track_id == tid and e.track_inferred:
+                chip.setText(name + " ?")
+                chip.setToolTip(ui_lang.t("assistant.track_probable_tooltip"))
+            chip.clicked.connect(lambda _, t=tid: self._on_chip_clicked(t))
+            self.chips_row.addWidget(chip)
+        self.chips_row.addStretch()
+        self.chips_widget.show()
+
+    def _on_chip_clicked(self, track_id: int):
+        e = self.session.effective(self.selected_race)
+        # повторний клік по вибраному — зняти вибір
+        deselect = e is not None and e.track_id == track_id
+        self.session.set_track_fix(self.selected_race, None if deselect else track_id)
+        if not deselect:
+            # трек змінився — перерахувати рекомендації (авто-режим шанує піни);
+            # на deselect auto_pick не кличемо: resolve_tracks одразу повернув би
+            # виведений фікс, і зняти його було б неможливо
+            APP_CONTEXT.assistant.auto_pick(self.session)
 
     def _show_status(self, text: str):
         item = QListWidgetItem()

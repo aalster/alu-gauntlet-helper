@@ -157,6 +157,27 @@ class TrackResolver:
             best_score = min(best_score, self._AMBIGUITY_CAP)
         return FieldGuess(value=best_id, score=best_score, candidates=scored)
 
+    def resolve_track_only(self, text: str, map_name: str | None = None) -> FieldGuess | None:
+        """Розпізнати трек за самою назвою, БЕЗ пошуку карти в тексті: для
+        екранів, де назви карти немає взагалі (скаут-екран 2) — partial_ratio
+        у _best_map на такому тексті дає лише хибні спрацювання.
+
+        map_name (якщо відома з матчингу іконки) звужує пошук до треків цієї
+        карти — глобальний двійник назви з чужої карти не переб'є правильний
+        трек; при промаху серед треків карти діє глобальний fallback (страховка
+        від хибно зматченої іконки)."""
+        if map_name:
+            tracks = self._maps.get(normalize(map_name), [])
+            query = normalize(text)
+            if tracks and query:
+                scored = sorted(((tid, fuzz.ratio(query, norm_name) / 100)
+                                 for tid, norm_name in tracks),
+                                key=lambda kv: kv[1], reverse=True)
+                if scored and scored[0][1] >= self.threshold / 100:
+                    return FieldGuess(value=scored[0][0], score=scored[0][1],
+                                      candidates=scored[:3])
+        return self._fallback.match(text)
+
 
 def build_track_matcher(track_views) -> VocabularyMatcher:
     """track_views: list[TrackView]. Синоніми: «назва треку» і «карта + трек»,

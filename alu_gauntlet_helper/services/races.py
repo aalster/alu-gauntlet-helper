@@ -289,6 +289,18 @@ class RacesRepository:
                 times.setdefault(row["car_id"], []).append(row["time"])
             return times
 
+    def get_time_range_for_track(self, track_id: int) -> tuple[int, int] | None:
+        """(min, max) моїх часів на треку по ВСІХ авто, лише чисті заїзди (без 👎).
+        Для звуження треку за часом суперника (спека §6); None — заїздів немає."""
+        with connect() as conn:
+            row = conn.execute(
+                "SELECT MIN(time) AS lo, MAX(time) AS hi FROM races "
+                "WHERE track_id = :track_id AND time > 0 AND bad_timing = 0",
+                {"track_id": track_id}).fetchone()
+            if row is None or row["lo"] is None:
+                return None
+            return row["lo"], row["hi"]
+
     def get_best_races_for_car_on_track(self, track_id: int, car_id: int, limit: int = 10) -> list[Race]:
         with connect() as conn:
             sql = """
@@ -456,3 +468,6 @@ class RacesService(Observable):
 
     def get_recent_clean_times_by_car(self, track_id: int, limit: int = 10) -> dict[int, list[int]]:
         return self.repo.get_recent_clean_times_by_car(track_id, limit)
+
+    def get_time_range_for_track(self, track_id: int) -> tuple[int, int] | None:
+        return self.repo.get_time_range_for_track(track_id)

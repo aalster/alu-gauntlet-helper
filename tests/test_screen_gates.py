@@ -29,6 +29,9 @@ from alu_gauntlet_helper.screen_recognition.screens.challenge_complete import (
 from alu_gauntlet_helper.screen_recognition.screens.expanded_panel import (
     band_segments, detect_expanded_panel, has_accordion_columns,
 )
+from alu_gauntlet_helper.screen_recognition.screens.opponent_scout import (
+    OpponentScoutExtractor, detect_scout_panels,
+)
 from alu_gauntlet_helper.screen_recognition.screens.race_result import (
     RaceResultExtractor, looks_like_race_result,
 )
@@ -64,6 +67,7 @@ ACCORDION = [
     "captures/capture_1784704425381040700.png", "captures/capture_1784794600198030500.png",
     "captures/capture_1784882730503432100.png", "captures/capture_1785587843254562800.png",
 ]
+SCOUT = ["opponent_tracks.png", "opponent_times_1.png", "opponent_times_2.png"]
 
 
 def load(fixture: str) -> np.ndarray:
@@ -166,3 +170,30 @@ def test_accordion_rejects_foreign_without_ocr(fixture, no_ocr):
     """Геометрія не складається, гейт колонок теж → без OCR-пошуку."""
     extractor = ChallengeAccordionExtractor(track_resolver=None, car_matcher=None)
     assert extractor.extract(load(fixture)) == []
+
+
+# --- opponent_scout ---------------------------------------------------------
+
+@pytest.mark.parametrize("fixture", SCOUT)
+def test_scout_gate_passes_own_fixtures(fixture):
+    """Скаут-гейт: рівно 5 панелей однакової ширини."""
+    panels = detect_scout_panels(load(fixture))
+    assert panels is not None and len(panels) == 5
+
+
+@pytest.mark.parametrize("fixture", RACE_RESULT + COMPLETE + BEFORE_RACE + ACCORDION)
+def test_scout_rejects_alien_without_ocr(fixture, no_ocr):
+    """На чужих екранах скаут-екстрактор мовчить без OCR."""
+    extractor = OpponentScoutExtractor(track_resolver=None, map_matcher=None)
+    assert extractor.extract(load(fixture)) == []
+
+
+@pytest.mark.parametrize("fixture", SCOUT)
+def test_other_gates_reject_scout_without_ocr(fixture, no_ocr):
+    """Скаут-фікстури мають бути відсічені ВСІМА чужими гейтами без OCR."""
+    img = load(fixture)
+    # Скаут-фікстури не мають розгорнутої панелі й 4 вузьких колонок → гейти їх відсікають
+    assert RaceResultExtractor(car_matcher=None).extract(img) == []
+    assert ChallengeCompleteExtractor(car_matcher=None).extract(img) == []
+    assert BeforeRaceExtractor(track_resolver=None, car_matcher=None).extract(img) == []
+    assert ChallengeAccordionExtractor(track_resolver=None, car_matcher=None).extract(img) == []

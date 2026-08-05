@@ -23,6 +23,15 @@ class EffectiveRace(BaseModel):
     car_uncertain: bool = False
     opponent_time: int = 0
     opponent_car_id: int = 0
+    # карта гонки, коли трек не визначено сканом/драфтом (джерело: екран 3);
+    # разом із track_candidates живить чипи треків і песимістичну оцінку
+    map_id: int = 0
+    # сирі кандидати OCR-треку (id, score) — заповнені лише при невпевненому треку
+    track_candidates: list[tuple[int, float]] = []
+    track_inferred: bool = False  # трек узято з виведеного (не ручного) фікса
+    # трек узято з фікса (чип користувача або звуження) — оверлей фарбує
+    # його cyan на відміну від треку зі скану/драфта
+    track_fixed: bool = False
     # рекомендоване авто (клік по списку/автопідбір) — ОКРЕМИЙ шар: ніколи не
     # потрапляє в car_id і не зберігається в БД; ненульове лише коли авто заїзду
     # (car_id/car_name) порожнє
@@ -42,7 +51,8 @@ class EffectiveRace(BaseModel):
         """Жодного значущого поля — гонка по суті нерозпізнана/непочата."""
         return not (self.track_id > 0 or self.has_car or self.rank > 0
                     or self.time > 0 or self.note or self.bad_timing
-                    or self.opponent_time > 0 or self.opponent_car_id > 0)
+                    or self.opponent_time > 0 or self.opponent_car_id > 0
+                    or self.map_id > 0)
 
     @property
     def is_complete(self) -> bool:
@@ -72,6 +82,10 @@ class ChallengeSessionService:
         self.suggested: dict[int, int] = {}
         # позначка «рекомендацію вибрано вручну» — для автопідбору
         self.pinned_races: set[int] = set()
+        # вибір треку при неоднозначності (чип користувача або звуження за
+        # часом): {race_number: track_id}; слабший за драфт і впевнений скан
+        self.track_fix: dict[int, int] = {}
+        self.inferred_tracks: set[int] = set()  # які фікси виведені (бейдж «ймовірно»)
 
     def add_listener(self, listener: Callable[[], None]):
         self._listeners.append(listener)
@@ -110,6 +124,7 @@ class ChallengeSessionService:
             if new.opponent_time is not None:
                 current.opponent_time = new.opponent_time
             current.opponent_car = merge_guess(current.opponent_car, new.opponent_car)
+            current.map = merge_guess(current.map, new.map)
             if new.panel_image:
                 current.panel_image = new.panel_image
             current.source_screen = new.source_screen or current.source_screen
@@ -157,9 +172,30 @@ class ChallengeSessionService:
             e.bad_timing = draft.bad_timing
             e.note = draft.note
         if capture:
+            fix = self.track_fix.get(race_number, 0)
+            track_from_fix = False
             if e.track_id <= 0 and capture.track:
-                e.track_id = capture.track.value
-                e.track_uncertain = capture.track.score < LOW_CONFIDENCE
+                confident = capture.track.score >= LOW_CONFIDENCE
+                if not confident:
+                    e.track_candidates = capture.track.candidates
+                if fix and not confident:
+                    # вибір користувача/звуження сильніший за невпевнений скан,
+                    # але впевнений пізніший скан коригує і його (спека §1)
+                    e.track_id = fix
+                    track_from_fix = True
+                else:
+                    e.track_id = capture.track.value
+                    e.track_uncertain = not confident
+            elif e.track_id <= 0 and fix:
+                e.track_id = fix
+                track_from_fix = True
+            if track_from_fix:
+                e.track_fixed = True
+                e.track_inferred = race_number in self.inferred_tracks
+            if capture.map and (e.track_id <= 0 or track_from_fix):
+                # карту показуємо, поки трек не визначено сканом/драфтом:
+                # після вибору чипом вона лишається — чипи не зникають
+                e.map_id = capture.map.value
             if not e.has_car and capture.car:
                 e.car_id = capture.car.value
                 e.car_uncertain = capture.car.score < LOW_CONFIDENCE
@@ -232,6 +268,21 @@ class ChallengeSessionService:
         self.pinned_races = set()
         self._notify()
 
+    def set_track_fix(self, race_number: int, track_id: int | None, inferred: bool = False):
+        """Вибір треку при неоднозначності (клік по чипу або звуження за часом
+        суперника). Драфт-рівень: ручний драфт і пізніший УПЕВНЕНИЙ скан мають
+        пріоритет в effective(); None — зняти вибір."""
+        if track_id is None:
+            self.track_fix.pop(race_number, None)
+            self.inferred_tracks.discard(race_number)
+        else:
+            self.track_fix[race_number] = track_id
+            if inferred:
+                self.inferred_tracks.add(race_number)
+            else:
+                self.inferred_tracks.discard(race_number)
+        self._notify()
+
     @property
     def is_disposable(self) -> bool:
         """Немає моїх часів і змістовних ручних правок — сесію можна тихо замінити
@@ -253,4 +304,6 @@ class ChallengeSessionService:
         self.last_event = ""
         self.suggested = {}
         self.pinned_races = set()
+        self.track_fix = {}
+        self.inferred_tracks = set()
         self._notify()

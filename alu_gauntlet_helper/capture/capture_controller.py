@@ -12,10 +12,12 @@ from alu_gauntlet_helper.capture.hotkey import GlobalHotkeyService
 from alu_gauntlet_helper.capture.screen_grab import grab_screen, save_capture
 from alu_gauntlet_helper.screen_recognition import ocr
 from alu_gauntlet_helper.screen_recognition.engine import RecognitionEngine
+from alu_gauntlet_helper.screen_recognition.map_icon_matcher import MapIconMatcher
 from alu_gauntlet_helper.screen_recognition.matching import TrackResolver, build_car_matcher
 from alu_gauntlet_helper.screen_recognition.screens.before_race import BeforeRaceExtractor
 from alu_gauntlet_helper.screen_recognition.screens.challenge_accordion import ChallengeAccordionExtractor
 from alu_gauntlet_helper.screen_recognition.screens.challenge_complete import ChallengeCompleteExtractor
+from alu_gauntlet_helper.screen_recognition.screens.opponent_scout import OpponentScoutExtractor
 from alu_gauntlet_helper.screen_recognition.screens.race_result import RaceResultExtractor
 from alu_gauntlet_helper.services.challenge_session import LOW_CONFIDENCE, RACE_COUNT
 from alu_gauntlet_helper.views.overlay import OverlayWindow, build_races_table, header_text
@@ -191,6 +193,7 @@ class CaptureController(QObject):
         # словники будуються на кожне захоплення — завжди свіжі дані з БД
         track_resolver = TrackResolver(APP_CONTEXT.tracks_service.get_all_views())
         car_matcher = build_car_matcher(APP_CONTEXT.cars_service.get_all())
+        map_matcher = MapIconMatcher(APP_CONTEXT.maps_service.autocomplete(""))
         # Кожен екстрактор має дешевий піксельний гейт (0 OCR), що відсікає явно
         # чужі екрани до будь-якого OCR (див. docs/optimizing-recognition-speed.md,
         # «Піксельні гейти екранів»). Порядок — за залишковою ціною відмови на
@@ -200,6 +203,7 @@ class CaptureController(QObject):
             RaceResultExtractor(car_matcher),
             ChallengeCompleteExtractor(car_matcher),
             BeforeRaceExtractor(track_resolver, car_matcher),
+            OpponentScoutExtractor(track_resolver, map_matcher),
             ChallengeAccordionExtractor(track_resolver, car_matcher),
         ])
 
@@ -295,7 +299,14 @@ class CaptureController(QObject):
         effective = {n: e for n in range(1, RACE_COUNT + 1) if (e := session.effective(n)) is not None}
         track_ids = {e.track_id for e in effective.values() if e.track_id}
         car_ids = {e.shown_car_id for e in effective.values() if e.shown_car_id}
-        track_names = {t.id: f"{t.display_map_name} - {t.display_name}" for t in APP_CONTEXT.tracks_service.get_by_ids(track_ids).values()}
+        tracks = APP_CONTEXT.tracks_service.get_by_ids(track_ids)
+        # назви нарізно: build_races_table сам складає «Карта - Трек» і вміє
+        # фарбувати вибраний чипом трек cyan поруч із білою назвою карти
+        track_names = {t.id: t.display_name for t in tracks.values()}
+        track_maps = {t.id: t.display_map_name for t in tracks.values()}
+        map_ids = {e.map_id for e in effective.values() if e.map_id}
+        map_names = {m.id: m.display_name
+                     for m in APP_CONTEXT.maps_service.get_by_ids(map_ids).values()}
         car_names = {c.id: c.name for c in APP_CONTEXT.cars_service.get_by_ids(car_ids).values()}
         # статистика «побито/шанс» показаного авто для незіграних гонок —
         # та сама умова, що й для бейджа на картці гонки в табі асистента
@@ -316,7 +327,8 @@ class CaptureController(QObject):
             combo=combo)
         self.overlay.update_content(
             header_text(effective, APP_CONTEXT.assistant.win_chance(session)),
-            build_races_table(effective, track_names, car_names, beat_stats),
+            build_races_table(effective, track_names, car_names, beat_stats,
+                              track_maps=track_maps, map_names=map_names),
             status, hint, self._in_flight)
         if show and not self.overlay.isVisible():
             self.overlay.show()

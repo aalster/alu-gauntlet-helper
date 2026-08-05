@@ -122,6 +122,46 @@ def test_dislike_toggle_links_per_race():
     assert "thumbs-down.svg" in table      # гонка 2 — увімкнено
 
 
+# --- карта на оверлеї; трек, вибраний чипом, — cyan (етап 3) ----------------
+
+
+def test_map_only_race_shows_map_name():
+    # трек невідомий, карта є (скаут-екран) — замість «?» назва карти
+    races = {1: EffectiveRace(map_id=5, opponent_time=25000)}
+    table = build_races_table(races, {}, {}, map_names={5: "The Caribbean"})
+    assert "The Caribbean" in table
+
+
+def test_fixed_track_cyan_with_white_map():
+    # трек вибрано чипом: карта звичайним кольором, трек — cyan
+    races = {1: EffectiveRace(track_id=26, map_id=5, track_fixed=True,
+                              opponent_time=25000)}
+    table = build_races_table(races, {26: "Hell Vale"}, {},
+                              track_maps={26: "The Caribbean"},
+                              map_names={5: "The Caribbean"})
+    assert f"<span style='color:{CYAN}'>Hell Vale</span>" in table
+    assert "The Caribbean" in table
+    assert "The Caribbean - Hell Vale" not in table  # карта не в cyan-спані
+
+
+def test_inferred_track_has_question_suffix():
+    # трек виведено звуженням за часом — позначка «?» і на оверлеї (спека §6)
+    races = {1: EffectiveRace(track_id=26, map_id=5, track_fixed=True,
+                              track_inferred=True, opponent_time=25000)}
+    table = build_races_table(races, {26: "Hell Vale"}, {},
+                              map_names={5: "The Caribbean"})
+    assert "Hell Vale ?" in table
+
+
+def test_scanned_track_composes_map_dash_track():
+    # звичайний (не чип) трек: «Карта - Трек» одним кольором, як раніше
+    races = {1: EffectiveRace(track_id=11, car_id=21, time=22797)}
+    table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"},
+                              track_maps={11: "Paris"})
+    assert "Paris - Notre Dame" in table
+    assert CYAN not in table
+
+
 # --- win_chance_color: спільні пороги таба асистента й оверлея -------------
 
 

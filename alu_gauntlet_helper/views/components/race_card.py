@@ -216,23 +216,32 @@ class RaceCard(QFrame):
         self.rank_badge = widget
 
     def update_card(self, e, track, car, beat, checked: bool, selected: bool,
-                    suggested: bool = False):
+                    suggested: bool = False, map_=None):
         """e: EffectiveRace | None; track: TrackView | None; car: Car показаного
         авто (фактичне з заїзду або рекомендоване) | None; beat: (wins, n) | None;
         checked — стан чекбокса збереження; selected — чи це відкрита панель;
-        suggested — показане авто є рекомендацією (бейдж на іконці)."""
+        suggested — показане авто є рекомендацією (бейдж на іконці);
+        map_: Map | None — карта map-only гонки (трек ще не визначено),
+        показується замість треку з підписом «Трек?»."""
         self.checkbox.setEnabled(e is not None)
         self.checkbox.setChecked(checked)
 
         if track is not None:
             warn = WARN_ICON if e is not None and e.track_uncertain else ""
+            # трек, виведений звуженням за часом, — з позначкою «?» (спека §4)
+            probable = " ?" if e is not None and e.track_inferred else ""
             self._set_track_info(TrackInfoWidget(
                 track.map_icon or "", track.icon or "",
-                track.display_map_name, warn + track.display_name))
+                track.display_map_name, warn + track.display_name + probable))
+        elif map_ is not None:
+            # карта відома (екран 3), трек — ще ні: іконка карти + «Трек?»
+            self._set_track_info(TrackInfoWidget(
+                map_.icon or "", "", map_.display_name,
+                ui_lang.t("assistant.track_unknown")))
         else:
-            # трек невідомий — компонент не показуємо зовсім (порожнє місце)
+            # ні треку, ні карти — компонент не показуємо зовсім (порожнє місце)
             self._set_track_info(TrackInfoWidget("", "", "", ""))
-        self.track_info.setVisible(track is not None)
+        self.track_info.setVisible(track is not None or map_ is not None)
 
         opp = e.opponent_time if e else 0
         # пробіл замість порожнього тексту: порожній QLabel має нульовий
