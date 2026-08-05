@@ -75,7 +75,9 @@ class RaceDialog(EditDialog):
         return form_layout
 
     def on_car_selected(self, car):
-        self.rank_edit.set_text(str(car.rank) if car and car.rank >= 0 else "")
+        # ранг не підставляємо: порожнє поле означає "взяти поточний ранг авто" при збереженні;
+        # очищаємо, щоб ранг попереднього авто не записався новому
+        self.rank_edit.set_text("")
 
     def prepare_item(self):
         track_id = self.tracks_completer.get_selected_item().id if self.tracks_completer.get_selected_item() else 0

@@ -434,6 +434,10 @@ class RacesService(Observable):
             item.car_id = self.cars.get_or_create(item.car_name, item.rank)
         elif item.rank > 0:
             self.cars.update_rank(item.car_id, item.rank)
+        if item.rank <= 0:
+            # порожній ранг у заїзді — беремо поточний ранг авто (0, якщо в авто його теж нема)
+            car = self.cars.get_by_ids({item.car_id}).get(item.car_id)
+            item.rank = car.rank if car else 0
 
         if item.id <= 0:
             self.repo.add(item)

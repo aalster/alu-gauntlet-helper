@@ -99,7 +99,7 @@ class VsSuggestionWidget(RaceAggregateWidget):
         self.setEnabled(not dimmed)
         if dimmed:
             effect = QGraphicsOpacityEffect(self)
-            effect.setOpacity(0.35)
+            effect.setOpacity(0.5)
             self.setGraphicsEffect(effect)
         else:
             self.setGraphicsEffect(None)
