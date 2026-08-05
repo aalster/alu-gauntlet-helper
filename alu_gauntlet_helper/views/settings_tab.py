@@ -3,10 +3,11 @@ import os
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFormLayout,
-                             QHBoxLayout, QLabel, QPushButton, QSlider,
+                             QFrame, QHBoxLayout, QLabel, QPushButton, QSlider,
                              QVBoxLayout, QWidget)
 
 from alu_gauntlet_helper import game_lang, ui_lang
+from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.capture.screen_grab import CAPTURES_DIR, list_monitors
 from alu_gauntlet_helper.views.components.hotkey_edit import HotkeyEdit
@@ -17,19 +18,20 @@ OVERLAY_ACTIONS_OPTIONS = [
     ("Ctrl + Shift", "ctrl+shift"),
 ]
 
-# (підпис, значення) — мова контенту гри (назви карт/треків)
+# (підпис, значення) — мова контенту гри (назви карт/треків); підпис — мовою напису
 GAME_LANGUAGE_OPTIONS = [
-    ("Eng", game_lang.EN),
-    ("Рус", game_lang.RU),
+    ("English", game_lang.EN),
+    ("Русский", game_lang.RU),
 ]
 
-# (підпис, значення) — мова інтерфейсу застосунку
+# (підпис, значення) — мова інтерфейсу застосунку; підпис — мовою напису
 UI_LANGUAGE_OPTIONS = [
-    ("Eng", ui_lang.EN),
-    ("Ukr", ui_lang.UK),
+    ("English", ui_lang.EN),
+    ("Українська", ui_lang.UK),
 ]
 
 HOTKEY_INPUT_WIDTH = 200  # хоткеї/комбо не розтягуємо на всю ширину форми
+CARDS_MAX_WIDTH = 640  # на широкому вікні рядки карток не розтягуємо на весь екран
 
 
 class SettingsTab(QWidget):
@@ -53,7 +55,7 @@ class SettingsTab(QWidget):
         # до ширини вмісту; 200 = HOTKEY_INPUT_WIDTH, як в інших полів-комбо
         self.app_language.setFixedWidth(HOTKEY_INPUT_WIDTH)
         self.app_language_hint = QLabel(ui_lang.t("settings.app_language_hint"))
-        self.app_language_hint.setStyleSheet("color: #888;")
+        self.app_language_hint.setStyleSheet(f"color: {style.TEXT_MUTED};")
         # підказку про перезапуск ставимо в тому ж рядку, праворуч від комбо
         self.app_language_row = QHBoxLayout()
         self.app_language_row.addWidget(self.app_language)
@@ -67,6 +69,14 @@ class SettingsTab(QWidget):
 
         self.capture_hotkey = HotkeyEdit()
         self.overlay_hotkey = HotkeyEdit()
+        # одна комбінація не може виконувати дві дії; порівнюємо з поточним
+        # (можливо незбереженим) значенням сусіднього інпута
+        self.capture_hotkey.validator = (
+            lambda combo: ui_lang.t("hotkey.duplicate")
+            if combo == self.overlay_hotkey.value() else None)
+        self.overlay_hotkey.validator = (
+            lambda combo: ui_lang.t("hotkey.duplicate")
+            if combo == self.capture_hotkey.value() else None)
         self.overlay_actions = QComboBox()
         for label, value in OVERLAY_ACTIONS_OPTIONS:
             self.overlay_actions.addItem(label, value)
@@ -99,33 +109,89 @@ class SettingsTab(QWidget):
 
         self.save_button = QPushButton(ui_lang.t("settings.save"))
         self.save_button.clicked.connect(self.on_save)  # type: ignore
+        self.reset_button = QPushButton(ui_lang.t("settings.reset"))
+        self.reset_button.setObjectName("secondary")
+        self.reset_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.reset_button.clicked.connect(self.on_reset)  # type: ignore
 
-        self.form = QFormLayout()
-        self.form.addWidget(self.show_tray_icon)
-        self.form.addWidget(self.close_to_tray)
-        self.form.addWidget(self.start_minimized)
-        self.form.addRow(ui_lang.t("settings.app_language"), self.app_language_row)
-        self.form.addRow(ui_lang.t("settings.game_language"), self.game_language)
-        self.form.addRow(ui_lang.t("settings.capture_hotkey"), self.capture_hotkey)
-        self.form.addRow(ui_lang.t("settings.overlay_hotkey"), self.overlay_hotkey)
-        self.form.addRow(ui_lang.t("settings.overlay_actions"), self.overlay_actions)
-        self.form.addRow(ui_lang.t("settings.overlay_opacity"), self.overlay_opacity_row)
-        self.form.addRow(ui_lang.t("settings.capture_monitor"), self.monitor_layout)
-        # порожній caption — щоб чекбокс став у колонку полів, врівень з іншими інпутами
-        self.form.addRow("", self.open_captures_row)
-        self.form.addWidget(self.capture_status)
+        app_card, app_form = self._card(ui_lang.t("settings.section_app"))
+        app_form.addRow(ui_lang.t("settings.app_language"), self.app_language_row)
+        app_form.addRow(ui_lang.t("settings.game_language"), self.game_language)
+        app_form.addRow(self.show_tray_icon)
+        app_form.addRow(self.close_to_tray)
+        app_form.addRow(self.start_minimized)
 
+        capture_card, capture_form = self._card(ui_lang.t("settings.section_capture"))
+        capture_form.addRow(ui_lang.t("settings.capture_hotkey"),
+                            self._hotkey_row(self.capture_hotkey))
+        capture_form.addRow(ui_lang.t("settings.capture_monitor"), self.monitor_layout)
+        capture_form.addRow(self.open_captures_row)
+
+        overlay_card, overlay_form = self._card(ui_lang.t("settings.section_overlay"))
+        overlay_form.addRow(ui_lang.t("settings.overlay_hotkey"),
+                            self._hotkey_row(self.overlay_hotkey))
+        overlay_form.addRow(ui_lang.t("settings.overlay_actions"), self.overlay_actions)
+        overlay_form.addRow(ui_lang.t("settings.overlay_opacity"), self.overlay_opacity_row)
+
+        # статус ліворуч від кнопки, а не всередині форми — щоб лейаут не стрибав
         self.bottom_layout = QHBoxLayout()
         self.bottom_layout.addStretch()
+        self.bottom_layout.addWidget(self.capture_status)
+        self.bottom_layout.addWidget(self.reset_button)
         self.bottom_layout.addWidget(self.save_button)
 
+        column = QVBoxLayout()
+        # без цього лейаут column_widget додає власні дефолтні поля поверх
+        # полів зовнішнього лейаута таба — контент відступає вдвічі більше,
+        # ніж на інших табах
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(10)
+        column.addWidget(app_card)
+        column.addWidget(capture_card)
+        column.addWidget(overlay_card)
+        column.addLayout(self.bottom_layout)
+        column.addStretch()
+        column_widget = QWidget()
+        column_widget.setMaximumWidth(CARDS_MAX_WIDTH)
+        column_widget.setLayout(column)
+
+        # обгортка з addStretch притискає колонку вліво, коли вікно ширше за неї
+        row = QHBoxLayout()
+        row.addWidget(column_widget)
+        row.addStretch()
         layout = QVBoxLayout()
-        layout.addLayout(self.form)
-        layout.addLayout(self.bottom_layout)
-        layout.addStretch()
+        layout.addLayout(row)
         self.setLayout(layout)
         self.refresh()
         self.on_tray_changed()
+
+    @staticmethod
+    def _hotkey_row(edit: HotkeyEdit) -> QHBoxLayout:
+        """Інпут хоткея + лейбл помилки праворуч: текст помилки не вміщається
+        в інпут шириною HOTKEY_INPUT_WIDTH, тому показуємо його зовні."""
+        error_label = QLabel()
+        error_label.setStyleSheet(f"color: {style.ERROR};")
+        edit.error_changed.connect(error_label.setText)
+        row = QHBoxLayout()
+        row.addWidget(edit)
+        row.addWidget(error_label)
+        row.addStretch()
+        return row
+
+    @staticmethod
+    def _card(title: str) -> tuple[QFrame, QFormLayout]:
+        card = QFrame()
+        card.setObjectName("settingsCard")
+        header = QLabel(title)
+        header.setObjectName("settingsCardTitle")
+        form = QFormLayout()
+        form.setContentsMargins(0, 0, 0, 0)
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(16, 12, 16, 14)
+        layout.setSpacing(10)
+        layout.addWidget(header)
+        layout.addLayout(form)
+        return card, form
 
     def _build_monitor_selector(self) -> QHBoxLayout:
         layout = QHBoxLayout()
@@ -175,6 +241,10 @@ class SettingsTab(QWidget):
         os.makedirs(path, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
+    def on_reset(self):
+        # відкат незбережених змін до останніх збережених значень
+        self.refresh()
+
     def on_tray_changed(self):
         self.close_to_tray.setEnabled(self.show_tray_icon.isChecked())
         self.start_minimized.setEnabled(self.show_tray_icon.isChecked() and self.close_to_tray.isChecked())
@@ -198,6 +268,8 @@ class SettingsTab(QWidget):
         self.refresh()
         self.refresh_tray_icon(settings.show_tray_icon)
         if self.apply_capture_settings():
+            self.capture_status.setStyleSheet(f"color: {style.TEXT_MUTED};")
             self.capture_status.setText(ui_lang.t("settings.saved"))
         else:
+            self.capture_status.setStyleSheet(f"color: {style.ERROR};")
             self.capture_status.setText(ui_lang.t("settings.hotkey_failed"))

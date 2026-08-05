@@ -1,6 +1,10 @@
-from PyQt6.QtCore import Qt
+from collections.abc import Callable
+
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFocusEvent, QKeyEvent
 from PyQt6.QtWidgets import QLineEdit
+
+from alu_gauntlet_helper import ui_lang
 
 # Клавіші-модифікатори (самі по собі не утворюють комбінацію)
 _MODIFIER_KEYS = {
@@ -78,12 +82,19 @@ def _key_name(event: QKeyEvent) -> str | None:
 
 class HotkeyEdit(QLineEdit):
     """Поле для введення глобального хоткея натисканням комбінації клавіш.
-    Зберігає значення у форматі бібліотеки keyboard (напр. "ctrl+shift+f8")."""
+    Зберігає значення у форматі бібліотеки keyboard (напр. "ctrl+shift+f8").
+    Помилки не пишуться в сам інпут (не вміщаються) — випромінюються через
+    error_changed, зовнішній лейбл показує їх поруч."""
+
+    error_changed = pyqtSignal(str)  # "" — помилки немає
 
     def __init__(self, value: str = ""):
         super().__init__()
         self._value = value
         self._captured = False
+        # повертає текст помилки, якщо комбінацію приймати не можна (напр.
+        # вона вже призначена іншій дії); None — комбінація допустима
+        self.validator: Callable[[str], str | None] | None = None
         self.setReadOnly(True)
         self.setText(value)
 
@@ -98,13 +109,15 @@ class HotkeyEdit(QLineEdit):
         super().focusInEvent(event)
         self._captured = False
         self.setText("")
-        self.setPlaceholderText("Натисніть комбінацію…")
+        self.setPlaceholderText(ui_lang.t("hotkey.press_combo"))
+        self.error_changed.emit("")
 
     def focusOutEvent(self, event: QFocusEvent):
         # Якщо вийшли без захопленої комбінації — відновлюємо попереднє значення
         if not self._captured:
             self.setText(self._value)
         self.setPlaceholderText("")
+        self.error_changed.emit("")
         super().focusOutEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent):
@@ -121,10 +134,12 @@ class HotkeyEdit(QLineEdit):
         if key in _MODIFIER_KEYS:
             # Проміжний показ затиснутих модифікаторів
             self.setText("+".join(mods + ["…"]))
+            self.error_changed.emit("")
             return
 
         if key in _FORBIDDEN_KEYS:
-            self.setText("Ця клавіша недоступна")
+            self.setText("")
+            self.error_changed.emit(ui_lang.t("hotkey.forbidden"))
             return
 
         name = _key_name(event)
@@ -134,10 +149,17 @@ class HotkeyEdit(QLineEdit):
         # Без модифікатора дозволені лише функціональні клавіші (F1–F35)
         is_function = Qt.Key.Key_F1 <= key <= Qt.Key.Key_F35
         if not mods and not is_function:
-            self.setText("Потрібен модифікатор (Ctrl/Alt/Shift)")
+            self.setText("")
+            self.error_changed.emit(ui_lang.t("hotkey.need_modifier"))
             return
 
         combo = "+".join(mods + [name])
+        if self.validator is not None:
+            error = self.validator(combo)
+            if error:
+                self.setText("")
+                self.error_changed.emit(error)
+                return
         self._value = combo
         self._captured = True
         self.setText(combo)

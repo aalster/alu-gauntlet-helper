@@ -465,6 +465,20 @@ QScrollArea > QWidget > QWidget {{
     background: transparent;
 }}
 
+/* картки-групи на табі налаштувань; QFrame, бо голий QWidget не малює
+   QSS-фон без WA_StyledBackground */
+QFrame#settingsCard {{
+    background-color: rgba(5, 12, 40, 110);
+    border: 1px solid {BORDER};
+    border-radius: 8px;
+}}
+
+QLabel#settingsCardTitle {{
+    color: {TEXT_MUTED};
+    font-size: 12px;
+    font-weight: bold;
+}}
+
 QToolTip {{
     background-color: {INPUT_BG};
     color: {TEXT};

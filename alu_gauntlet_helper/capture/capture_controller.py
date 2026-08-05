@@ -69,10 +69,13 @@ class CaptureController(QObject):
         settings = APP_CONTEXT.settings.get()
         ocr.configure_tesseract()
         self.hotkeys.unregister_all()
+        # реєструємо всі три завжди (без short-circuit), щоб збій одного
+        # не лишив інші непідключеними
         ok = self.hotkeys.register(settings.capture_hotkey, self._capture_requested.emit)
-        self.hotkeys.register(settings.overlay_hotkey, self._overlay_toggle_requested.emit)
+        ok = self.hotkeys.register(settings.overlay_hotkey, self._overlay_toggle_requested.emit) and ok
         actions_keys = [k for k in settings.overlay_actions_hotkey.split("+") if k]
-        self.hotkeys.register_hold(actions_keys, self._actions_enter_requested.emit, self._actions_exit_requested.emit)
+        ok = self.hotkeys.register_hold(actions_keys, self._actions_enter_requested.emit,
+                                        self._actions_exit_requested.emit) and ok
         self.overlay.set_screen_index(settings.capture_monitor)
         self.overlay.set_opacity(settings.overlay_opacity)
         if settings.overlay_anchored:
