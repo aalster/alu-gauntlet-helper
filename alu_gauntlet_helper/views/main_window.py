@@ -9,7 +9,6 @@ from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.capture.capture_controller import CaptureController
 from alu_gauntlet_helper.utils.utils import get_resource_path, create_badged_icon
 from alu_gauntlet_helper.views.assistant_tab import AssistantTab
-from alu_gauntlet_helper.views.car_selection_tab import CarSelectionTab
 from alu_gauntlet_helper.views.cars_tab import CarsTab
 from alu_gauntlet_helper.views.components.capture_actions import CaptureActionsWidget
 from alu_gauntlet_helper.views.races_tab import RacesTab
@@ -49,7 +48,6 @@ class MainWindow(QMainWindow):
         overlay.save_requested.connect(self.capture_tab.save_selected)
         self.capture_tab.save_state_changed.connect(overlay.set_save_enabled)
         overlay.set_save_enabled(self.capture_tab.save_enabled())  # початкова синхронізація
-        self.car_selection_tab = CarSelectionTab()
         self.races_tab = RacesTab()
         self.tracks_tab = TracksTab()
         self.cars_tab = CarsTab()
@@ -61,7 +59,6 @@ class MainWindow(QMainWindow):
         self.tabs.setCornerWidget(self.capture_actions, Qt.Corner.TopRightCorner)
         self.tabs.currentChanged.connect(self.tab_selected) # type: ignore
         self.tabs.addTab(self.capture_tab, ui_lang.t("tab.capture"))
-        # self.tabs.addTab(self.car_selection_tab, ui_lang.t("tab.car_selection"))  # приховано
         self.tabs.addTab(self.races_tab, ui_lang.t("tab.races"))
         self.tabs.addTab(self.cars_tab, ui_lang.t("tab.cars"))
         self.tabs.addTab(self.tracks_tab, ui_lang.t("tab.tracks"))

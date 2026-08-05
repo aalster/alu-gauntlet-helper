@@ -250,7 +250,7 @@ class SessionView(QWidget):
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setContentsMargins(8, 16, 8, 16)
         # без ensurePolished sizeHint рахується ДО застосування QSS — item
-        # отримує висоту в кілька пікселів (як у car_selection_tab.show_status)
+        # отримує висоту в кілька пікселів
         label.ensurePolished()
         hint = label.sizeHint()
         hint.setHeight(hint.height() + ListItemWidget.ITEM_CHROME_HEIGHT)

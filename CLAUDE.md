@@ -44,8 +44,7 @@ alu_gauntlet_helper/
 ├── views/                   # PyQt6 UI
 │   ├── style.py             # ALU game theme: palette constants + global QSS, applied in main.py
 │   ├── main_window.py       # Main window with tabs + tray icon + CaptureController
-│   ├── capture_tab.py       # Inline review of captured races: checkboxes, edit via RaceDialog, save/discard
-│   ├── car_selection_tab.py # Manual car-vs-track picker (per-track car suggestions)
+│   ├── assistant_tab.py     # Assistant: per-track car suggestions + inline review of captured races
 │   ├── races_tab.py
 │   ├── tracks_tab.py        # Two panels: maps (left) + tracks (right)
 │   ├── cars_tab.py
