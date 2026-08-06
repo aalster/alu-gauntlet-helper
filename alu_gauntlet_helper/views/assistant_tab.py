@@ -96,8 +96,8 @@ class SessionView(QWidget):
         bottom.addWidget(self.win_chance_box)
         bottom.addStretch()
         bottom.addWidget(self.auto_button)
-        bottom.addWidget(self.save_button)
         bottom.addWidget(self.discard_button)
+        bottom.addWidget(self.save_button)
 
         layout = QVBoxLayout(self)
         # відступи між трьома блоками (картки, рекомендації, футер) = паддінгу

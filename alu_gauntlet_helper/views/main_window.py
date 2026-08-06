@@ -23,7 +23,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(ui_lang.t("window.title"))
         self.setWindowIcon(QIcon(get_resource_path("logo.ico")))
-        self.setMinimumSize(500, 600)
+        self.setMinimumSize(950, 600)
         self.restore_window_state()
         self.refresh_tray_icon(APP_CONTEXT.settings.get().show_tray_icon)
 
