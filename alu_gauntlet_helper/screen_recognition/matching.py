@@ -22,7 +22,18 @@ class VocabularyMatcher:
         self._choices = {i: normalize(name) for i, (_, name) in enumerate(vocab)}
 
     def match(self, text: str, limit: int = 3) -> FieldGuess | None:
-        query = normalize(text)
+        best = self._match_query(normalize(text), limit)
+        # Кроп назви інколи чіпляє знизу сусідній елемент (плашку рангу), і той
+        # читається сміттєвим останнім рядком ("PEUGEOT\n98\nTSVWH") — пробуємо
+        # й без нього; повний текст перемагає, коли справді кращий.
+        lines = [line for line in text.splitlines() if normalize(line)]
+        if len(lines) > 1:
+            trimmed = self._match_query(normalize("".join(lines[:-1])), limit)
+            if trimmed is not None and (best is None or trimmed.score > best.score):
+                best = trimmed
+        return best
+
+    def _match_query(self, query: str, limit: int) -> FieldGuess | None:
         if not query:
             return None
 
@@ -101,13 +112,21 @@ class TrackResolver:
 
     @staticmethod
     def _strip_map(lines: list[str], norm_map: str) -> str:
-        """Вирізає з рядків частини, що збігаються з назвою карти; решта —
-        marquee-фрагмент назви треку. Працює і коли карта+трек в одному рядку."""
+        """Вирізає з рядків назву карти; решта — marquee-фрагмент назви треку.
+
+        Карта стоїть НАД назвою треку, і OCR може розбити її на кілька рядків
+        ("SAN" + "FRANCISCO"). Найбільший префікс рядків, що разом читається як
+        назва карти, викидається цілком, а решта рядків НЕ чіпається: назва
+        карти буває префіксом назви треку ("РИМ" / "РИМСКИЕ ..."), і частковий
+        виріз калічив би фрагмент треку до нерозпізнаваного огризка. Частковий
+        виріз лишається тільки для злитих OCR-рядків
+        ("SHANGHAIDOUBLEROUNDABOUT"), коли окремих рядків карти немає."""
+        normed = [norm for line in lines if (norm := normalize(line))]
+        for k in range(len(normed) - 1, 0, -1):
+            if fuzz.ratio(norm_map, "".join(normed[:k])) >= TrackResolver._MAP_LINE_CUTOFF:
+                return "".join(normed[k:])
         remainder = []
-        for line in lines:
-            norm_line = normalize(line)
-            if not norm_line:
-                continue
+        for norm_line in normed:
             al = fuzz.partial_ratio_alignment(
                 norm_map, norm_line, score_cutoff=TrackResolver._MAP_LINE_CUTOFF)
             if al is not None:
@@ -136,14 +155,8 @@ class TrackResolver:
                                   candidates=[(track_id, self._SINGLE_TRACK_SCORE)])
             return None  # карти замало: наступний кадр добере фрагмент
 
-        scored = []
-        for track_id, norm_name in tracks:
-            doubled = norm_name * 2  # будь-яка фаза прокрутки — підрядок подвоєної назви
-            if fragment in doubled:
-                score = self._EXACT_MATCH_SCORE
-            else:
-                score = fuzz.partial_ratio(fragment, doubled) / 100
-            scored.append((track_id, score))
+        scored = [(track_id, self._fragment_score(fragment, norm_name * 2))
+                  for track_id, norm_name in tracks]
         scored.sort(key=lambda kv: kv[1], reverse=True)
 
         best_id, best_score = scored[0]
@@ -156,6 +169,23 @@ class TrackResolver:
             # неоднозначність: повертаємо, але з низьким скором — рев'ю підсвітить
             best_score = min(best_score, self._AMBIGUITY_CAP)
         return FieldGuess(value=best_id, score=best_score, candidates=scored)
+
+    @staticmethod
+    def _fragment_score(fragment: str, doubled: str) -> float:
+        """Скор marquee-фрагмента проти подвоєної назви треку (будь-яка фаза
+        прокрутки — підрядок подвоєної назви). Крайні літери фрагмента бувають
+        зрізані рамкою попапа посередині гліфа, і OCR вгадує їх іншою буквою
+        ("РИМСКИЕ ТРО" → "ЭИМСКИЕ ТРС") — пробуємо й варіанти без крайніх
+        символів, поки лишається дискримінативна довжина."""
+        variants = [fragment]
+        if len(fragment) - 2 >= TrackResolver._MIN_FRAGMENT_LEN:
+            variants += [fragment[1:], fragment[:-1], fragment[1:-1]]
+        best = 0.0
+        for variant in variants:
+            if variant in doubled:
+                return TrackResolver._EXACT_MATCH_SCORE
+            best = max(best, fuzz.partial_ratio(variant, doubled) / 100)
+        return best
 
     def resolve_track_only(self, text: str, map_name: str | None = None) -> FieldGuess | None:
         """Розпізнати трек за самою назвою, БЕЗ пошуку карти в тексті: для

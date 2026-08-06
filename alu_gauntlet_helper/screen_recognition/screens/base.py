@@ -45,9 +45,11 @@ _RU_HEADER_CHANNELS = ("min", "max", "gray")
 def _ru_word_present(img: np.ndarray, region: RelRect) -> bool:
     """Дешевий гейт перед дорогим пошуком цифри: чи є на бейджі слово "ГОНКА".
     min глушить кольоровий логотип бейджа, max ловить білий логотип race_result.
-    Логотип на деяких бейджах зливається зі словом — пробуємо й обрізаний варіант,
-    інакше частина рядків проскакує (напр. рядок 3 на підсумковому екрані)."""
-    for trim in (0.0, 0.30):
+    Логотип на деяких бейджах зливається зі словом — пробуємо ті самі обрізання,
+    що й пошук цифри (_RU_HEADER_TRIMS): широкий квадратний логотип клубу на
+    повному кропі змушує читати слово малими літерами ("гонкм"), а при 0.30
+    зрізає "О" ("НКА") — слово читається лише на проміжному 0.22."""
+    for trim in _RU_HEADER_TRIMS:
         sub = region.sub(RelRect(trim, 0.0, 1 - trim, 1.0)) if trim else region
         for channel in ("min", "max"):
             if _RU_HEADER_WORD_RE.search(ocr.read_text(sub.crop(img), channel=channel, lang="rus")):

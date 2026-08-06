@@ -38,6 +38,12 @@ _PANEL_COUNT = 5
 # запасом. Використовується гейтом has_accordion_columns.
 _COLUMN_W_RANGE = (0.05, 0.13)
 
+# Суворіший діапазон згорнутої колонки для перевірки кандидатів у find_expanded:
+# уламки розгорнутої панелі, розрізаної яскравим колом "+" (авто гравця ще не
+# вибране), мають ширину 0.05–0.07 і не мають зійти за колонку; панелі
+# скаут-екрана (0.132–0.141) ширші за верхню межу.
+_COLUMN_STRICT_W_RANGE = (0.075, 0.13)
+
 
 def band_segments(img: np.ndarray) -> list[tuple[float, float]]:
     """Темні сегменти (панелі/колонки) між проміжками у смузі. Жодного OCR."""
@@ -68,22 +74,32 @@ def band_segments(img: np.ndarray) -> list[tuple[float, float]]:
 def find_expanded(segments: list[tuple[float, float]]) -> tuple[float, float, int] | None:
     """(left, right, race_number) розгорнутої панелі за сегментами або None.
 
-    Внутрішній яскравий градієнт "VS" може розбити широку панель на кілька
-    «широких» сегментів — зливаємо їх в один."""
-    wide = [s for s in segments if s[1] - s[0] >= _NARROW_MAX_W]
-    if not wide:
-        return None
-    exp_left = min(s[0] for s in wide)
-    exp_right = max(s[1] for s in wide)
-    if not (_EXPANDED_W_RANGE[0] < exp_right - exp_left < _EXPANDED_W_RANGE[1]):
-        return None
-
-    narrow = [s for s in segments if s[1] - s[0] < _NARROW_MAX_W]
-    n_left = sum(1 for s in narrow if s[1] <= exp_left + 0.005)
-    n_right = sum(1 for s in narrow if s[0] >= exp_right - 0.005)
-    if n_left + 1 + n_right != _PANEL_COUNT:
-        return None
-    return exp_left, exp_right, n_left + 1
+    Внутрішні яскраві зони (градієнт "VS", а без вибраного авто гравця — ще й
+    коло "+" на силуеті) розрізають панель на кілька сегментів, серед яких
+    широкий може бути лише один. Тому кандидат — БЕЗПЕРЕРВНИЙ ланцюжок
+    сегментів: містить хоч один широкий шматок, загальний прогін у діапазоні
+    ширини розгорнутої панелі, а всі сегменти поза ланцюжком — справжні
+    згорнуті колонки (сумарно рівно 4). Неоднозначність (кілька валідних
+    ланцюжків) → None, вирішує запасний OCR-пошук."""
+    candidates = []
+    for i in range(len(segments)):
+        for j in range(i, len(segments)):
+            span = segments[j][1] - segments[i][0]
+            if span >= _EXPANDED_W_RANGE[1]:
+                break
+            if span <= _EXPANDED_W_RANGE[0]:
+                continue
+            run = segments[i:j + 1]
+            if not any(s[1] - s[0] >= _NARROW_MAX_W for s in run):
+                continue  # ряд самих колонок — не розгорнута панель
+            rest = segments[:i] + segments[j + 1:]
+            if len(rest) != _PANEL_COUNT - 1:
+                continue
+            if not all(_COLUMN_STRICT_W_RANGE[0] <= s[1] - s[0] < _COLUMN_STRICT_W_RANGE[1]
+                       for s in rest):
+                continue
+            candidates.append((segments[i][0], segments[j][1], i + 1))
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def detect_expanded_panel(img: np.ndarray) -> tuple[float, float, int] | None:

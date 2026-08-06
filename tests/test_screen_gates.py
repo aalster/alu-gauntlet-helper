@@ -46,6 +46,7 @@ RACE_RESULT = [
     "captures/capture_1784627025726575700.png", "captures/capture_1784794715365495300.png",
     "captures/capture_1784799351890838400.png", "captures/capture_1784881514278377300.png",
     "captures/capture_1784882769017084400.png", "captures/capture_1785488451435103800.png",
+    "captures/capture_1786001971636410500.png",
 ]
 COMPLETE = ["challenge_complete_won.png", "challenge_complete_ru.png"]
 BEFORE_RACE = [
@@ -66,6 +67,9 @@ ACCORDION = [
     "captures/capture_1784626682823724600.png", "captures/capture_1784626829149215100.png",
     "captures/capture_1784704425381040700.png", "captures/capture_1784794600198030500.png",
     "captures/capture_1784882730503432100.png", "captures/capture_1785587843254562800.png",
+    "captures/capture_1785744680741669000.png", "captures/capture_1785836854551943800.png",
+    "captures/capture_1785837931447249300.png", "captures/capture_1786001288381845200.png",
+    "captures/capture_1786001356361191800.png",
 ]
 SCOUT = ["opponent_tracks.png", "opponent_times_1.png", "opponent_times_2.png"]
 
@@ -149,6 +153,11 @@ ACCORDION_RACE = {
     "captures/capture_1784626682823724600.png": 3, "captures/capture_1784626829149215100.png": 2,
     "captures/capture_1784704425381040700.png": 2, "captures/capture_1784794600198030500.png": 4,
     "captures/capture_1784882730503432100.png": 3, "captures/capture_1785587843254562800.png": 2,
+    # без вибраного авто гравця яскраве коло "+" розрізає розгорнуту панель
+    # на шматки — геометрія має складати панель із ланцюжка сегментів
+    "captures/capture_1785744680741669000.png": 2, "captures/capture_1785836854551943800.png": 1,
+    "captures/capture_1785837931447249300.png": 4, "captures/capture_1786001288381845200.png": 1,
+    "captures/capture_1786001356361191800.png": 1,
 }
 
 
