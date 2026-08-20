@@ -254,15 +254,17 @@ def _metric_base_time(agg: RaceAggregate, kind: str) -> int:
     return agg.avg_fail
 
 
-def _metric_tooltip_html(agg: RaceAggregate, kind: str) -> str:
+def _metric_tooltip_html(agg: RaceAggregate, kind: str, base_time: int | None = None) -> str:
     races, count = _metric_races(agg, kind)
-    table = _races_table_html(races, agg.car_rank, _metric_base_time(agg, kind))
+    table = _races_table_html(races, agg.car_rank, base_time or _metric_base_time(agg, kind))
     margin_top = " margin-top: 8px;" if table else ""
     # {n} є лише в описі recent-показника; для решти format нічого не міняє.
     # У recent кількість вже в описі, тож окремий рядок «Всього заїздів» зайвий.
     lines = [ui_lang.t(_METRIC_DESC_KEYS[kind]).format(n=count)]
     if kind != "recent":
         lines.append(ui_lang.t("races.metric_races_n").format(n=count))
+    if base_time:
+        lines.append(ui_lang.t("races.metric_diff_vs_opponent"))
     footer = (f"<p style='color: {style.TEXT_MUTED}; font-size: 11px; margin: 0;{margin_top}'>"
               f"{'<br>'.join(lines)}</p>")
     return table + footer
@@ -276,7 +278,8 @@ class _LazyMetricTooltip(QObject):
         if event.type() == QEvent.Type.ToolTip:
             html = obj.property("_metric_html")
             if html is None:
-                html = _metric_tooltip_html(obj.property("_metric_agg"), obj.property("_metric_kind"))
+                html = _metric_tooltip_html(obj.property("_metric_agg"), obj.property("_metric_kind"),
+                                            obj.property("_metric_base"))
                 obj.setProperty("_metric_html", html)
             QToolTip.showText(event.globalPos(), html, obj)
             return True
@@ -287,9 +290,13 @@ class _LazyMetricTooltip(QObject):
 _METRIC_TOOLTIP = _LazyMetricTooltip()
 
 
-def _install_metric_tooltip(widget: QWidget, agg: RaceAggregate, kind: str):
+def _install_metric_tooltip(widget: QWidget, agg: RaceAggregate, kind: str,
+                            base_time: int | None = None):
+    """base_time — база для колонки різниці замість основного часу показника
+    (в асистенті різниці рахуються від часу суперника)."""
     widget.setProperty("_metric_agg", agg)
     widget.setProperty("_metric_kind", kind)
+    widget.setProperty("_metric_base", base_time)
     widget.installEventFilter(_METRIC_TOOLTIP)
 
 
@@ -299,11 +306,13 @@ class RaceAggregateWidget(ListItemWidget):
 
     def __init__(self, agg: RaceAggregate, parent=None,
                  show_track: bool = True, vs_widget: QWidget | None = None,
-                 highlight_best: bool = False):
+                 highlight_best: bool = False, opponent_time: int = 0):
         """show_track=False — без колонки треку (він відомий з контексту, як у
         підборі проти суперника); vs_widget — додаткова колонка одразу після авто;
         highlight_best — кольоровий акцент переноситься з головного середнього на
-        найкращий час (режим сортування за найкращим)."""
+        найкращий час (режим сортування за найкращим); opponent_time — різниці в
+        тултипах усіх показників рахуються від часу суперника, а не від самого
+        показника."""
         super().__init__(agg, parent)
         self.track_info = None
         if show_track:
@@ -314,13 +323,15 @@ class RaceAggregateWidget(ListItemWidget):
 
         stats_rows = [
             self._stat_row(agg, "best", ui_lang.t("races.row_best"), format_time(agg.best_time),
-                           highlight=highlight_best),
-            self._stat_row(agg, "ok", ui_lang.t("races.row_avg_ok"), format_time(agg.avg_time)),
+                           highlight=highlight_best, opponent_time=opponent_time),
+            self._stat_row(agg, "ok", ui_lang.t("races.row_avg_ok"), format_time(agg.avg_time),
+                           opponent_time=opponent_time),
             # резерв ширини підпису під найширший відсоток, інакше «(100%)» проти
             # «(0%)» дає різну ширину колонки і межі гуляють між рядками
             self._stat_row(agg, "fail", f"{ui_lang.t('races.row_avg_fail')} ({agg.dislike_pct}%)",
                            format_time(agg.avg_fail),
-                           caption_reserve=f"{ui_lang.t('races.row_avg_fail')} (100%)"),
+                           caption_reserve=f"{ui_lang.t('races.row_avg_fail')} (100%)",
+                           opponent_time=opponent_time),
         ]
         stats_table = QWidget()
         stats_table.setLayout(vbox(stats_rows, spacing=2))
@@ -349,11 +360,12 @@ class RaceAggregateWidget(ListItemWidget):
         if vs_widget is not None:
             self.layout.addWidget(as_column(vs_widget), stretch=48)
         self.layout.addWidget(as_column(self._race_count_stat(agg)), stretch=32)
-        self.layout.addWidget(self._main_stat(agg, highlight_best))
+        self.layout.addWidget(self._main_stat(agg, highlight_best, opponent_time))
         self.layout.addWidget(as_column(stats_table), stretch=38)
         self.setLayout(self.layout)
 
-    def _main_stat(self, agg: RaceAggregate, highlight_best: bool = False) -> QWidget:
+    def _main_stat(self, agg: RaceAggregate, highlight_best: bool = False,
+                   opponent_time: int = 0) -> QWidget:
         value_label = QLabel(format_time(agg.avg_recent) or "—")
         # при сортуванні за найкращим зелений акцент іде на рядок best,
         # головний середній лишається білим (дефолтний колір QLabel)
@@ -384,7 +396,7 @@ class RaceAggregateWidget(ListItemWidget):
         # не прилипала до країв тексту
         layout.setContentsMargins(8, 0, 8, 0)
         column.setLayout(layout)
-        _install_metric_tooltip(column, agg, "recent")
+        _install_metric_tooltip(column, agg, "recent", opponent_time or None)
         return column
 
     def _race_count_stat(self, agg: RaceAggregate) -> QWidget:
@@ -410,7 +422,8 @@ class RaceAggregateWidget(ListItemWidget):
 
     @staticmethod
     def _stat_row(agg: RaceAggregate, kind: str, caption: str, value: str,
-                  caption_reserve: str = "", highlight: bool = False) -> QWidget:
+                  caption_reserve: str = "", highlight: bool = False,
+                  opponent_time: int = 0) -> QWidget:
         caption_label = QLabel(caption)
         caption_label.setStyleSheet(f"color: {style.TEXT_MUTED}; font-size: 11px;")
         if caption_reserve:
@@ -438,7 +451,7 @@ class RaceAggregateWidget(ListItemWidget):
         row_layout.setSpacing(8)
         row_layout.addWidget(caption_label, stretch=1)
         row_layout.addWidget(value_label)
-        _install_metric_tooltip(row, agg, kind)
+        _install_metric_tooltip(row, agg, kind, opponent_time or None)
         return row
 
 

@@ -95,6 +95,7 @@ TRANSLATIONS = {
         "races.desc_avg_ok": "Average time of successful runs, all time",
         "races.desc_avg_fail": "Average time of failed runs, all time",
         "races.metric_races_n": "Total runs: {n}",
+        "races.metric_diff_vs_opponent": "Difference — vs opponent's time",
         # cars
         "cars.max": "MAX",
         "cars.filter_all": "All",
@@ -232,6 +233,7 @@ TRANSLATIONS = {
         "races.desc_avg_ok": "Середній час успішних заїздів за весь час",
         "races.desc_avg_fail": "Середній час невдалих заїздів за весь час",
         "races.metric_races_n": "Всього заїздів: {n}",
+        "races.metric_diff_vs_opponent": "Різниця — з часом суперника",
         "cars.max": "МАКС",
         "cars.filter_all": "Усі",
         "cars.sort_default": "За замовч.",

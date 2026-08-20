@@ -31,6 +31,7 @@ class VsSuggestion(CarSuggestion):
     """Пропозиція авто проти конкретного часу суперника."""
     beat_count: int = 0    # скільки з вибірки швидші за суперника (сирі числа для UI)
     sample_count: int = 0  # розмір вибірки (останні ≤10 чистих заїздів)
+    opponent_time: int = 0 # час суперника, мс; 0 — час невідомий
     delta: int = 0         # opponent_time - avg_time, мс; >0 — я в середньому швидший
     p_smoothed: float = 0.5
 
@@ -66,6 +67,7 @@ class AssistantService:
                 race_count=len(times),
                 beat_count=beat,
                 sample_count=len(times),
+                opponent_time=opponent_time or 0,
                 delta=(opponent_time - avg) if opponent_time else 0,
                 p_smoothed=laplace(beat, len(times)) if opponent_time else 0.5,
             ))

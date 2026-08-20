@@ -62,11 +62,10 @@ class VsStatsWidget(QWidget):
             return (f"<tr><td align='right'>{value}</td>"
                     f"<td style='padding-left:8px'>{label}</td></tr>")
 
-        # vs.delta = opponent - avg, тож час суперника відновлюється як avg + delta;
         # у рядку різниці — «мій мінус суперника», як у колонці (я швидший → −)
         delta_color = style.DIFF_BETTER if vs.delta >= 0 else style.DIFF_WORSE
         table = "<table cellspacing='0' cellpadding='1'>" + row(
-            format_time(vs.avg_time + vs.delta),
+            format_time(vs.opponent_time),
             ui_lang.t("assistant.vs_tooltip_opponent")) + row(
             format_time(vs.avg_time),
             ui_lang.t("assistant.vs_tooltip_avg").format(n=vs.sample_count)) + row(
@@ -87,7 +86,8 @@ class VsSuggestionWidget(RaceAggregateWidget):
 
     def __init__(self, agg: RaceAggregate, vs: VsSuggestion, has_opponent_time: bool, parent=None):
         super().__init__(agg, parent, show_track=False,
-                         vs_widget=VsStatsWidget(vs) if has_opponent_time else None)
+                         vs_widget=VsStatsWidget(vs) if has_opponent_time else None,
+                         opponent_time=vs.opponent_time)
         self.car_id = vs.car_id
         self.car_name = vs.car_name
 
