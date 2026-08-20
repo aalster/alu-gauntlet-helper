@@ -124,6 +124,54 @@ def read_time(img: np.ndarray) -> int | None:
     return votes[0] if votes else None
 
 
+# Детекція чорної плашки часу ("YOUR TIME"): плашка майже чорна на блакитному
+# тлі, тож шукається як найбільший темний компонент зони пошуку. Пороги:
+_PLATE_DARK_THR = 60        # яскравість, нижче якої піксель вважається плашкою
+_PLATE_MIN_AREA_FRAC = 0.04  # мін. частка зони: дрібні темні деталі — не плашка
+# Зріз країв знайденого прямокутника: краї плашки похилі (паралелограм), а по
+# периметру лишається чорна рамка навколо цифр — і те, і те ламає tesseract
+# (див. коментарі до *_TIME_ZONE у regions.py: читається стабільно лише кроп
+# впритул до цифр, без переходів плашка/фон у кадрі).
+_PLATE_SHRINK_X = 0.10
+_PLATE_SHRINK_Y = 0.16
+
+
+def read_time_plate(img: np.ndarray) -> int | None:
+    """Час на чорній плашці: знаходить плашку в зоні пошуку і читає всередині.
+
+    На відміну від фіксованого ROI не залежить від точної позиції плашки в
+    зоні — детекція прив'язується до самої плашки (найбільший темний компонент
+    достатньої площі). Компоненти, що торкаються країв зони, відкидаються:
+    плашка завжди лежить усередині зони з запасом, а темні смуги фону сторінки
+    та сусідніх колонок перетинають зону наскрізь — і бувають БІЛЬШІ за плашку
+    за площею (car_selection_ru_1_sf: нижня смуга фону 1.03× площі плашки).
+    Немає плашки (BEFORE-варіант: у зоні лише фон) → None."""
+    if img.size == 0:
+        return None
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
+    dark = (gray < _PLATE_DARK_THR).astype(np.uint8)
+    count, _, stats, _ = cv2.connectedComponentsWithStats(dark, connectivity=8)
+    h, w = gray.shape
+    best_area = 0
+    best_box = None
+    for i in range(1, count):
+        x, y = stats[i, cv2.CC_STAT_LEFT], stats[i, cv2.CC_STAT_TOP]
+        bw, bh = stats[i, cv2.CC_STAT_WIDTH], stats[i, cv2.CC_STAT_HEIGHT]
+        area = stats[i, cv2.CC_STAT_AREA]
+        if x == 0 or y == 0 or x + bw == w or y + bh == h:
+            continue  # торкається краю зони — фон/рамка, не плашка
+        if area >= _PLATE_MIN_AREA_FRAC * h * w and area > best_area:
+            best_area, best_box = area, (x, y, bw, bh)
+    if best_box is None:
+        return None
+    x, y, bw, bh = best_box
+    dx, dy = int(bw * _PLATE_SHRINK_X), int(bh * _PLATE_SHRINK_Y)
+    inner = img[y + dy:y + bh - dy, x + dx:x + bw - dx]
+    if inner.size == 0:
+        return None
+    return read_time(inner)
+
+
 def read_rank(img: np.ndarray) -> int | None:
     if img.size == 0:
         return None

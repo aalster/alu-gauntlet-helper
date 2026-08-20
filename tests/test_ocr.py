@@ -54,6 +54,56 @@ def test_read_time_under_red_glow_pulse(alpha):
     assert ocr.read_time(glow) == 24182
 
 
+def make_plate_image(text: str = "", plate: bool = True, edge_bar: bool = False) -> np.ndarray:
+    """Ігрова плашка часу: чорний паралелограм на блакитному тлі, світлі цифри.
+
+    edge_bar=True домальовує темну смугу фону сторінки на всю ширину внизу —
+    як на car_selection_ru_1_sf, де така смуга БІЛЬША за плашку за площею."""
+    try:
+        font = ImageFont.truetype("arialbd.ttf", 44)
+    except OSError:
+        font = ImageFont.load_default(size=44)
+    img = Image.new("RGB", (620, 190), (210, 170, 90))  # блакитний фон (BGR-подібний)
+    draw = ImageDraw.Draw(img)
+    if plate:
+        # похилі краї, як у грі
+        draw.polygon([(120, 40), (500, 32), (485, 120), (105, 128)], fill=(10, 10, 10))
+        if text:
+            draw.text((190, 55), text, font=font, fill=(180, 240, 60))
+    if edge_bar:
+        draw.rectangle([(0, 138), (620, 190)], fill=(25, 20, 40))
+    return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+
+
+def test_read_time_plate():
+    assert ocr.read_time_plate(make_plate_image("00:21.149")) == 21149
+
+
+def test_read_time_plate_no_plate_returns_none():
+    """Немає чорної плашки (BEFORE-варіант: справа лише фон) → None."""
+    assert ocr.read_time_plate(make_plate_image(plate=False)) is None
+
+
+def test_read_time_plate_empty_plate_returns_none():
+    assert ocr.read_time_plate(make_plate_image("")) is None
+
+
+def test_read_time_plate_empty_crop_returns_none():
+    assert ocr.read_time_plate(np.zeros((0, 0, 3), dtype=np.uint8)) is None
+
+
+def test_read_time_plate_ignores_edge_touching_bar():
+    """Регресія (car_selection_ru_1_sf): темна смуга фону сторінки внизу зони
+    БІЛЬША за плашку за площею — «найбільший темний компонент» обирав її, і час
+    губився. Смуга перетинає зону наскрізь (торкається країв), а плашка завжди
+    всередині зони з запасом — компоненти на краю відкидаються."""
+    assert ocr.read_time_plate(make_plate_image("00:20.569", edge_bar=True)) == 20569
+
+
+def test_read_time_plate_only_edge_bar_returns_none():
+    assert ocr.read_time_plate(make_plate_image(plate=False, edge_bar=True)) is None
+
+
 def test_read_rank():
     assert ocr.read_rank(make_text_image("4,045")) == 4045
 

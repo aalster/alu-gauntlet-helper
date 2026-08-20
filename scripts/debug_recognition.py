@@ -11,7 +11,7 @@ import cv2
 from alu_gauntlet_helper.screen_recognition import ocr
 from alu_gauntlet_helper.screen_recognition.regions import (
     ACCORDION_AFTER_PANELS, ACCORDION_BEFORE_PANELS, ACCORDION_HEADER,
-    AFTER_PLAYER_CAR, AFTER_PLAYER_RANK, AFTER_PLAYER_TIME, AFTER_TRACK_NAME,
+    AFTER_PLAYER_CAR, AFTER_PLAYER_RANK, AFTER_PLAYER_TIME_ZONE, AFTER_TRACK_NAME,
     BEFORE_TRACK_NAME,
 )
 
@@ -30,7 +30,7 @@ VARIANTS = {
             "track": AFTER_TRACK_NAME,
             "player_car": AFTER_PLAYER_CAR,
             "player_rank": AFTER_PLAYER_RANK,
-            "player_time": AFTER_PLAYER_TIME,
+            "player_time": AFTER_PLAYER_TIME_ZONE,
         },
     },
 }
@@ -40,7 +40,7 @@ OCR_READERS = {
     "track": ocr.read_name,
     "player_car": ocr.read_name,
     "player_rank": ocr.read_rank,
-    "player_time": ocr.read_time,
+    "player_time": ocr.read_time_plate,
 }
 
 

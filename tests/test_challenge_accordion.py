@@ -151,6 +151,28 @@ def test_after_4_lost_race_red_time():
 
 
 @pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
+@fixture_guard("accordion_after_2_wall_street.png")
+def test_after_2_wall_street_player_time_read():
+    """Скріншот: RACE 2, WON; зліва суперник RIMAC NEVERA TIME ATTACK 4,835,
+    справа гравець BUGATTI CHIRON 5,130; трек NEW YORK WALL STREET RIDE;
+    TIME TO BEAT 00:21.446, YOUR TIME 00:21.149. Регресія: на широкому
+    фіксованому кропі часу гравця tesseract повертав порожньо на всіх каналах
+    саме для цих гліфів — час губився (та сама нестабільність, що раніше на
+    боці суперника). Лік: чорна плашка знаходиться детекцією
+    (ocr.read_time_plate) і читається впритул до цифр."""
+    c = extract_one("accordion_after_2_wall_street.png")
+    assert c.race_number == 2
+    assert c.track and c.track.value == TRACK_NY_WALL_STREET
+    assert c.car and c.car.value == CAR_BUGATTI_CHIRON
+    assert c.car.value != CAR_RIMAC_NEVERA_TA
+    assert c.rank == 5130
+    assert c.time == 21149  # YOUR TIME, не 21446 (TIME TO BEAT)
+    assert c.opponent_car and c.opponent_car.value == CAR_RIMAC_NEVERA_TA
+    assert c.opponent_time == 21446
+    assert c.game_language == "en"
+
+
+@pytest.mark.skipif(not TESSERACT_OK, reason="tesseract не знайдено")
 @fixture_guard("accordion_after_shanghai_paris_east.png")
 def test_after_shanghai_paris_of_the_east_track():
     """Скріншот: RACE 1, WON; зліва суперник MITSUBISHI LANCER EVOLUTION 1,031,

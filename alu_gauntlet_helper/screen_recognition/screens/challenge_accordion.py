@@ -7,8 +7,8 @@ from alu_gauntlet_helper.screen_recognition import ocr
 from alu_gauntlet_helper.screen_recognition.matching import TrackResolver, VocabularyMatcher
 from alu_gauntlet_helper.screen_recognition.regions import (
     ACCORDION_AFTER_PANELS, ACCORDION_BEFORE_PANELS, ACCORDION_HEADER,
-    ACCORDION_OPPONENT_CAR, ACCORDION_OPPONENT_TIME,
-    AFTER_PLAYER_CAR, AFTER_PLAYER_RANK, AFTER_PLAYER_TIME, AFTER_TRACK_NAME,
+    ACCORDION_OPPONENT_CAR, ACCORDION_OPPONENT_TIME_ZONE,
+    AFTER_PLAYER_CAR, AFTER_PLAYER_RANK, AFTER_PLAYER_TIME_ZONE, AFTER_TRACK_NAME,
     BEFORE_TRACK_NAME,
 )
 from alu_gauntlet_helper.screen_recognition.screens.base import (
@@ -126,7 +126,7 @@ class ChallengeAccordionExtractor(ScreenExtractor):
 
         # Лівий бік — суперник (є в обох варіантах): авто + "TIME TO BEAT".
         # Йдуть у ВИДІЛЕНІ поля opponent_* і ніколи — у поля гравця.
-        opponent_time = ocr.read_time(panel.sub(ACCORDION_OPPONENT_TIME).crop(img))
+        opponent_time = ocr.read_time_plate(panel.sub(ACCORDION_OPPONENT_TIME_ZONE).crop(img))
         opponent_car = self.car_matcher.match(
             ocr.read_name(panel.sub(ACCORDION_OPPONENT_CAR).crop(img)))
 
@@ -134,7 +134,7 @@ class ChallengeAccordionExtractor(ScreenExtractor):
         # (див. _find_expanded для зауваження щодо розбіжності сіток у майбутньому).
         # AFTER підтверджує час "YOUR TIME" праворуч знизу або розпізнане авто гравця.
         # Авто завжди англійською (lang за замовчуванням "eng").
-        player_time = ocr.read_time(panel.sub(AFTER_PLAYER_TIME).crop(img))
+        player_time = ocr.read_time_plate(panel.sub(AFTER_PLAYER_TIME_ZONE).crop(img))
         player_car_text = ocr.read_name(panel.sub(AFTER_PLAYER_CAR).crop(img))
         player_car = self.car_matcher.match(player_car_text)
 
