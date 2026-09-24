@@ -1,7 +1,7 @@
 from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.services.challenge_session import EffectiveRace
 from alu_gauntlet_helper.views.overlay import (COMPLETE_COLOR, CYAN, LOSS_BRIGHT,
-                                               UNCERTAIN_COLOR, WIN_BRIGHT,
+                                               WIN_BRIGHT,
                                                build_races_table,
                                                build_training_table, header_text)
 
@@ -53,17 +53,13 @@ def test_unresolved_names_show_question_marks():
     assert "?" in table
 
 
-def test_uncertain_fields_highlighted():
-    races = {1: EffectiveRace(track_id=11, car_id=21, time=22797,
-                              track_uncertain=True, car_uncertain=True)}
-    table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"})
-    assert table.count(UNCERTAIN_COLOR) == 2  # підсвічені і трек, і авто
-
-
-def test_certain_fields_not_highlighted():
-    races = {1: EffectiveRace(track_id=11, car_id=21, time=22797)}
-    table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"})
-    assert UNCERTAIN_COLOR not in table
+def test_uncertain_fields_not_highlighted():
+    # оверлей більше не фарбує непевні поля — вони виглядають як звичайні
+    sure = {1: EffectiveRace(track_id=11, car_id=21, time=22797)}
+    unsure = {1: EffectiveRace(track_id=11, car_id=21, time=22797,
+                               track_uncertain=True, car_uncertain=True)}
+    names = ({11: "Notre Dame"}, {21: "Ultima RS"})
+    assert build_races_table(unsure, *names) == build_races_table(sure, *names)
 
 
 def test_suggested_car_shown_in_cyan():

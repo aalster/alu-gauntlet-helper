@@ -43,11 +43,11 @@ def test_lobby_scan_sets_session_track():
     assert s.run_numbers() == []
 
 
-def test_lobby_rescan_merges_by_score():
+def test_lobby_rescan_newer_wins():
     s = TrainingSessionService()
-    s.apply(result(lobby_capture(score=0.6), screen="training_lobby"))
-    s.apply(result(lobby_capture(track_id=TRACK_NEVADA, score=0.95), screen="training_lobby"))
-    assert s.track.value == TRACK_NEVADA  # упевненіший скан коригує трек
+    s.apply(result(lobby_capture(score=0.95), screen="training_lobby"))
+    s.apply(result(lobby_capture(track_id=TRACK_NEVADA, score=0.6), screen="training_lobby"))
+    assert s.track.value == TRACK_NEVADA  # свіжіший скан коригує трек навіть із нижчим score
 
 
 # --- заїзди: append та дедуплікація -----------------------------------------

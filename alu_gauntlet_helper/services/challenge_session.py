@@ -60,12 +60,11 @@ class EffectiveRace(BaseModel):
 
 
 def merge_guess(old: FieldGuess | None, new: FieldGuess | None) -> FieldGuess | None:
-    if new is None:
-        return old
-    # >= — за рівної впевненості перемагає свіжіше захоплення
-    if old is None or new.score >= old.score:
-        return new
-    return old
+    """Свіжіший скан завжди затирає попередній: гравець міг змінити вибір у грі,
+    і старе впевненіше значення не має його «перекривати». Сміття вже відсіяв
+    поріг матчера (нижче нього FieldGuess не створюється), тож score тут не
+    порівнюємо. None у новому скані означає «поле не бачив» — старе лишається."""
+    return old if new is None else new
 
 
 class ChallengeSessionService:

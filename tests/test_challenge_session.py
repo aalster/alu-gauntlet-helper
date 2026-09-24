@@ -24,23 +24,32 @@ def test_apply_creates_race_entry():
     assert s.races[1].time == 22797
 
 
-def test_merge_keeps_higher_confidence_field():
+def test_merge_newer_scan_wins_even_with_lower_confidence():
+    # гравець змінив вибір у грі — свіжіший скан завжди затирає старий,
+    # навіть якщо його score нижчий (поріг матчера вже відсіяв сміття)
     s = ChallengeSessionService()
     s.apply(result(capture(1, track_score=0.9)))
     low = capture(1, track_score=0.5)
-    # інший value, щоб перевірити, що merge справді залишив СТАРЕ значення
     low.track = FieldGuess(value=99, score=0.5)
     s.apply(result(low))
-    assert s.races[1].track.value == 11  # стара впевненіша — лишилась
+    assert s.races[1].track.value == 99
 
 
-def test_merge_overwrites_with_higher_confidence():
+def test_merge_newer_scan_wins_with_higher_confidence():
     s = ChallengeSessionService()
     s.apply(result(capture(1, track_score=0.5)))
     high = capture(1)
     high.track = FieldGuess(value=99, score=0.95)
     s.apply(result(high))
     assert s.races[1].track.value == 99
+
+
+def test_merge_keeps_field_when_new_scan_lacks_it():
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, track_score=0.9, car_score=0.9)))
+    s.apply(result(capture(1, car_score=0.8)))  # без треку
+    assert s.races[1].track.value == 11
+    assert s.races[1].car.score == 0.8
 
 
 def test_merge_fills_missing_scalar_fields():
@@ -276,13 +285,13 @@ def test_merge_opponent_fields_independent_of_mine():
     assert r.time == 19130 and r.car.value == 21
 
 
-def test_merge_opponent_car_by_score():
+def test_merge_opponent_car_newer_wins():
     s = ChallengeSessionService()
     s.apply(result(opp_capture(1, opp_car_score=0.9)))
     low = opp_capture(1)
     low.opponent_car = FieldGuess(value=99, score=0.5)
     s.apply(result(low))
-    assert s.races[1].opponent_car.value == 31  # впевненіше лишилось
+    assert s.races[1].opponent_car.value == 99  # свіжіший скан затер
 
 
 def test_effective_exposes_opponent_fields():
@@ -521,11 +530,11 @@ def test_map_hidden_when_track_confident():
     assert e.track_id == 11 and e.map_id == 0
 
 
-def test_map_merge_by_score():
+def test_map_merge_newer_wins():
     s = ChallengeSessionService()
     s.apply(result(map_capture(2, map_id=5, map_score=0.9)))
     s.apply(result(map_capture(2, map_id=7, map_score=0.5)))
-    assert s.races[2].map.value == 5  # упевненіша лишилась
+    assert s.races[2].map.value == 7  # свіжіший скан затер
 
 
 def test_track_candidates_exposed_when_uncertain():

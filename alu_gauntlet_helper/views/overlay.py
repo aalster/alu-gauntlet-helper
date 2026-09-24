@@ -17,17 +17,15 @@ from alu_gauntlet_helper.views.style import (BORDER, CARD_SELECTED, CYAN,
                                              YELLOW_PRESSED, win_chance_color)
 
 MARGIN = 16
-UNCERTAIN_COLOR = "#FFC107"  # ненадійні (low-confidence) поля підсвічуються амбер
 # Qt rich text підтримує vertical-align лише на <td> (не на <img>), тож центруємо
 # по висоті рядка весь вміст комірок — інакше іконка 👎 «випливає» над текстом
 _TD_MIDDLE = "vertical-align:middle"
 
 
-def _cell(text: str, uncertain: bool, color: str | None = None) -> str:
-    """Текст комірки; ненадійне значення підсвічується амбер (перекриває color)."""
+def _cell(text: str, color: str | None = None) -> str:
+    """Текст комірки, за потреби — у кольорі. Непевність (low-confidence) оверлей
+    не показує: поріг матчера вже відсіяв сміття, а амбер лише відволікав."""
     safe = escape(text)
-    if uncertain:
-        color = UNCERTAIN_COLOR
     if color:
         return f"<span style='color:{color}'>{safe}</span>"
     return safe
@@ -79,10 +77,10 @@ def _track_cell(e: EffectiveRace, track_names: dict[int, str],
             return f"{prefix}<span style='color:{CYAN}'>{escape(track)}</span>"
         map_name = track_maps.get(e.track_id, "")
         label = f"{map_name} - {track}" if map_name else track
-        return _cell(label, e.track_uncertain)
+        return _cell(label)
     if e.map_id and e.map_id in map_names:
-        return _cell(map_names[e.map_id], False)
-    return _cell("?", e.track_uncertain)
+        return _cell(map_names[e.map_id])
+    return _cell("?")
 
 
 def build_races_table(races: dict[int, EffectiveRace],
@@ -119,7 +117,7 @@ def build_races_table(races: dict[int, EffectiveRace],
         car = (car_names.get(e.shown_car_id, "?") if e.shown_car_id
                else (e.car_name or "?"))
         track_cell = _track_cell(e, track_names, track_maps, map_names)
-        car_cell = _cell(car, e.car_uncertain, CYAN if suggested else None)
+        car_cell = _cell(car, CYAN if suggested else None)
         # як на картці гонки: зіграна — мій час (+👎), незіграна з авто — шанс
         # побити суперника «78% 7/10» без перемикача 👎 (без часу він безглуздий)
         played = e.time > 0
@@ -177,7 +175,7 @@ def build_training_table(runs: dict[int, EffectiveRace],
             f"{_num_cell(n, e.is_complete)}"
             f"<td style='padding-right:12px;{_TD_MIDDLE}'>"
             f"{_track_cell(e, track_names, track_maps, map_names)}</td>"
-            f"<td style='padding-right:12px;{_TD_MIDDLE}'>{_cell(car, e.car_uncertain)}</td>"
+            f"<td style='padding-right:12px;{_TD_MIDDLE}'>{_cell(car)}</td>"
             f"<td style='{_TD_MIDDLE}'>{escape(format_time(e.time) if e.time else '?')}</td>"
             f"{_dislike_cell(n, e.bad_timing)}"
             f"</tr>"
