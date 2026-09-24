@@ -174,3 +174,39 @@ SCOUT_TIME = RelRect(0.10, 0.84, 0.80, 0.11)       # чорна плашка ч�
 # екран 3 (чорна плашка) → 0.56–0.58 — чіткий розрив без перетину. Поріг
 # узято посередині розриву, а не впритул до жодної групи.
 SCOUT_TIME_PLATE_MIN_DARK = 0.40
+
+
+# --- Тренування: лобі приватної кімнати --------------------------------------
+# Зверху зліва тайл карти з назвами «OSAKA / MEIJI RUSH» (карта над треком,
+# як на before_race), знизу зліва плашка "ROOM ID: xxxxx" / "ID КОМНАТЫ",
+# знизу справа жовта кнопка READY/ГОТОВ. Відкалібровано за
+# tests/fixtures/training_lobby_osaka.png і training_lobby_ru_osaka.png
+# (2560×1600, 16:10).
+
+TRAINING_LOBBY_TRACK = RelRect(0.17, 0.15, 0.17, 0.10)       # карта + трек текстом
+TRAINING_LOBBY_ROOM_PLATE = RelRect(0.12, 0.795, 0.14, 0.045)  # чорна плашка ROOM ID
+TRAINING_LOBBY_READY = RelRect(0.78, 0.80, 0.13, 0.04)         # жовта кнопка READY
+# Піксельний гейт (0 OCR): плашка ROOM ID темна ≥ 0.83 і кнопка READY яскрава
+# ≥ 0.85 на обох фікстурах лобі; на чужих екранах READY ≤ 0.41 (before_race),
+# на решті ≤ 0.22. Пороги — посередині розривів.
+TRAINING_LOBBY_MIN_ROOM_DARK = 0.60
+TRAINING_LOBBY_MIN_READY_BRIGHT = 0.60
+
+
+# --- Тренування: результат заїзду (таблиця RACE RESULTS) ----------------------
+# Зверху зліва фіолетовий бейдж "1ST/1-Й" і чорна плашка "YOUR TIME / ТВОЕ
+# ВРЕМЯ 00:26.499"; під нею чорна шапка таблиці (POS. PLAYER CAR NAME TIME)
+# і білий рядок гравця з назвою авто текстом і часом. Варіант RACE REWARDS
+# (без таблиці, авто лише картинкою) свідомо не підтримується. Відкалібровано
+# за tests/fixtures/training_result_battista.png і training_result_ru_chiron.png
+# (2560×1600, 16:10).
+
+TRAINING_RESULT_HEADER_PLATE = RelRect(0.195, 0.118, 0.19, 0.045)  # YOUR TIME + час
+TRAINING_RESULT_ROW = RelRect(0.04, 0.225, 0.92, 0.062)            # білий рядок гравця
+TRAINING_RESULT_ROW_CAR = RelRect(0.40, 0.225, 0.30, 0.062)        # колонка CAR NAME
+TRAINING_RESULT_ROW_TIME = RelRect(0.70, 0.225, 0.12, 0.062)       # колонка TIME
+# Піксельний гейт (0 OCR): білий рядок таблиці — головний дискримінатор
+# (яскравість ≥ 0.90 на фікстурах проти ≤ 0.09 на всіх інших екранах);
+# плашка часу темна ≥ 0.87 — додаткова умова.
+TRAINING_RESULT_MIN_HEADER_DARK = 0.50
+TRAINING_RESULT_MIN_ROW_BRIGHT = 0.40

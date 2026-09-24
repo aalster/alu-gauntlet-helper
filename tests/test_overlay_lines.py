@@ -2,7 +2,8 @@ from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.services.challenge_session import EffectiveRace
 from alu_gauntlet_helper.views.overlay import (COMPLETE_COLOR, CYAN, LOSS_BRIGHT,
                                                UNCERTAIN_COLOR, WIN_BRIGHT,
-                                               build_races_table, header_text)
+                                               build_races_table,
+                                               build_training_table, header_text)
 
 BRAND_TITLE = ui_lang.t("window.title")  # заголовок оверлея — статичний бренд, без лічильника
 
@@ -219,3 +220,51 @@ def test_header_win_chance_color_zones():
 def test_header_without_win_chance_stays_plain():
     assert header_text({}) == BRAND_TITLE
     assert header_text({}, None) == BRAND_TITLE
+
+
+# --- тренування: таблиця останніх заїздів ------------------------------------
+
+
+def _training_runs(n: int) -> dict[int, EffectiveRace]:
+    return {i: EffectiveRace(track_id=11, car_id=21, time=20000 + i)
+            for i in range(1, n + 1)}
+
+
+def test_training_table_shows_last_ten_with_global_numbers():
+    table = build_training_table(_training_runs(15), {11: "Meiji Rush"}, {21: "Chiron"},
+                                 track_maps={11: "Osaka"})
+    assert "'>6</span>" in table       # перший видимий рядок — №6
+    assert "'>15</span>" in table
+    assert "'>5</span>" not in table   # №1–5 за межами останніх 10
+    assert table.count("Meiji Rush") == 10
+    assert "Osaka - Meiji Rush" in table
+    assert "Chiron" in table
+    assert "00:20.015" in table
+
+
+def test_training_table_row_parts():
+    runs = {1: EffectiveRace(track_id=11, car_id=21, time=26499)}
+    table = build_training_table(runs, {11: "Meiji Rush"}, {21: "Battista"})
+    assert COMPLETE_COLOR in table     # повний рядок — зелений номер
+    assert "dislike:1" in table        # перемикач 👎 на зіграному заїзді
+    assert "00:26.499" in table
+
+
+def test_training_table_incomplete_run_white_number():
+    # авто не розпізналось (REWARDS/чужий рядок) — номер білий, авто «?»
+    runs = {1: EffectiveRace(track_id=11, time=26499)}
+    table = build_training_table(runs, {11: "Meiji Rush"}, {})
+    assert COMPLETE_COLOR not in table
+    assert "color:white;font-weight:bold'>1</span>" in table
+    assert "?" in table
+
+
+def test_training_table_empty_says_no_data():
+    assert "no data" in build_training_table({}, {}, {})
+
+
+def test_training_table_map_only_track():
+    # трек ще не відомий (сесію відкрив скан результату) — показуємо карту
+    runs = {1: EffectiveRace(map_id=5, car_id=21, time=26499)}
+    table = build_training_table(runs, {}, {21: "Battista"}, map_names={5: "Osaka"})
+    assert "Osaka" in table

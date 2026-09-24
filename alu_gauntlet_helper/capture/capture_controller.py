@@ -19,8 +19,12 @@ from alu_gauntlet_helper.screen_recognition.screens.challenge_accordion import C
 from alu_gauntlet_helper.screen_recognition.screens.challenge_complete import ChallengeCompleteExtractor
 from alu_gauntlet_helper.screen_recognition.screens.opponent_scout import OpponentScoutExtractor
 from alu_gauntlet_helper.screen_recognition.screens.race_result import RaceResultExtractor
+from alu_gauntlet_helper.screen_recognition.screens.training_lobby import TrainingLobbyExtractor
+from alu_gauntlet_helper.screen_recognition.screens.training_result import TrainingResultExtractor
 from alu_gauntlet_helper.services.challenge_session import LOW_CONFIDENCE, RACE_COUNT
-from alu_gauntlet_helper.views.overlay import OverlayWindow, build_races_table, header_text
+from alu_gauntlet_helper.services.training_session import TrainingSessionService
+from alu_gauntlet_helper.views.overlay import (OverlayWindow, build_races_table,
+                                               build_training_table, header_text)
 
 OVERLAY_HIDE_DELAY_MS = 80
 
@@ -202,9 +206,14 @@ class CaptureController(QObject):
         # «Піксельні гейти екранів»). Порядок — за залишковою ціною відмови на
         # кадрі, що проскочив гейт: race_result/challenge_complete дешеві,
         # акордеон із запасним OCR-пошуком найдорожчий — лишається останнім.
+        # training_result — ПЕРЕД race_result: піксельний гейт race_result
+        # пропускає екран результату тренування (яскрава плашка RACE RESULTS у
+        # регіоні заголовка) і відсікає його лише дорогим OCR-якорем "RACE N".
         return RecognitionEngine([
+            TrainingResultExtractor(car_matcher),
             RaceResultExtractor(car_matcher),
             ChallengeCompleteExtractor(car_matcher),
+            TrainingLobbyExtractor(track_resolver),
             BeforeRaceExtractor(track_resolver, car_matcher),
             OpponentScoutExtractor(track_resolver, map_matcher),
             ChallengeAccordionExtractor(track_resolver, car_matcher),
@@ -299,6 +308,9 @@ class CaptureController(QObject):
         # як listener сесії викликається без аргументів — редагування/clear оверлей
         # не показують, лише оновлюють його вміст, якщо він уже видимий
         session = APP_CONTEXT.session_manager.active
+        if isinstance(session, TrainingSessionService):
+            self._refresh_training_overlay(session, show)
+            return
         effective = {n: e for n in range(1, RACE_COUNT + 1) if (e := session.effective(n)) is not None}
         track_ids = {e.track_id for e in effective.values() if e.track_id}
         car_ids = {e.shown_car_id for e in effective.values() if e.shown_car_id}
@@ -318,6 +330,35 @@ class CaptureController(QObject):
                       and (beat := APP_CONTEXT.assistant.beat_stats(
                           e.track_id, e.shown_car_id, e.opponent_time)) is not None}
 
+        self._push_overlay(
+            session,
+            header_text(effective, APP_CONTEXT.assistant.win_chance(session)),
+            build_races_table(effective, track_names, car_names, beat_stats,
+                              track_maps=track_maps, map_names=map_names),
+            show)
+
+    def _refresh_training_overlay(self, session: TrainingSessionService, show: bool):
+        """Оверлей тренувальної сесії: останні заїзди з наскрізними номерами.
+        Шансів/рекомендацій тут немає — лише трек, авто, час і 👎."""
+        effective = {n: e for n in session.run_numbers()
+                     if (e := session.effective(n)) is not None}
+        track_ids = {e.track_id for e in effective.values() if e.track_id}
+        tracks = APP_CONTEXT.tracks_service.get_by_ids(track_ids)
+        track_names = {t.id: t.display_name for t in tracks.values()}
+        track_maps = {t.id: t.display_map_name for t in tracks.values()}
+        map_ids = {e.map_id for e in effective.values() if e.map_id}
+        map_names = {m.id: m.display_name
+                     for m in APP_CONTEXT.maps_service.get_by_ids(map_ids).values()}
+        car_ids = {e.car_id for e in effective.values() if e.car_id}
+        car_names = {c.id: c.name for c in APP_CONTEXT.cars_service.get_by_ids(car_ids).values()}
+        self._push_overlay(
+            session, header_text({}),
+            build_training_table(effective, track_names, car_names,
+                                 track_maps=track_maps, map_names=map_names),
+            show)
+
+    def _push_overlay(self, session, header: str, table_html: str, show: bool):
+        """Спільний хвіст оновлення оверлея: статус, підказка хоткеїв, показ."""
         status = self._compute_status(session)
         self.status_changed.emit(status)
         self.busy_changed.emit(self._in_flight > 0)
@@ -328,10 +369,6 @@ class CaptureController(QObject):
             capture=settings.capture_hotkey.upper(),
             hide=settings.overlay_hotkey.upper(),
             combo=combo)
-        self.overlay.update_content(
-            header_text(effective, APP_CONTEXT.assistant.win_chance(session)),
-            build_races_table(effective, track_names, car_names, beat_stats,
-                              track_maps=track_maps, map_names=map_names),
-            status, hint, self._in_flight)
+        self.overlay.update_content(header, table_html, status, hint, self._in_flight)
         if show and not self.overlay.isVisible():
             self.overlay.show()

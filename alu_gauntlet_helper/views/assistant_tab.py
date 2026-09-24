@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (QAbstractItemView, QHBoxLayout, QLabel, QListWidget,
                              QListWidgetItem, QMessageBox, QPushButton,
                              QStackedWidget, QTabBar, QVBoxLayout, QWidget)
@@ -10,7 +10,9 @@ from alu_gauntlet_helper.services.assistant import sort_tracks_by_probability
 from alu_gauntlet_helper.services.challenge_session import (RACE_COUNT, ChallengeSessionService,
                                                             EffectiveRace)
 from alu_gauntlet_helper.services.races import RaceView
+from alu_gauntlet_helper.services.training_session import TrainingSessionService
 from alu_gauntlet_helper.views import style
+from alu_gauntlet_helper.views.training_session_view import TrainingSessionView
 from alu_gauntlet_helper.views.components.chip_tooltip import (chip_tooltip_html,
                                                                prob_percent,
                                                                win_chance_tooltip)
@@ -401,6 +403,7 @@ class AssistantTab(QWidget):
         layout.addWidget(self.session_bar)
         layout.addWidget(self.stack, stretch=1)
 
+        self._last_active = APP_CONTEXT.session_manager.active
         APP_CONTEXT.session_manager.add_listener(self.refresh)
         self.refresh()
 
@@ -411,6 +414,14 @@ class AssistantTab(QWidget):
         sessions = manager.sessions
         if [v.session for v in self._views] != sessions:
             self._rebuild_views(sessions)
+        elif manager.active is not self._last_active:
+            # реактивація без структурних змін (сумісний скан повернув відщеплену
+            # сесію в актив) — показуємо її: саме туди тепер летять скани
+            for view in self._views:
+                if view.session is manager.active:
+                    self.session_bar.setCurrentIndex(self._views.index(view))
+                    break
+        self._last_active = manager.active
         for view in self._views:
             view.refresh()
         self._refresh_tab_titles()
@@ -434,7 +445,9 @@ class AssistantTab(QWidget):
             if view is None:
                 # конектимо лише новостворені view — перевикористані вже законектені
                 # з попередньої перебудови, повторний connect дав би дубль-виклики
-                view = SessionView(session, cancel_pending=self._cancel_pending)
+                cls = (TrainingSessionView if isinstance(session, TrainingSessionService)
+                       else SessionView)
+                view = cls(session, cancel_pending=self._cancel_pending)
                 view.save_state_changed.connect(self._emit_save_state)
                 spawned_new = True
             self._views.append(view)
@@ -443,11 +456,14 @@ class AssistantTab(QWidget):
         self.session_bar.setVisible(len(sessions) > 1)
         # Спека §2: «нова сесія стає активною, UI перемикається на неї» — якщо
         # цього циклу зʼявилась хоч одна нова сесія (конфлікт відщепив стару й
-        # додав нову), показуємо саме її (вона завжди остання). Інакше — сесії
-        # лише зникали (Save/Discard), тож лишаємо видиму без змін, якщо вона
-        # ще жива, або останню, якщо саме вона й зникла.
+        # додав нову), показуємо активну (нова сесія завжди стає активною; але
+        # не обов'язково останньою в списку — активна тепер явний вказівник).
+        # Інакше — сесії лише зникали (Save/Discard), тож лишаємо видиму без
+        # змін, якщо вона ще жива, або останню, якщо саме вона й зникла.
         if spawned_new:
-            current = self._views[-1]
+            active = APP_CONTEXT.session_manager.active
+            current = next((v for v in self._views if v.session is active),
+                           self._views[-1])
         else:
             current = was if was in self._views else self._views[-1]
         self.stack.setCurrentWidget(current)
@@ -457,12 +473,24 @@ class AssistantTab(QWidget):
     def _refresh_tab_titles(self):
         for i, view in enumerate(self._views):
             s = view.session
-            if s is APP_CONTEXT.session_manager.active:
+            is_active = s is APP_CONTEXT.session_manager.active
+            if isinstance(view, TrainingSessionView):
+                if is_active:
+                    title = ui_lang.t("training.session_current").format(
+                        track=view.track_title())
+                else:
+                    title = ui_lang.t("training.session_paused").format(
+                        track=view.track_title(), n=len(s.run_numbers()))
+            elif is_active:
                 title = ui_lang.t("assistant.session_current")
             else:
                 title = ui_lang.t("assistant.session_paused").format(
                     time=s.created_at.strftime("%H:%M"), n=s.timed_count)
             self.session_bar.setTabText(i, title)
+            # активна сесія — не обов'язково остання (реактивація), тож її таб
+            # підсвічується кольором на додачу до маркера ▶
+            self.session_bar.setTabTextColor(
+                i, QColor(style.CYAN if is_active else style.TEXT))
 
     def _on_session_tab_changed(self, idx: int):
         if 0 <= idx < self.stack.count():

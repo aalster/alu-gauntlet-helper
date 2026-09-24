@@ -148,6 +148,43 @@ def build_races_table(races: dict[int, EffectiveRace],
     return "<table cellspacing='0' cellpadding='0'>" + "".join(rows) + "</table>"
 
 
+TRAINING_OVERLAY_LIMIT = 10  # скільки останніх заїздів тренування видно на оверлеї
+
+
+def build_training_table(runs: dict[int, EffectiveRace],
+                         track_names: dict[int, str],
+                         car_names: dict[int, str],
+                         track_maps: dict[int, str] | None = None,
+                         map_names: dict[int, str] | None = None) -> str:
+    """HTML-таблиця тренувальної сесії: останні TRAINING_OVERLAY_LIMIT заїздів
+    із наскрізними номерами (проїхав 15 — перший видимий рядок «6»).
+
+    Рядок — як у таблиці челенджа: № · трек · авто · час · 👎; заїзди завжди
+    зіграні (час є), тож колонки шансу немає. Порожня сесія — «no data»."""
+    track_maps = track_maps or {}
+    map_names = map_names or {}
+    numbers = sorted(runs)[-TRAINING_OVERLAY_LIMIT:]
+    if not numbers:
+        return ("<table cellspacing='0' cellpadding='0'><tr>"
+                f"<td style='color:#9aa0c0'>{ui_lang.t('overlay.no_data')}</td>"
+                "</tr></table>")
+    rows = []
+    for n in numbers:
+        e = runs[n]
+        car = car_names.get(e.car_id, "?") if e.car_id else (e.car_name or "?")
+        rows.append(
+            f"<tr>"
+            f"{_num_cell(n, e.is_complete)}"
+            f"<td style='padding-right:12px;{_TD_MIDDLE}'>"
+            f"{_track_cell(e, track_names, track_maps, map_names)}</td>"
+            f"<td style='padding-right:12px;{_TD_MIDDLE}'>{_cell(car, e.car_uncertain)}</td>"
+            f"<td style='{_TD_MIDDLE}'>{escape(format_time(e.time) if e.time else '?')}</td>"
+            f"{_dislike_cell(n, e.bad_timing)}"
+            f"</tr>"
+        )
+    return "<table cellspacing='0' cellpadding='0'>" + "".join(rows) + "</table>"
+
+
 # фон-картка оверлея. Рамка завжди присутня (2px), але прозора — щоб розмір
 # не змінювався при вмиканні режиму переміщення, інакше прив'язаний край «стрибав» би
 _CARD_RGB = "8, 10, 40"

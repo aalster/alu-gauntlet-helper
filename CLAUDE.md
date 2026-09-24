@@ -40,11 +40,15 @@ alu_gauntlet_helper/
 │   ├── races.py             # Race, RaceView, RacesRepository, RacesService
 │   ├── settings.py          # Settings persistence
 │   ├── cars_sync.py         # Cars upsert from bundled cars.json on every start (manual bundle updates: docs/updating-cars-data.md)
-│   └── initial_data.py      # One-time seed (maps, tracks)
+│   ├── initial_data.py      # One-time seed (maps, tracks)
+│   ├── session_manager.py   # Session list + scan routing by screen kind (challenge/training lanes, explicit active)
+│   ├── challenge_session.py # Challenge session state: 5 races vs opponent
+│   └── training_session.py  # Training session state (private lobby): one track, unbounded run list
 ├── views/                   # PyQt6 UI
 │   ├── style.py             # ALU game theme: palette constants + global QSS, applied in main.py
 │   ├── main_window.py       # Main window with tabs + tray icon + CaptureController
-│   ├── assistant_tab.py     # Assistant: per-track car suggestions + inline review of captured races
+│   ├── assistant_tab.py     # Assistant: session tabs (challenge + training) + per-track car suggestions
+│   ├── training_session_view.py  # Training session: track header + growing run list
 │   ├── races_tab.py
 │   ├── tracks_tab.py        # Two panels: maps (left) + tracks (right)
 │   ├── cars_tab.py

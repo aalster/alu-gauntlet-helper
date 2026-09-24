@@ -35,6 +35,12 @@ from alu_gauntlet_helper.screen_recognition.screens.opponent_scout import (
 from alu_gauntlet_helper.screen_recognition.screens.race_result import (
     RaceResultExtractor, looks_like_race_result,
 )
+from alu_gauntlet_helper.screen_recognition.screens.training_lobby import (
+    TrainingLobbyExtractor, looks_like_training_lobby,
+)
+from alu_gauntlet_helper.screen_recognition.screens.training_result import (
+    TrainingResultExtractor, looks_like_training_result,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -72,6 +78,8 @@ ACCORDION = [
     "captures/capture_1786001356361191800.png",
 ]
 SCOUT = ["opponent_tracks.png", "opponent_times_1.png", "opponent_times_2.png"]
+TRAINING_LOBBY = ["training_lobby_osaka.png", "training_lobby_ru_osaka.png"]
+TRAINING_RESULT = ["training_result_battista.png", "training_result_ru_chiron.png"]
 
 
 def load(fixture: str) -> np.ndarray:
@@ -206,3 +214,46 @@ def test_other_gates_reject_scout_without_ocr(fixture, no_ocr):
     assert ChallengeCompleteExtractor(car_matcher=None).extract(img) == []
     assert BeforeRaceExtractor(track_resolver=None, car_matcher=None).extract(img) == []
     assert ChallengeAccordionExtractor(track_resolver=None, car_matcher=None).extract(img) == []
+
+
+# --- тренування: лобі + результат заїзду -------------------------------------
+
+@pytest.mark.parametrize("fixture", TRAINING_LOBBY)
+def test_training_lobby_gate_passes_own(fixture):
+    assert looks_like_training_lobby(load(fixture))
+
+
+@pytest.mark.parametrize("fixture", TRAINING_RESULT)
+def test_training_result_gate_passes_own(fixture):
+    assert looks_like_training_result(load(fixture))
+
+
+@pytest.mark.parametrize("fixture",
+                         RACE_RESULT + COMPLETE + BEFORE_RACE + ACCORDION + SCOUT
+                         + TRAINING_RESULT)
+def test_training_lobby_rejects_foreign_without_ocr(fixture, no_ocr):
+    """Кнопка READY яскрава лише в лобі (≤0.41 на чужих) — відсів без OCR."""
+    assert TrainingLobbyExtractor(track_resolver=None).extract(load(fixture)) == []
+
+
+@pytest.mark.parametrize("fixture",
+                         RACE_RESULT + COMPLETE + BEFORE_RACE + ACCORDION + SCOUT
+                         + TRAINING_LOBBY)
+def test_training_result_rejects_foreign_without_ocr(fixture, no_ocr):
+    """Білий рядок таблиці — унікальна сигнатура (≤0.09 на чужих) — відсів без OCR."""
+    assert TrainingResultExtractor(car_matcher=None).extract(load(fixture)) == []
+
+
+@pytest.mark.parametrize("fixture", TRAINING_LOBBY + TRAINING_RESULT)
+def test_other_gates_reject_training_without_ocr(fixture, no_ocr):
+    """Чужі гейти відсікають тренувальні екрани без OCR — окрім race_result на
+    фікстурах результату: його піксельний гейт пропускає (яскрава плашка
+    RACE RESULTS у регіоні заголовка), відсікає вже OCR-якір "RACE N", тому
+    в engine TrainingResultExtractor стоїть ПЕРЕД RaceResultExtractor."""
+    img = load(fixture)
+    if fixture in TRAINING_LOBBY:
+        assert RaceResultExtractor(car_matcher=None).extract(img) == []
+    assert ChallengeCompleteExtractor(car_matcher=None).extract(img) == []
+    assert BeforeRaceExtractor(track_resolver=None, car_matcher=None).extract(img) == []
+    assert ChallengeAccordionExtractor(track_resolver=None, car_matcher=None).extract(img) == []
+    assert OpponentScoutExtractor(track_resolver=None, map_matcher=None).extract(img) == []

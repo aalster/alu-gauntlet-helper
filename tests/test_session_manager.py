@@ -1,5 +1,6 @@
 from alu_gauntlet_helper.models import FieldGuess, RaceCapture, RecognitionResult
 from alu_gauntlet_helper.services.session_manager import SessionManager
+from alu_gauntlet_helper.services.training_session import TrainingSessionService
 
 
 def capture(n, opp_time=None, time=None, track_score=None):
@@ -171,3 +172,99 @@ def test_auto_pick_called_after_track_only_scan():
     m = SessionManager(auto_pick=lambda s: picked.append(s))
     m.apply(result(capture(1, track_score=0.9)))
     assert picked == [m.active]
+
+
+# --- тренувальні сесії: окрема «смуга» сканів --------------------------------
+
+def lobby_result(track_id=100):
+    return RecognitionResult(screen="training_lobby", captures=[RaceCapture(
+        race_number=0, track=FieldGuess(value=track_id, score=0.9))])
+
+
+def run_result(time):
+    return RecognitionResult(screen="training_result", captures=[RaceCapture(
+        race_number=0, time=time, car=FieldGuess(value=200, score=0.9))])
+
+
+def test_training_scan_replaces_empty_start_session():
+    m = SessionManager()
+    m.apply(lobby_result())
+    assert len(m.sessions) == 1
+    assert isinstance(m.active, TrainingSessionService)
+    assert m.active.track.value == 100
+
+
+def test_training_scan_detaches_valuable_challenge():
+    m = SessionManager()
+    m.apply(result(capture(1, opp_time=19152), capture(2, time=20000)))
+    challenge = m.active
+    m.apply(lobby_result())
+    assert len(m.sessions) == 2
+    assert m.sessions[0] is challenge  # стара лишилась табом, без переміщень
+    assert isinstance(m.active, TrainingSessionService)
+
+
+def test_challenge_scan_reactivates_paused_challenge():
+    # кейс «повернувся дограти»: сумісний челендж-скан повертає стару сесію
+    # в актив БЕЗ нової сесії і БЕЗ зміни порядку табів
+    m = SessionManager()
+    m.apply(result(capture(1, opp_time=19152), capture(2, time=20000)))
+    challenge = m.active
+    m.apply(lobby_result())
+    events = []
+    m.add_listener(lambda: events.append(1))
+    m.apply(result(capture(3, opp_time=21000)))
+    assert len(m.sessions) == 2
+    assert m.active is challenge
+    assert m.sessions[0] is challenge  # порядок не змінився
+    assert challenge.races[3].opponent_time == 21000
+    assert events  # реактивація — структурна зміна, UI нотифіковано
+
+
+def test_training_result_scan_reactivates_training_session():
+    m = SessionManager()
+    m.apply(lobby_result())
+    m.apply(run_result(26499))  # тренування цінне (є заїзд)
+    training = m.active
+    m.apply(result(capture(1, opp_time=19152), capture(2, time=20000)))  # челендж
+    assert m.active is not training
+    m.apply(run_result(25533))
+    assert m.active is training
+    assert training.run_numbers() == [1, 2]
+
+
+def test_conflicting_lobby_scan_replaces_disposable_training():
+    m = SessionManager()
+    m.apply(lobby_result(track_id=100))
+    m.apply(lobby_result(track_id=101))  # інший трек, заїздів не було
+    assert len(m.sessions) == 1
+    assert m.active.track.value == 101
+
+
+def test_conflicting_lobby_scan_detaches_valuable_training():
+    m = SessionManager()
+    m.apply(lobby_result(track_id=100))
+    m.apply(run_result(26499))
+    old = m.active
+    m.apply(lobby_result(track_id=101))
+    assert len(m.sessions) == 2
+    assert m.sessions[0] is old
+    assert m.active is not old and m.active.track.value == 101
+
+
+def test_close_active_falls_back_to_remaining():
+    m = SessionManager()
+    m.apply(result(capture(1, opp_time=19152), capture(2, time=20000)))
+    challenge = m.active
+    m.apply(lobby_result())
+    m.apply(run_result(26499))
+    m.close(m.active)
+    assert m.active is challenge
+
+
+def test_auto_pick_not_called_for_training_scans():
+    picked = []
+    m = SessionManager(auto_pick=lambda s: picked.append(s))
+    m.apply(lobby_result())
+    m.apply(run_result(26499))
+    assert picked == []
