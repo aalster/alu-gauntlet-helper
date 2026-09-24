@@ -1,5 +1,6 @@
 import math
 import statistics
+from typing import NamedTuple
 
 from alu_gauntlet_helper.services.races import CarSuggestion
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT
@@ -15,11 +16,28 @@ NARROW_MARGIN = 0.10
 # масштаб спаду ваги треку з відстанню часу суперника від моєї медіани:
 # точний збіг → 1.0, відхилення 10% → ~0.37, 20% → ~0.02 (узгоджено з ±10% narrow)
 TRACK_PROB_TAU = 0.10
+# розкид моїх часів на треку одним авто, мс: шанс гонки = Φ(Δ / σ). Константа
+# для всіх пар трек+авто (власна σ авто і «типова σ треку» — docs/ideas.md):
+# Δ = +1 с → 84%, +2 с → 98%, −1 с → 16%
+SIGMA_MS = 1000
 
 
-def laplace(wins: int, n: int) -> float:
-    """Згладжена ймовірність (wins+1)/(n+2): 2/2 (~0.75) не переважає 9/10 (~0.83)."""
-    return (wins + 1) / (n + 2)
+def win_prob(delta_ms: int | float) -> float:
+    """Шанс побити час суперника за перевагою Δ = opponent − avg (мс):
+    нормальна CDF Φ(Δ/σ). Враховує ВЕЛИЧИНУ переваги (пів секунди ≠ десять)
+    і не залежить від розміру вибірки — авто з 1 заїздом нічого не виграє."""
+    return 0.5 * (1.0 + math.erf(delta_ms / (SIGMA_MS * math.sqrt(2.0))))
+
+
+class BeatStats(NamedTuple):
+    """Статистика показаного авто проти часу суперника для бейджа «−1.300 7/10»."""
+    wins: int   # скільки з вибірки швидші за суперника
+    n: int      # розмір вибірки (останні ≤10 чистих заїздів)
+    delta: int  # opponent_time − avg, мс; >0 — я в середньому швидший
+
+    @property
+    def p(self) -> float:
+        return win_prob(self.delta)
 
 
 def sort_tracks_by_probability(track_ids: list[int], probs: dict[int, float]) -> list[int]:
@@ -33,7 +51,7 @@ class VsSuggestion(CarSuggestion):
     sample_count: int = 0  # розмір вибірки (останні ≤10 чистих заїздів)
     opponent_time: int = 0 # час суперника, мс; 0 — час невідомий
     delta: int = 0         # opponent_time - avg_time, мс; >0 — я в середньому швидший
-    p_smoothed: float = 0.5
+    p: float = 0.5         # win_prob(delta); 0.5 — час суперника невідомий
 
 
 class AssistantService:
@@ -69,10 +87,10 @@ class AssistantService:
                 sample_count=len(times),
                 opponent_time=opponent_time or 0,
                 delta=(opponent_time - avg) if opponent_time else 0,
-                p_smoothed=laplace(beat, len(times)) if opponent_time else 0.5,
+                p=win_prob(opponent_time - avg) if opponent_time else 0.5,
             ))
         if opponent_time:
-            result.sort(key=lambda v: (-v.p_smoothed, -v.delta))
+            result.sort(key=lambda v: -v.delta)
         else:
             result.sort(key=lambda v: (not v.car_favorite, v.avg_time))
         return result
@@ -131,7 +149,7 @@ class AssistantService:
                     # зіграно: фіксуємо його, щоб інші гонки його не забрали
                     v = next((x for x in suggestions if x.car_id == e.car_id), None)
                     margin = (v.delta if opp else -v.avg_time) if v else 0
-                    race_candidates[n] = [Candidate(e.car_id, v.p_smoothed if v else 0.5, margin)]
+                    race_candidates[n] = [Candidate(e.car_id, v.p if v else 0.5, margin)]
                     fixed[n] = e.car_id
                     continue
                 if not suggestions:
@@ -139,13 +157,13 @@ class AssistantService:
                 # без часу суперника p=0.5 для всіх, margin=-avg: топ-K і тай-брейк
                 # природно обирають найкращий avg (спека, розділ 5)
                 race_candidates[n] = [
-                    Candidate(v.car_id, v.p_smoothed, v.delta if opp else -v.avg_time)
+                    Candidate(v.car_id, v.p, v.delta if opp else -v.avg_time)
                     for v in suggestions
                 ]
                 if n in session.pinned_races and e.suggested_car_id:
                     fixed[n] = e.suggested_car_id
                 continue
-            # кілька треків-кандидатів — песимістична оцінка min-p̂ (спека §5)
+            # кілька треків-кандидатів — песимістична оцінка min-p (спека §5)
             cands = self._pessimistic_candidates(tracks, opp)
             if e.car_id:
                 # відоме авто на невизначеному треку: резервуємо його в переборі
@@ -183,8 +201,7 @@ class AssistantService:
                 has_opponent = True
                 # невизначений трек: песимістичний min по кандидатах (спека §5)
                 probs.append(min(
-                    laplace(*stats) if (stats := self.beat_stats(t, car_id, opp))
-                    else 0.5
+                    stats.p if (stats := self.beat_stats(t, car_id, opp)) else 0.5
                     for t in tracks))
             else:
                 if opp:
@@ -192,12 +209,14 @@ class AssistantService:
                 probs.append(0.5)  # невідома гонка — монетка
         return win_distribution(probs) if has_opponent else None
 
-    def beat_stats(self, track_id: int, car_id: int, opponent_time: int) -> tuple[int, int] | None:
-        """(скільки побито, розмір вибірки) для бейджа «7/10». None — немає заїздів."""
+    def beat_stats(self, track_id: int, car_id: int, opponent_time: int) -> BeatStats | None:
+        """Δ і «скільки побито з n» показаного авто проти суперника. None — немає заїздів."""
         times = self.races.get_recent_clean_times_by_car(track_id).get(car_id)
         if not times:
             return None
-        return sum(1 for t in times if t < opponent_time), len(times)
+        avg = round(sum(times) / len(times))
+        return BeatStats(sum(1 for t in times if t < opponent_time), len(times),
+                         opponent_time - avg)
 
     # --- невизначений трек: кандидати, звуження, виведені фікси (спека §4, §6) --
 
@@ -289,7 +308,7 @@ class AssistantService:
 
     def _pessimistic_candidates(self, track_ids: list[int],
                                 opp: int | None) -> list["Candidate"]:
-        """Кандидати авто для гонки з невизначеним треком: p̂ і маржин авто —
+        """Кандидати авто для гонки з невизначеним треком: p і маржин авто —
         МІНІМУМ по треках-кандидатах, але тільки по тих, де В МЕНЕ ВЗАГАЛІ є
         заїзди. Трек без жодних даних (жодним авто) у підборі не бере участі:
         інакше він давав би всім авто однакові 0.5, і вибір ставав би довільним
@@ -306,7 +325,7 @@ class AssistantService:
             ps, margins = [], []
             for cars in per_track.values():
                 v = cars.get(car_id)
-                ps.append(v.p_smoothed if v else 0.5)
+                ps.append(v.p if v else 0.5)
                 margins.append((v.delta if opp else -v.avg_time) if v else 0)
             result.append(Candidate(car_id, min(ps), min(margins)))
         result.sort(key=lambda c: (-c.p, -c.margin))

@@ -7,9 +7,10 @@ from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QPushButton,
                              QStackedWidget, QVBoxLayout, QWidget)
 
 from alu_gauntlet_helper import ui_lang
-from alu_gauntlet_helper.services.assistant import laplace
+from alu_gauntlet_helper.services.assistant import BeatStats
 from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, EffectiveRace
-from alu_gauntlet_helper.utils.utils import format_time, get_resource_path
+from alu_gauntlet_helper.utils.utils import (format_signed_delta, format_time,
+                                             get_resource_path)
 from alu_gauntlet_helper.views.components.common import res_to_pixmap
 from alu_gauntlet_helper.views.style import (BORDER, CARD_SELECTED, CYAN,
                                              LOSS_BRIGHT, TEXT, TEXT_DARK,
@@ -86,13 +87,13 @@ def _track_cell(e: EffectiveRace, track_names: dict[int, str],
 def build_races_table(races: dict[int, EffectiveRace],
                       track_names: dict[int, str],
                       car_names: dict[int, str],
-                      beat_stats: dict[int, tuple[int, int]] | None = None,
+                      beat_stats: dict[int, BeatStats] | None = None,
                       track_maps: dict[int, str] | None = None,
                       map_names: dict[int, str] | None = None) -> str:
     """Будує rich-text (HTML) таблицю 5 гонок.
 
-    beat_stats {race_number: (wins, n)} — статистика показаного авто проти часу
-    суперника для незіграних гонок (як бейдж «7/10» на картці).
+    beat_stats {race_number: BeatStats} — Δ і «побито з n» показаного авто проти
+    часу суперника для незіграних гонок (як бейдж «−1.300 7/10» на картці).
     track_names — назви треків (БЕЗ карти), track_maps {track_id: назва карти},
     map_names {map_id: назва карти} — для map-only гонок і cyan-треків з фікса.
     Лише таблиця залишена в HTML: колонки треку/авто/часу так вирівнюються
@@ -118,15 +119,15 @@ def build_races_table(races: dict[int, EffectiveRace],
                else (e.car_name or "?"))
         track_cell = _track_cell(e, track_names, track_maps, map_names)
         car_cell = _cell(car, CYAN if suggested else None)
-        # як на картці гонки: зіграна — мій час (+👎), незіграна з авто — шанс
-        # побити суперника «78% 7/10» без перемикача 👎 (без часу він безглуздий)
+        # як на картці гонки: зіграна — мій час (+👎), незіграна з авто — Δ
+        # «мій мінус суперника» (−1.300 = я швидший, зелена) і «7/10» без
+        # перемикача 👎 (без часу він безглуздий); нічия = програш, як у win_chance
         played = e.time > 0
         beat = beat_stats.get(n) if not played else None
         if beat:
-            p = laplace(*beat)
-            color = WIN_BRIGHT if p >= 0.5 else LOSS_BRIGHT
+            color = WIN_BRIGHT if beat.delta > 0 else LOSS_BRIGHT
             time_cell = (f"<span style='color:{color};font-weight:bold'>"
-                         f"{round(p * 100)}%</span> {beat[0]}/{beat[1]}")
+                         f"{format_signed_delta(-beat.delta)}</span> {beat.wins}/{beat.n}")
         else:
             time_cell = escape(format_time(e.time) if e.time else "?")
         with_car = e.shown_car_id > 0 or bool(e.car_name)

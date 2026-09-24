@@ -1,7 +1,9 @@
 from types import SimpleNamespace
 
 from alu_gauntlet_helper.models import FieldGuess, RaceCapture, RecognitionResult
-from alu_gauntlet_helper.services.assistant import AssistantService, VsSuggestion
+from alu_gauntlet_helper.services.assistant import (SIGMA_MS, AssistantService,
+                                                    VsSuggestion, win_prob)
+from alu_gauntlet_helper.services.opponent_picker import prob_at_least
 from alu_gauntlet_helper.services.challenge_session import ChallengeSessionService
 
 
@@ -32,6 +34,15 @@ def service(times_by_car, cars=None):
                             FakeCars(cars or [fake_car(i) for i in ids]))
 
 
+def test_win_prob_is_normal_cdf_of_delta_over_sigma():
+    assert SIGMA_MS == 1000
+    assert abs(win_prob(0) - 0.5) < 1e-9
+    assert abs(win_prob(SIGMA_MS) - 0.8413) < 1e-3     # Φ(1)
+    assert abs(win_prob(-SIGMA_MS) - 0.1587) < 1e-3    # Φ(−1)
+    assert abs(win_prob(2 * SIGMA_MS) - 0.9772) < 1e-3  # Φ(2)
+    assert win_prob(10 * SIGMA_MS) > 0.9999
+
+
 def test_beat_count_and_delta_vs_opponent():
     s = service({501: [19000, 19100, 20000, 21000]})  # avg 19775
     [v] = s.suggestions_vs(track_id=1, opponent_time=19950)
@@ -39,17 +50,36 @@ def test_beat_count_and_delta_vs_opponent():
     assert v.sample_count == 4
     assert v.avg_time == 19775
     assert v.delta == 175          # 19950 - 19775 > 0: я в середньому швидший
-    assert abs(v.p_smoothed - (2 + 1) / (4 + 2)) < 1e-9
+    # шанс гонки — з Δ, а не з лічильника 2/4
+    assert abs(v.p - win_prob(175)) < 1e-9
 
 
-def test_sorted_by_p_then_delta():
+def test_sorted_by_delta_only():
     s = service({
-        501: [19000] * 10,   # 10/10 швидші, p̂ = 11/12
-        502: [19000] * 2,    # 2/2 швидші, p̂ = 3/4 — менше за 9/10 попри "100%"
-        503: [30000] * 10,   # 0/10
+        501: [19000] * 10,   # Δ = +1000
+        502: [18500] * 2,    # Δ = +1500 — найбільша перевага, попри 2 заїзди
+        503: [30000] * 10,   # Δ = −10000
     })
     result = s.suggestions_vs(1, opponent_time=20000)
-    assert [v.car_id for v in result] == [501, 502, 503]
+    assert [v.car_id for v in result] == [502, 501, 503]
+
+
+def test_slow_car_with_one_run_does_not_beat_slow_car_with_ten():
+    # стара лапласова оцінка тягнула 0/1 до 50% і ставила таке авто вище за
+    # 0/10; тепер обидва оцінюються лише за Δ
+    s = service({
+        501: [21000] * 10,   # Δ = −1000, 0/10
+        502: [25000],        # Δ = −5000, 0/1
+    })
+    result = s.suggestions_vs(1, opponent_time=20000)
+    assert [v.car_id for v in result] == [501, 502]
+    assert result[0].p > result[1].p
+
+
+def test_same_delta_same_p_regardless_of_sample_size():
+    s = service({501: [19000] * 10, 502: [19000]})
+    a, b = s.suggestions_vs(1, opponent_time=20000)
+    assert abs(a.p - b.p) < 1e-9
 
 
 def test_no_opponent_time_sorted_by_favorite_then_avg():
@@ -57,7 +87,7 @@ def test_no_opponent_time_sorted_by_favorite_then_avg():
     s = service({501: [19000], 502: [25000], 503: [18000]}, cars)
     result = s.suggestions_vs(1, opponent_time=None)
     assert [v.car_id for v in result] == [502, 503, 501]  # favorite перший, далі avg
-    assert all(v.p_smoothed == 0.5 and v.delta == 0 and v.beat_count == 0 for v in result)
+    assert all(v.p == 0.5 and v.delta == 0 and v.beat_count == 0 for v in result)
 
 
 def test_empty_track_gives_empty_list():
@@ -180,9 +210,20 @@ def test_win_chance_uses_assigned_cars():
     s = session_with(race(1, 7, opp_time=25000))
     svc.auto_pick(s)
     chance = svc.win_chance(s)
-    # гонка 1: p̂ = 11/12; гонки 2-5 невідомі (0.5 кожна)
-    from alu_gauntlet_helper.services.opponent_picker import prob_at_least
-    assert abs(chance - prob_at_least([11 / 12, 0.5, 0.5, 0.5, 0.5], 3)) < 1e-9
+    # гонка 1: Δ = 25000 − 19000 = +6000 → Φ(6) ≈ 1; гонки 2-5 невідомі (0.5)
+    assert abs(chance - prob_at_least([win_prob(6000), 0.5, 0.5, 0.5, 0.5], 3)) < 1e-9
+
+
+def test_win_chance_reflects_delta_magnitude():
+    # головна претензія до старої оцінки: пів секунди і десять секунд
+    # переваги давали однакові 92% при 10/10
+    small = track_service({7: {501: [24500] * 10}})   # Δ = +500
+    big = track_service({7: {501: [15000] * 10}})     # Δ = +10000
+    s1 = session_with(race(1, 7, opp_time=25000))
+    s2 = session_with(race(1, 7, opp_time=25000))
+    small.auto_pick(s1)
+    big.auto_pick(s2)
+    assert big.win_chance(s2) > small.win_chance(s1) + 0.05
 
 
 def test_win_distribution_none_without_opponent_times():
@@ -197,7 +238,7 @@ def test_win_distribution_matches_win_chance():
     svc.auto_pick(s)
     dist = svc.win_distribution(s)
     from alu_gauntlet_helper.services.opponent_picker import win_distribution
-    expected = win_distribution([11 / 12, 0.5, 0.5, 0.5, 0.5])
+    expected = win_distribution([win_prob(6000), 0.5, 0.5, 0.5, 0.5])
     assert all(abs(a - b) < 1e-9 for a, b in zip(dist, expected, strict=True))
     assert abs(sum(dist[3:]) - svc.win_chance(s)) < 1e-9
 
@@ -208,13 +249,15 @@ def test_win_chance_driven_race_is_exact():
     s = session_with(race(1, 7, opp_time=25000))
     s.apply(RecognitionResult(screen="test", captures=[RaceCapture(
         race_number=1, car=FieldGuess(value=501, score=0.9), time=19100)]))
-    from alu_gauntlet_helper.services.opponent_picker import prob_at_least
     assert abs(svc.win_chance(s) - prob_at_least([1.0, 0.5, 0.5, 0.5, 0.5], 3)) < 1e-9
 
 
-def test_beat_stats():
-    svc = track_service({7: {501: [19000, 19100, 21000]}})
-    assert svc.beat_stats(7, 501, 20000) == (2, 3)
+def test_beat_stats_with_delta():
+    svc = track_service({7: {501: [19000, 19100, 21000]}})  # avg 19700
+    stats = svc.beat_stats(7, 501, 20000)
+    assert (stats.wins, stats.n) == (2, 3)
+    assert stats.delta == 300  # 20000 − 19700
+    assert abs(stats.p - win_prob(300)) < 1e-9
     assert svc.beat_stats(7, 999, 20000) is None
 
 
@@ -373,8 +416,7 @@ def test_win_chance_pessimistic_min():
     s = session_with(map_race(1, 5, opp_time=24000))
     svc.auto_pick(s)
     assert s.effective(1).suggested_car_id == 501
-    from alu_gauntlet_helper.services.opponent_picker import prob_at_least
-    # p гонки 1 = min(11/12 на треку 21, 0.5 на 22) = 0.5; решта — монетки
+    # p гонки 1 = min(Φ(5) на треку 21, 0.5 на 22) = 0.5; решта — монетки
     expected = prob_at_least([0.5, 0.5, 0.5, 0.5, 0.5], 3)
     assert abs(svc.win_chance(s) - expected) < 1e-9
 
@@ -414,8 +456,7 @@ def test_win_chance_pessimistic_for_uncertain_ocr_track():
     s = session_with(uncertain_race(1, opp_time=24000))
     svc.auto_pick(s)
     assert s.effective(1).suggested_car_id == 501
-    from alu_gauntlet_helper.services.opponent_picker import prob_at_least
-    expected = prob_at_least([0.5, 0.5, 0.5, 0.5, 0.5], 3)  # min(11/12, 0.5) = 0.5
+    expected = prob_at_least([0.5, 0.5, 0.5, 0.5, 0.5], 3)  # min(Φ(5), 0.5) = 0.5
     assert abs(svc.win_chance(s) - expected) < 1e-9
 
 
@@ -452,8 +493,8 @@ def test_track_without_any_data_ignored_in_selection():
                          by_map={5: [21, 22]})
     s = session_with(map_race(1, 5, opp_time=27000))
     svc.auto_pick(s)
-    # p̂ рівні (10/10 у обох проти 27000), тай-брейк маржином: 502 має 8000
-    # проти 1000 у 501 (порядок id навмисне протилежний «першому» в set)
+    # 502 має Δ = 8000 проти 1000 у 501 (порядок id навмисне протилежний
+    # «першому» в set)
     assert s.effective(1).suggested_car_id == 502
 
 

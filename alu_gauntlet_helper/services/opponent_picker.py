@@ -13,7 +13,7 @@ WINS_NEEDED = 3
 
 class Candidate(NamedTuple):
     car_id: int
-    p: float    # згладжена ймовірність побити час суперника (0.5 = невідомо)
+    p: float    # шанс побити час суперника, Φ(Δ/σ) (0.5 = невідомо)
     margin: int  # запас, мс: opponent_time - avg_recent (або -avg без часу суперника)
 
 

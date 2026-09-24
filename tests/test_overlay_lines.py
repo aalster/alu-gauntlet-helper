@@ -1,5 +1,6 @@
 from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.services.challenge_session import EffectiveRace
+from alu_gauntlet_helper.services.assistant import BeatStats
 from alu_gauntlet_helper.views.overlay import (COMPLETE_COLOR, CYAN, LOSS_BRIGHT,
                                                WIN_BRIGHT,
                                                build_races_table,
@@ -70,17 +71,20 @@ def test_suggested_car_shown_in_cyan():
     assert CYAN in table
 
 
-def test_unplayed_race_with_car_shows_chance_without_dislike():
-    # незіграна гонка з авто: замість часу — шанс і «7/10», перемикач 👎 схований
+def test_unplayed_race_with_car_shows_delta_without_dislike():
+    # незіграна гонка з авто: замість часу — Δ «мій мінус суперника» і «7/10»,
+    # перемикач 👎 схований; відсотка шансу в рядку більше немає
     races = {1: EffectiveRace(track_id=11, suggested_car_id=21, opponent_time=25000),
              2: EffectiveRace(track_id=12, car_id=22, opponent_time=25000)}
     table = build_races_table(races, {11: "Notre Dame", 12: "Founders"},
                               {21: "Ultima RS", 22: "Huracan"},
-                              beat_stats={1: (7, 10), 2: (1, 10)})
+                              beat_stats={1: BeatStats(7, 10, 1300),
+                                          2: BeatStats(1, 10, -2000)})
     assert "7/10" in table and "1/10" in table
-    # laplace(7,10)=8/12≈67% зеленим, laplace(1,10)=2/12≈17% червоним
-    assert f"color:{WIN_BRIGHT};font-weight:bold'>67%" in table
-    assert f"color:{LOSS_BRIGHT};font-weight:bold'>17%" in table
+    # Δ=+1300 (я швидший) → «−1.300» зеленим; Δ=−2000 → «+2.000» червоним
+    assert f"color:{WIN_BRIGHT};font-weight:bold'>−1.300</span> 7/10" in table
+    assert f"color:{LOSS_BRIGHT};font-weight:bold'>+2.000</span> 1/10" in table
+    assert "%" not in table
     assert "побито" not in table and "beaten" not in table
     assert "dislike:1" not in table and "dislike:2" not in table
 
@@ -97,7 +101,7 @@ def test_played_race_keeps_time_and_dislike_over_chance():
     # зіграна гонка показує час і 👎, навіть якщо статистика передана
     races = {1: EffectiveRace(track_id=11, car_id=21, time=22797, opponent_time=25000)}
     table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"},
-                              beat_stats={1: (7, 10)})
+                              beat_stats={1: BeatStats(7, 10, 1300)})
     assert "00:22.797" in table
     assert "dislike:1" in table
     assert "7/10" not in table

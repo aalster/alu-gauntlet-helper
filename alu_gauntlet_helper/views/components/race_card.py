@@ -4,8 +4,7 @@ from PyQt6.QtWidgets import (QCheckBox, QFrame, QHBoxLayout, QLabel, QSizePolicy
                              QVBoxLayout, QWidget)
 
 from alu_gauntlet_helper import ui_lang
-from alu_gauntlet_helper.services.assistant import laplace
-from alu_gauntlet_helper.utils.utils import format_time, load_pixmap_cover
+from alu_gauntlet_helper.utils.utils import format_signed_delta, format_time, load_pixmap_cover
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.views.components.common import (INFO_PADDING, WARN_ICON,
                                                          CarInfoWidget, RankClassBadge,
@@ -137,8 +136,8 @@ class RaceCard(QFrame):
         plate_layout.addWidget(self.model_label)
 
 
-        # шанс побити суперника показаним авто: крупний кольоровий відсоток
-        # (та сама лапласова оцінка, що й у автопідборі) + "7/10 побито" поруч
+        # перевага над суперником показаним авто: крупна кольорова Δ «мій мінус
+        # суперника» (−1.300 = я швидший, зелена) + "7/10 побито" поруч
         prob_font = QFont()
         prob_font.setBold(True)
         prob_font.setPointSize(self.font().pointSize() + 4)
@@ -218,7 +217,7 @@ class RaceCard(QFrame):
     def update_card(self, e, track, car, beat, checked: bool, selected: bool,
                     suggested: bool = False, map_=None):
         """e: EffectiveRace | None; track: TrackView | None; car: Car показаного
-        авто (фактичне з заїзду або рекомендоване) | None; beat: (wins, n) | None;
+        авто (фактичне з заїзду або рекомендоване) | None; beat: BeatStats | None;
         checked — стан чекбокса збереження; selected — чи це відкрита панель;
         suggested — показане авто є рекомендацією (бейдж на іконці);
         map_: Map | None — карта map-only гонки (трек ще не визначено),
@@ -254,11 +253,11 @@ class RaceCard(QFrame):
         # порожні рядки сховані повністю й висоти не займають
         played = e is not None and e.time > 0
         if beat:
-            p = laplace(*beat)
-            color = style.WIN_BRIGHT if p >= 0.5 else style.LOSS_BRIGHT
-            self.prob_label.setText(f"{round(p * 100)}%")
+            # нічия = програш, як у win_chance і в оверлеї
+            color = style.WIN_BRIGHT if beat.delta > 0 else style.LOSS_BRIGHT
+            self.prob_label.setText(format_signed_delta(-beat.delta))
             self.prob_label.setStyleSheet(f"color: {color};")
-            self.beat_label.setText(ui_lang.t("assistant.beaten").format(wins=beat[0], n=beat[1]))
+            self.beat_label.setText(ui_lang.t("assistant.beaten").format(wins=beat.wins, n=beat.n))
         else:
             self.prob_label.setText("")
             self.beat_label.setText("")
