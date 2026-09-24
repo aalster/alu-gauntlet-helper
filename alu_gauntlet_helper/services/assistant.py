@@ -29,6 +29,36 @@ def win_prob(delta_ms: int | float) -> float:
     return 0.5 * (1.0 + math.erf(delta_ms / (SIGMA_MS * math.sqrt(2.0))))
 
 
+# Оцінка заїзду «як проїхав» проти власного середнього (останні ≤10 чистих
+# заїздів того ж авто на треку): |d| ≤ 0.2 с — «≈», ≤ 0.5 с — одинарний шеврон,
+# далі — подвійний. На треках із широким розкидом моїх часів пороги
+# розтягуються до 0.5σ / 1.5σ (робастна σ з MAD, лише при n ≥ 3), щоб
+# звичайний «шум» довгого треку не світився як «набагато гірше».
+RUN_EQUAL_MS = 200
+RUN_STRONG_MS = 500
+RUN_EQUAL_SIGMA = 0.5
+RUN_STRONG_SIGMA = 1.5
+_MAD_TO_SIGMA = 1.4826  # MAD → σ для нормального розподілу
+
+
+def grade_run(time_ms: int, history: list[int]) -> int | None:
+    """−2…+2: наскільки заїзд кращий (+) чи гірший (−) за середнє history;
+    0 — приблизно так само. None — немає з чим порівнювати."""
+    if not history:
+        return None
+    d = sum(history) / len(history) - time_ms  # >0 — швидше за середнє
+    equal_ms, strong_ms = RUN_EQUAL_MS, RUN_STRONG_MS
+    if len(history) >= 3:
+        med = statistics.median(history)
+        sigma = _MAD_TO_SIGMA * statistics.median(abs(t - med) for t in history)
+        equal_ms = max(equal_ms, RUN_EQUAL_SIGMA * sigma)
+        strong_ms = max(strong_ms, RUN_STRONG_SIGMA * sigma)
+    if abs(d) <= equal_ms:
+        return 0
+    grade = 1 if abs(d) <= strong_ms else 2
+    return grade if d > 0 else -grade
+
+
 class BeatStats(NamedTuple):
     """Статистика показаного авто проти часу суперника для бейджа «−1.300 7/10»."""
     wins: int   # скільки з вибірки швидші за суперника
@@ -217,6 +247,12 @@ class AssistantService:
         avg = round(sum(times) / len(times))
         return BeatStats(sum(1 for t in times if t < opponent_time), len(times),
                          opponent_time - avg)
+
+    def run_grade(self, track_id: int, car_id: int, time_ms: int) -> int | None:
+        """Оцінка зіграного заїзду проти власної історії авто на треку (grade_run).
+        Заїзди сесії ще не в БД (пишуться при «Зберегти»), тож сам себе не бачить."""
+        history = self.races.get_recent_clean_times_by_car(track_id).get(car_id)
+        return grade_run(time_ms, history or [])
 
     # --- невизначений трек: кандидати, звуження, виведені фікси (спека §4, §6) --
 

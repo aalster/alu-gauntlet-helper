@@ -1,3 +1,5 @@
+import re
+import tempfile
 from html import escape
 from pathlib import Path
 
@@ -43,13 +45,66 @@ def _num_cell(n: int, complete: bool, lost: bool = False) -> str:
             f"<span style='color:{color};font-weight:bold'>{n}</span></td>")
 
 
+_ICON_CACHE_DIR: Path | None = None
+_ICON_URIS: dict[tuple[str, int, float], str] = {}
+
+
+def _screen_dpr() -> float:
+    screen = QGuiApplication.primaryScreen() if QGuiApplication.instance() else None
+    return screen.devicePixelRatio() if screen else 1.0
+
+
+def _icon_uri(name: str, size: int, dpr: float | None = None,
+              cache_dir: Path | None = None) -> str:
+    """URI SVG-іконки для <img width=size> у rich-text QLabel.
+
+    Qt растеризує SVG у його власному розмірі (12 px) і на HiDPI розтягує
+    піксмап без згладжування — шеврон виходить розмитим/зубчастим. Для
+    dpr > 1 Qt шукає поруч «name@2x.svg»; підкладаємо в temp-теку копію з
+    intrinsic size = size·dpr (той самий viewBox), тож піксмап лягає в
+    пристрій 1:1. При dpr = 1 — оригінал з resources."""
+    global _ICON_CACHE_DIR
+    dpr = _screen_dpr() if dpr is None else dpr
+    key = (name, size, dpr)
+    if key in _ICON_URIS:
+        return _ICON_URIS[key]
+    source = Path(get_resource_path(f"icons/{name}"))
+    if dpr <= 1.0:
+        uri = source.as_uri()
+    else:
+        if cache_dir is None:
+            if _ICON_CACHE_DIR is None:
+                _ICON_CACHE_DIR = Path(tempfile.mkdtemp(prefix="alu-overlay-icons-"))
+            cache_dir = _ICON_CACHE_DIR
+        svg = source.read_text(encoding="utf-8")
+        px = round(size * dpr)
+        hidpi = re.sub(r'width="\d+" height="\d+"', f'width="{px}" height="{px}"', svg, count=1)
+        stem, ext = name.rsplit(".", 1)
+        (cache_dir / name).write_text(svg, encoding="utf-8")
+        (cache_dir / f"{stem}@2x.{ext}").write_text(hidpi, encoding="utf-8")
+        uri = (cache_dir / name).as_uri()
+    _ICON_URIS[key] = uri
+    return uri
+
+
 def _dislike_cell(n: int, active: bool) -> str:
     """Комірка-перемикач «некоректний час» (👎). Клік ловиться через
     linkActivated — спрацьовує лише в режимі керування, коли вікно не click-through."""
-    icon = "icons/thumbs-down.svg" if active else "icons/thumbs-down-dim.svg"
-    src = Path(get_resource_path(icon)).as_uri()
+    icon = "thumbs-down.svg" if active else "thumbs-down-dim.svg"
+    src = _icon_uri(icon, 14)
     return (f"<td style='padding-left:12px;{_TD_MIDDLE}'><a href='dislike:{n}'>"
             f"<img src='{src}' width='14' height='14'></a></td>")
+
+
+_GRADE_ICONS = {2: "grade-up2.svg", 1: "grade-up.svg", 0: "grade-eq.svg",
+                -1: "grade-down.svg", -2: "grade-down2.svg"}
+
+
+def _grade_icon(grade: int) -> str:
+    """Шеврон «як проїхав» після мого часу: угору зелений (швидше за середнє),
+    униз червоний, «≈» блакитний; подвійний — сильно краще/гірше."""
+    src = _icon_uri(_GRADE_ICONS[grade], 12)
+    return f" <img src='{src}' width='12' height='12'>"
 
 
 def header_text(races: dict[int, EffectiveRace],
@@ -89,17 +144,21 @@ def build_races_table(races: dict[int, EffectiveRace],
                       car_names: dict[int, str],
                       beat_stats: dict[int, BeatStats] | None = None,
                       track_maps: dict[int, str] | None = None,
-                      map_names: dict[int, str] | None = None) -> str:
+                      map_names: dict[int, str] | None = None,
+                      run_grades: dict[int, int] | None = None) -> str:
     """Будує rich-text (HTML) таблицю 5 гонок.
 
     beat_stats {race_number: BeatStats} — Δ і «побито з n» показаного авто проти
     часу суперника для незіграних гонок (як бейдж «−1.300 7/10» на картці).
+    run_grades {race_number: −2…+2} — оцінка зіграного заїзду проти власного
+    середнього (assistant.grade_run): шеврон після часу.
     track_names — назви треків (БЕЗ карти), track_maps {track_id: назва карти},
     map_names {map_id: назва карти} — для map-only гонок і cyan-треків з фікса.
     Лише таблиця залишена в HTML: колонки треку/авто/часу так вирівнюються
     попри пропорційний шрифт; заголовок і footer — окремі віджети.
     """
     beat_stats = beat_stats or {}
+    run_grades = run_grades or {}
     track_maps = track_maps or {}
     map_names = map_names or {}
     rows = []
@@ -130,6 +189,8 @@ def build_races_table(races: dict[int, EffectiveRace],
                          f"{format_signed_delta(-beat.delta)}</span> {beat.wins}/{beat.n}")
         else:
             time_cell = escape(format_time(e.time) if e.time else "?")
+            if played and (grade := run_grades.get(n)) is not None:
+                time_cell += _grade_icon(grade)
         with_car = e.shown_car_id > 0 or bool(e.car_name)
         dislike = "<td></td>" if not played and with_car else _dislike_cell(n, e.bad_timing)
         # програш проти суперника (лише коли його час відомий): нічия = програш,
@@ -154,14 +215,17 @@ def build_training_table(runs: dict[int, EffectiveRace],
                          track_names: dict[int, str],
                          car_names: dict[int, str],
                          track_maps: dict[int, str] | None = None,
-                         map_names: dict[int, str] | None = None) -> str:
+                         map_names: dict[int, str] | None = None,
+                         run_grades: dict[int, int] | None = None) -> str:
     """HTML-таблиця тренувальної сесії: останні TRAINING_OVERLAY_LIMIT заїздів
     із наскрізними номерами (проїхав 15 — перший видимий рядок «6»).
 
-    Рядок — як у таблиці челенджа: № · трек · авто · час · 👎; заїзди завжди
-    зіграні (час є), тож колонки шансу немає. Порожня сесія — «no data»."""
+    Рядок — як у таблиці челенджа: № · трек · авто · час (+ шеврон «як проїхав»
+    з run_grades) · 👎; заїзди завжди зіграні (час є), тож колонки шансу немає.
+    Порожня сесія — «no data»."""
     track_maps = track_maps or {}
     map_names = map_names or {}
+    run_grades = run_grades or {}
     numbers = sorted(runs)[-TRAINING_OVERLAY_LIMIT:]
     if not numbers:
         return ("<table cellspacing='0' cellpadding='0'><tr>"
@@ -171,13 +235,16 @@ def build_training_table(runs: dict[int, EffectiveRace],
     for n in numbers:
         e = runs[n]
         car = car_names.get(e.car_id, "?") if e.car_id else (e.car_name or "?")
+        time_cell = escape(format_time(e.time) if e.time else "?")
+        if e.time and (grade := run_grades.get(n)) is not None:
+            time_cell += _grade_icon(grade)
         rows.append(
             f"<tr>"
             f"{_num_cell(n, e.is_complete)}"
             f"<td style='padding-right:12px;{_TD_MIDDLE}'>"
             f"{_track_cell(e, track_names, track_maps, map_names)}</td>"
             f"<td style='padding-right:12px;{_TD_MIDDLE}'>{_cell(car)}</td>"
-            f"<td style='{_TD_MIDDLE}'>{escape(format_time(e.time) if e.time else '?')}</td>"
+            f"<td style='{_TD_MIDDLE}'>{time_cell}</td>"
             f"{_dislike_cell(n, e.bad_timing)}"
             f"</tr>"
         )

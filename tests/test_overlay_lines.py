@@ -268,3 +268,57 @@ def test_training_table_map_only_track():
     runs = {1: EffectiveRace(map_id=5, car_id=21, time=26499)}
     table = build_training_table(runs, {}, {21: "Battista"}, map_names={5: "Osaka"})
     assert "Osaka" in table
+
+
+def test_played_race_shows_run_grade_chevron_after_time():
+    # оцінка «як проїхав» — іконка одразу після мого часу: +2 подвійний
+    # шеврон угору, 0 — «≈», −1 — одинарний униз; без оцінки іконки немає
+    races = {1: EffectiveRace(track_id=11, car_id=21, time=22797),
+             2: EffectiveRace(track_id=11, car_id=21, time=23000),
+             3: EffectiveRace(track_id=11, car_id=21, time=23100),
+             4: EffectiveRace(track_id=11, car_id=21, time=23200)}
+    table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"},
+                              run_grades={1: 2, 2: 0, 3: -1})
+    assert "00:22.797</span>" not in table
+    assert table.index("00:22.797") < table.index("grade-up2.svg")
+    assert "grade-eq.svg" in table
+    assert "grade-down.svg" in table
+    assert "grade-down2.svg" not in table
+    assert table.count("grade-") == 3
+
+
+def test_unplayed_race_ignores_run_grade():
+    races = {1: EffectiveRace(track_id=11, car_id=21, opponent_time=25000)}
+    table = build_races_table(races, {11: "Notre Dame"}, {21: "Ultima RS"},
+                              run_grades={1: 2})
+    assert "grade-" not in table
+
+
+def test_training_table_shows_run_grade_chevron_after_time():
+    # тренування: той самий шеврон «як проїхав» після часу, проти історії з БД
+    runs = {1: EffectiveRace(track_id=11, car_id=21, time=26499),
+            2: EffectiveRace(track_id=11, car_id=21, time=26600)}
+    table = build_training_table(runs, {11: "Meiji Rush"}, {21: "Battista"},
+                                 run_grades={1: -2})
+    assert table.index("00:26.499") < table.index("grade-down2.svg")
+    assert table.count("grade-") == 1
+
+
+def test_icon_uri_provides_hidpi_variant_sized_to_screen(tmp_path):
+    # на HiDPI Qt бере «name@2x.svg» поруч з базовою іконкою; підкладаємо
+    # копію з intrinsic size = 12·dpr, щоб піксмап ліг 1:1 без розмиття
+    from alu_gauntlet_helper.views import overlay
+    uri = overlay._icon_uri("grade-up.svg", 12, dpr=1.5, cache_dir=tmp_path)
+    assert uri.endswith("/grade-up.svg")
+    base = (tmp_path / "grade-up.svg").read_text(encoding="utf-8")
+    hidpi = (tmp_path / "grade-up@2x.svg").read_text(encoding="utf-8")
+    assert 'width="12" height="12"' in base
+    assert 'width="18" height="18"' in hidpi
+    assert 'viewBox="0 0 12 12"' in hidpi   # геометрія та сама, лише розмір растра
+
+
+def test_icon_uri_without_hidpi_points_to_resource(tmp_path):
+    from alu_gauntlet_helper.views import overlay
+    uri = overlay._icon_uri("grade-up.svg", 12, dpr=1.0, cache_dir=tmp_path)
+    assert uri.endswith("/resources/icons/grade-up.svg")
+    assert not (tmp_path / "grade-up@2x.svg").exists()

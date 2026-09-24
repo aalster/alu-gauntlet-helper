@@ -330,11 +330,19 @@ class CaptureController(QObject):
                       and (beat := APP_CONTEXT.assistant.beat_stats(
                           e.track_id, e.shown_car_id, e.opponent_time)) is not None}
 
+        # оцінка зіграних заїздів «як проїхав» проти власного середнього того ж
+        # авто на треку — лише для фактичного авто з БД (car_id), не для кастомного
+        run_grades = {n: grade for n, e in effective.items()
+                      if e.track_id and e.car_id > 0 and e.time
+                      and (grade := APP_CONTEXT.assistant.run_grade(
+                          e.track_id, e.car_id, e.time)) is not None}
+
         self._push_overlay(
             session,
             header_text(effective, APP_CONTEXT.assistant.win_chance(session)),
             build_races_table(effective, track_names, car_names, beat_stats,
-                              track_maps=track_maps, map_names=map_names),
+                              track_maps=track_maps, map_names=map_names,
+                              run_grades=run_grades),
             show)
 
     def _refresh_training_overlay(self, session: TrainingSessionService, show: bool):
@@ -351,10 +359,17 @@ class CaptureController(QObject):
                      for m in APP_CONTEXT.maps_service.get_by_ids(map_ids).values()}
         car_ids = {e.car_id for e in effective.values() if e.car_id}
         car_names = {c.id: c.name for c in APP_CONTEXT.cars_service.get_by_ids(car_ids).values()}
+        # шеврон «як проїхав» — проти історії авто на треку з БД; заїзди самої
+        # сесії ще не збережені, тож між собою не порівнюються
+        run_grades = {n: grade for n, e in effective.items()
+                      if e.track_id and e.car_id > 0 and e.time
+                      and (grade := APP_CONTEXT.assistant.run_grade(
+                          e.track_id, e.car_id, e.time)) is not None}
         self._push_overlay(
             session, header_text({}),
             build_training_table(effective, track_names, car_names,
-                                 track_maps=track_maps, map_names=map_names),
+                                 track_maps=track_maps, map_names=map_names,
+                                 run_grades=run_grades),
             show)
 
     def _push_overlay(self, session, header: str, table_html: str, show: bool):
