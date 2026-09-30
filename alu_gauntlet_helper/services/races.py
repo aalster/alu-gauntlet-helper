@@ -153,19 +153,23 @@ class RacesRepository:
             order_col = "best_time" if by_best_time else "avg_recent"
             sql = f"""
             WITH filtered AS (
-                SELECT r.track_id, r.car_id, r.time, r.bad_timing, r.created_at{from_where} AND r.car_id > 0
+                SELECT r.track_id, r.car_id, r.time, r.bad_timing, r.created_at,
+                       (r.bad_timing = 0 AND r.time > 0) AS clean{from_where} AND r.car_id > 0
             ),
             ranked AS (
-                SELECT track_id, car_id, time, bad_timing,
-                       ROW_NUMBER() OVER (PARTITION BY track_id, car_id ORDER BY created_at DESC) AS rn
+                -- чисті заїзди йдуть першими: rn <= 10 AND clean = останні 10 успішних,
+                -- та сама вибірка, що й у get_recent_clean_times_by_car (асистент)
+                SELECT track_id, car_id, time, bad_timing, clean,
+                       ROW_NUMBER() OVER (PARTITION BY track_id, car_id
+                                          ORDER BY clean DESC, created_at DESC) AS rn
                 FROM filtered
             )
             SELECT track_id, car_id,
                    MIN(CASE WHEN time > 0 THEN time END) AS best_time,
                    AVG(CASE WHEN bad_timing = 0 AND time > 0 THEN time END) AS avg_time,
                    AVG(CASE WHEN bad_timing = 1 AND time > 0 THEN time END) AS avg_fail,
-                   AVG(CASE WHEN rn <= 10 AND bad_timing = 0 AND time > 0 THEN time END) AS avg_recent,
-                   COUNT(CASE WHEN rn <= 10 AND bad_timing = 0 AND time > 0 THEN 1 END) AS recent_count,
+                   AVG(CASE WHEN rn <= 10 AND clean THEN time END) AS avg_recent,
+                   COUNT(CASE WHEN rn <= 10 AND clean THEN 1 END) AS recent_count,
                    COUNT(CASE WHEN time > 0 THEN 1 END) AS timed_count,
                    COUNT(CASE WHEN bad_timing = 0 AND time > 0 THEN 1 END) AS ok_count,
                    COUNT(CASE WHEN bad_timing = 1 AND time > 0 THEN 1 END) AS fail_count,
@@ -186,7 +190,10 @@ class RacesRepository:
             sql = """
             WITH ranked AS (
                 SELECT track_id, car_id, time, bad_timing,
-                       ROW_NUMBER() OVER (PARTITION BY car_id ORDER BY created_at DESC) AS rn
+                       (bad_timing = 0 AND time > 0) AS clean,
+                       ROW_NUMBER() OVER (PARTITION BY car_id
+                                          ORDER BY (bad_timing = 0 AND time > 0) DESC,
+                                                   created_at DESC) AS rn
                 FROM races
                 WHERE track_id = :track_id AND car_id > 0
             )
@@ -194,8 +201,8 @@ class RacesRepository:
                    MIN(CASE WHEN time > 0 THEN time END) AS best_time,
                    AVG(CASE WHEN bad_timing = 0 AND time > 0 THEN time END) AS avg_time,
                    AVG(CASE WHEN bad_timing = 1 AND time > 0 THEN time END) AS avg_fail,
-                   AVG(CASE WHEN rn <= 10 AND bad_timing = 0 AND time > 0 THEN time END) AS avg_recent,
-                   COUNT(CASE WHEN rn <= 10 AND bad_timing = 0 AND time > 0 THEN 1 END) AS recent_count,
+                   AVG(CASE WHEN rn <= 10 AND clean THEN time END) AS avg_recent,
+                   COUNT(CASE WHEN rn <= 10 AND clean THEN 1 END) AS recent_count,
                    COUNT(CASE WHEN time > 0 THEN 1 END) AS timed_count,
                    COUNT(CASE WHEN bad_timing = 0 AND time > 0 THEN 1 END) AS ok_count,
                    COUNT(CASE WHEN bad_timing = 1 AND time > 0 THEN 1 END) AS fail_count,
@@ -215,20 +222,16 @@ class RacesRepository:
             return conn.execute(sql, params).fetchone()[0]
 
     def get_recent_clean_races(self, track_id: int, car_id: int, limit: int = 10) -> list[Race]:
-        """Заїзди, з яких пораховане avg_recent агрегату: серед останніх `limit` заїздів
-        пари — без дизлайків і без порожнього часу."""
+        """Заїзди, з яких пораховане avg_recent агрегату: останні `limit` успішних
+        (без дизлайків і без порожнього часу) заїздів пари — та сама вибірка,
+        що й у get_recent_clean_times_by_car."""
         with connect() as conn:
             sql = """
-            WITH ranked AS (
-                SELECT id, track_id, car_id, `rank`, time, bad_timing, note, created_at,
-                       ROW_NUMBER() OVER (ORDER BY created_at DESC) AS rn
-                FROM races
-                WHERE track_id = :track_id AND car_id = :car_id
-            )
             SELECT id, track_id, car_id, `rank`, time, bad_timing, note, created_at
-            FROM ranked
-            WHERE rn <= :limit AND bad_timing = 0 AND time > 0
+            FROM races
+            WHERE track_id = :track_id AND car_id = :car_id AND bad_timing = 0 AND time > 0
             ORDER BY created_at DESC
+            LIMIT :limit
             """
             rows = conn.execute(sql, {"track_id": track_id, "car_id": car_id, "limit": limit}).fetchall()
             return [self.parse(row) for row in rows]
@@ -248,27 +251,6 @@ class RacesRepository:
     def delete(self, race_id: int):
         with connect() as conn:
             conn.execute("DELETE FROM races WHERE id = :id", {"id": race_id})
-
-    def get_car_stats_for_track(self, track_id: int) -> list[dict]:
-        with connect() as conn:
-            sql = """
-            WITH ranked_races AS (
-                SELECT car_id, time,
-                       ROW_NUMBER() OVER (PARTITION BY car_id ORDER BY created_at DESC) as rn
-                FROM races
-                WHERE track_id = :track_id AND car_id > 0 AND time > 0
-            ),
-            last_10_races AS (
-                SELECT car_id, time FROM ranked_races WHERE rn <= 10
-            )
-            SELECT lr.car_id, AVG(lr.time) as avg_time, COUNT(*) as race_count
-            FROM last_10_races lr
-            LEFT JOIN cars c ON c.id = lr.car_id
-            GROUP BY lr.car_id
-            ORDER BY c.favorite DESC, avg_time ASC
-            """
-            rows = conn.execute(sql, {"track_id": track_id}).fetchall()
-            return [dict(row) for row in rows]
 
     def get_recent_clean_times_by_car(self, track_id: int, limit: int = 10) -> dict[int, list[int]]:
         """car_id → часи останніх `limit` ЧИСТИХ (без 👎) заїздів авто на треку.
@@ -448,31 +430,6 @@ class RacesService(Observable):
     def delete(self, item: Race):
         self.repo.delete(item.id)
         self._notify()
-
-    def get_car_suggestions_for_track(self, track_id: int) -> list[CarSuggestion]:
-        stats = self.repo.get_car_stats_for_track(track_id)
-        if not stats:
-            return []
-
-        car_ids = {s["car_id"] for s in stats}
-        cars = self.cars.get_by_ids(car_ids)
-
-        result = []
-        for s in stats:
-            car = cars.get(s["car_id"])
-            result.append(CarSuggestion(
-                car_id=s["car_id"],
-                car_name=car.name if car else "Unknown Car",
-                car_brand=car.brand if car else "",
-                car_model=car.model if car else "",
-                car_class=car.car_class if car else "",
-                car_rank=car.rank if car else 0,
-                car_favorite=car.favorite if car else False,
-                car_icon=car.icon if car else "",
-                avg_time=int(s["avg_time"]),
-                race_count=s["race_count"]
-            ))
-        return result
 
     def get_recent_races_for_car_on_track(self, track_id: int, car_id: int,
                                           bad_timing: bool | None = None) -> list[Race]:
