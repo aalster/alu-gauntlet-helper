@@ -149,7 +149,8 @@ def build_races_table(races: dict[int, EffectiveRace],
     """Будує rich-text (HTML) таблицю 5 гонок.
 
     beat_stats {race_number: BeatStats} — Δ і «побито з n» показаного авто проти
-    часу суперника для незіграних гонок (як бейдж «−1.300 7/10» на картці).
+    часу суперника для незіграних гонок: Δ у колонці часу праворуч, «7/10» —
+    окремою колонкою на місці 👎.
     run_grades {race_number: −2…+2} — оцінка зіграного заїзду проти власного
     середнього (assistant.grade_run): шеврон після часу.
     track_names — назви треків (БЕЗ карти), track_maps {track_id: назва карти},
@@ -183,16 +184,24 @@ def build_races_table(races: dict[int, EffectiveRace],
         # перемикача 👎 (без часу він безглуздий); нічия = програш, як у win_chance
         played = e.time > 0
         beat = beat_stats.get(n) if not played else None
+        with_car = e.shown_car_id > 0 or bool(e.car_name)
         if beat:
+            # Δ і «7/10» — окремі колонки: Δ притиснута праворуч (знаки й
+            # десяткові в стовпчик), лічильник займає колонку 👎, яка для
+            # незіграної гонки однаково порожня
             color = WIN_BRIGHT if beat.delta > 0 else LOSS_BRIGHT
-            time_cell = (f"<span style='color:{color};font-weight:bold'>"
-                         f"{format_signed_delta(-beat.delta)}</span> {beat.wins}/{beat.n}")
+            time_td = (f"<td align='right' style='{_TD_MIDDLE}'>"
+                       f"<span style='color:{color};font-weight:bold'>"
+                       f"{format_signed_delta(-beat.delta)}</span></td>")
+            last_td = (f"<td style='padding-left:8px;{_TD_MIDDLE}'>"
+                       f"{beat.wins}/{beat.n}</td>")
         else:
             time_cell = escape(format_time(e.time) if e.time else "?")
             if played and (grade := run_grades.get(n)) is not None:
                 time_cell += _grade_icon(grade)
-        with_car = e.shown_car_id > 0 or bool(e.car_name)
-        dislike = "<td></td>" if not played and with_car else _dislike_cell(n, e.bad_timing)
+            time_td = f"<td style='{_TD_MIDDLE}'>{time_cell}</td>"
+            last_td = ("<td></td>" if not played and with_car
+                       else _dislike_cell(n, e.bad_timing))
         # програш проти суперника (лише коли його час відомий): нічия = програш,
         # як у win_chance
         lost = played and e.opponent_time > 0 and e.time >= e.opponent_time
@@ -201,8 +210,8 @@ def build_races_table(races: dict[int, EffectiveRace],
             f"{_num_cell(n, e.is_complete, lost)}"
             f"<td style='padding-right:12px;{_TD_MIDDLE}'>{track_cell}</td>"
             f"<td style='padding-right:12px;{_TD_MIDDLE}'>{car_cell}</td>"
-            f"<td style='{_TD_MIDDLE}'>{time_cell}</td>"
-            f"{dislike}"
+            f"{time_td}"
+            f"{last_td}"
             f"</tr>"
         )
     return "<table cellspacing='0' cellpadding='0'>" + "".join(rows) + "</table>"

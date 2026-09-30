@@ -82,8 +82,14 @@ def test_unplayed_race_with_car_shows_delta_without_dislike():
                                           2: BeatStats(1, 10, -2000)})
     assert "7/10" in table and "1/10" in table
     # Δ=+1300 (я швидший) → «−1.300» зеленим; Δ=−2000 → «+2.000» червоним
-    assert f"color:{WIN_BRIGHT};font-weight:bold'>−1.300</span> 7/10" in table
-    assert f"color:{LOSS_BRIGHT};font-weight:bold'>+2.000</span> 1/10" in table
+    # Δ і лічильник — окремі колонки: Δ притиснута праворуч, «7/10» — у
+    # колонці 👎 (для незіграної гонки вона порожня)
+    assert (f"<td align='right' style='vertical-align:middle'><span style='color:{WIN_BRIGHT};"
+            f"font-weight:bold'>−1.300</span></td>"
+            f"<td style='padding-left:8px;vertical-align:middle'>7/10</td>") in table
+    assert (f"<td align='right' style='vertical-align:middle'><span style='color:{LOSS_BRIGHT};"
+            f"font-weight:bold'>+2.000</span></td>"
+            f"<td style='padding-left:8px;vertical-align:middle'>1/10</td>") in table
     assert "%" not in table
     assert "побито" not in table and "beaten" not in table
     assert "dislike:1" not in table and "dislike:2" not in table
