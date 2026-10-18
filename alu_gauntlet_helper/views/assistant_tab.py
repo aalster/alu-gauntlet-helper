@@ -1,21 +1,24 @@
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFont
-from PyQt6.QtWidgets import (QAbstractItemView, QHBoxLayout, QLabel, QListWidget,
-                             QListWidgetItem, QMessageBox, QPushButton,
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import (QAbstractItemView, QHBoxLayout, QLabel,
+                             QListWidget, QListWidgetItem, QMessageBox, QPushButton,
                              QStackedWidget, QTabBar, QVBoxLayout, QWidget)
 
 from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.app_context import APP_CONTEXT
 from alu_gauntlet_helper.services.assistant import sort_tracks_by_probability
-from alu_gauntlet_helper.services.challenge_session import (RACE_COUNT, ChallengeSessionService,
+from alu_gauntlet_helper.services.challenge_session import (RACE_COUNT, WIN_GOALS,
+                                                            ChallengeSessionService,
                                                             EffectiveRace)
 from alu_gauntlet_helper.services.races import RaceView
 from alu_gauntlet_helper.services.training_session import TrainingSessionService
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.views.training_session_view import TrainingSessionView
-from alu_gauntlet_helper.views.components.chip_tooltip import (chip_tooltip_html,
-                                                               prob_percent,
+from alu_gauntlet_helper.views.components.chip_tooltip import (WIDEST_GOAL_LABEL,
+                                                               chip_tooltip_html,
+                                                               goal_label, prob_percent,
                                                                win_chance_tooltip)
+from alu_gauntlet_helper.views.components.goal_button import GoalButton
 from alu_gauntlet_helper.views.components.common import (WARN_ICON, ListItemWidget,
                                                          image_preview_html)
 from alu_gauntlet_helper.views.components.race_card import RaceCard
@@ -62,23 +65,19 @@ class SessionView(QWidget):
         self.chips_widget.hide()
 
         # --- низ ---
-        # шанс перемоги: крупна кольорова цифра + підпис праворуч
-        chance_font = QFont()
-        chance_font.setBold(True)
-        chance_font.setPointSize(self.font().pointSize() + 4)
-        self.win_chance_value = QLabel("")
-        self.win_chance_value.setFont(chance_font)
-        self.win_chance_label = QLabel(ui_lang.t("assistant.win_chance"))
-        # контейнер цифри+підпису: тултіп-розбивка P(≥3/4/5) і ховер-фон
-        # (QSS #winChance; plain QWidget ігнорує QSS-фон без WA_StyledBackground)
-        self.win_chance_box = QWidget()
-        self.win_chance_box.setObjectName("winChance")
-        self.win_chance_box.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        chance_row = QHBoxLayout(self.win_chance_box)
-        chance_row.setContentsMargins(8, 2, 8, 2)
-        chance_row.addWidget(self.win_chance_value)
-        chance_row.addWidget(self.win_chance_label)
-        self.win_chance_box.setVisible(False)
+        # режим підбору «3/5 · 4/5 · 5/5» з шансом цієї цілі: радіо-група
+        # окремих кнопок; тултіп кожної — розклад P(≥3/4/5) за її підбором
+        self.goal_buttons: dict[int, GoalButton] = {}
+        goals_row = QHBoxLayout()
+        goals_row.setSpacing(4)
+        for goal in WIN_GOALS:
+            button = GoalButton()
+            button.setObjectName("goal")
+            button.reserve_width(WIDEST_GOAL_LABEL)
+            button.setText(goal_label(goal, None))
+            button.clicked.connect(lambda g=goal: self._on_goal_clicked(g))
+            self.goal_buttons[goal] = button
+            goals_row.addWidget(button)
         self.warning_label = QLabel()
         self.warning_label.setTextFormat(Qt.TextFormat.RichText)
         self.warning_label.setWordWrap(True)
@@ -94,8 +93,8 @@ class SessionView(QWidget):
         self.discard_button.clicked.connect(self.discard)
 
         bottom = QHBoxLayout()
+        bottom.addLayout(goals_row)
         bottom.addWidget(self.warning_label, stretch=1)
-        bottom.addWidget(self.win_chance_box)
         bottom.addStretch()
         bottom.addWidget(self.auto_button)
         bottom.addWidget(self.discard_button)
@@ -154,13 +153,12 @@ class SessionView(QWidget):
         self._refresh_chips(effective)
         self._refresh_suggestions(effective)
 
-        dist = APP_CONTEXT.assistant.win_distribution(self.session)
-        if dist is not None:
-            pct = round(sum(dist[3:]) * 100)
-            self.win_chance_value.setText(f"{pct}%")
-            self.win_chance_value.setStyleSheet(f"color: {style.win_chance_color(pct)};")
-            self.win_chance_box.setToolTip(win_chance_tooltip(dist))
-        self.win_chance_box.setVisible(dist is not None)
+        dists = APP_CONTEXT.assistant.goal_distributions(self.session)
+        for goal, button in self.goal_buttons.items():
+            dist = dists[goal] if dists else None
+            button.setText(goal_label(goal, dist))
+            button.setToolTip(win_chance_tooltip(dist, goal) if dist else "")
+            button.set_active(goal == self.session.goal)
 
         has_uncertain = any(e.track_uncertain or e.car_uncertain for e in effective.values())
         self.warning_label.setText(
@@ -292,6 +290,10 @@ class SessionView(QWidget):
 
     def auto_pick(self):
         APP_CONTEXT.assistant.auto_pick(self.session, force=True)
+
+    def _on_goal_clicked(self, goal: int):
+        if goal != self.session.goal:
+            APP_CONTEXT.assistant.set_goal(self.session, goal)
 
     def _is_checked(self, n: int, e: EffectiveRace | None) -> bool:
         if e is None:

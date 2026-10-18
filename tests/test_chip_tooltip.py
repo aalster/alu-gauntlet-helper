@@ -1,7 +1,7 @@
 from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.views import style
 from alu_gauntlet_helper.views.components.chip_tooltip import (chip_tooltip_html,
-                                                               prob_percent,
+                                                               goal_label, prob_percent,
                                                                win_chance_tooltip)
 
 # Єдиний тултіп чипа треку: з наявних частин — «Збіг ... {p}%», таблиця часів
@@ -99,3 +99,23 @@ def test_win_chance_tooltip_uk_labels():
     assert chance_row(100, "шанс виграти щонайменше 3 гонки") in html
     assert chance_row(50, "шанс виграти щонайменше 4 гонки") in html
     assert chance_row(20, "шанс виграти всі гонки") in html
+
+
+# --- кнопки режимів підбору 3/5 · 4/5 · 5/5 --------------------------------
+
+
+def test_goal_label_with_and_without_chance():
+    # «3/5» — кольору кнопки, відсоток — порогів win_chance_color
+    dist = [0.05, 0.1, 0.2, 0.3, 0.25, 0.1]
+    assert goal_label(3, dist) == f"3/5 <span style='color:{style.RANK_DOWN}'>65%</span>"
+    assert goal_label(4, dist) == f"4/5 <span style='color:{style.LOSS_BRIGHT}'>35%</span>"
+    assert goal_label(5, [0, 0, 0, 0, 0, 1.0]) == (
+        f"5/5 <span style='color:{style.WIN_BRIGHT}'>100%</span>")
+    assert goal_label(5, None) == "5/5"  # без часів суперника — лише режим
+
+
+def test_win_chance_tooltip_bolds_goal_row():
+    dist = [0.05, 0.1, 0.2, 0.3, 0.25, 0.1]
+    html = win_chance_tooltip(dist, goal=4)
+    assert html.count("<b>") == 2  # відсоток і підпис лише рядка 4/5
+    assert "<b>chance to win at least 4 races</b>" in html

@@ -8,6 +8,9 @@ from alu_gauntlet_helper.services.races import RaceView
 
 RACE_COUNT = 5
 LOW_CONFIDENCE = 0.85
+# режими автопідбору «щонайменше k перемог з 5»; нова сесія — завжди 5/5
+WIN_GOALS = (3, 4, RACE_COUNT)
+DEFAULT_GOAL = RACE_COUNT
 
 
 class EffectiveRace(BaseModel):
@@ -85,6 +88,8 @@ class ChallengeSessionService:
         # часом): {race_number: track_id}; слабший за драфт і впевнений скан
         self.track_fix: dict[int, int] = {}
         self.inferred_tracks: set[int] = set()  # які фікси виведені (бейдж «ймовірно»)
+        # режим автопідбору: скільки перемог з 5 максимізувати (WIN_GOALS)
+        self.goal: int = DEFAULT_GOAL
 
     def add_listener(self, listener: Callable[[], None]):
         self._listeners.append(listener)
@@ -267,6 +272,11 @@ class ChallengeSessionService:
         self.pinned_races = set()
         self._notify()
 
+    def set_goal(self, goal: int):
+        """Режим автопідбору (3/4/5 перемог). Перепідбір робить AssistantService.set_goal."""
+        self.goal = goal
+        self._notify()
+
     def set_track_fix(self, race_number: int, track_id: int | None, inferred: bool = False):
         """Вибір треку при неоднозначності (клік по чипу або звуження за часом
         суперника). Драфт-рівень: ручний драфт і пізніший УПЕВНЕНИЙ скан мають
@@ -305,4 +315,5 @@ class ChallengeSessionService:
         self.pinned_races = set()
         self.track_fix = {}
         self.inferred_tracks = set()
+        self.goal = DEFAULT_GOAL
         self._notify()

@@ -206,28 +206,6 @@ def test_win_chance_color_thresholds():
     assert win_chance_color(50) == LOSS_BRIGHT  # рівно 50 — вже червоний
 
 
-# --- заголовок з шансом перемоги «72%» (спека §7, Етап 2) -------------------
-
-
-def test_header_with_win_chance_appends_colored_percent():
-    from alu_gauntlet_helper.views.style import RANK_DOWN
-    h = header_text({}, win_chance=0.72)
-    assert BRAND_TITLE in h
-    assert "72%" in h
-    assert "~" not in h    # без тильди — як внизу таба асистента
-    assert RANK_DOWN in h  # 72% — помаранчева зона (>50, ≤75)
-
-
-def test_header_win_chance_color_zones():
-    assert WIN_BRIGHT in header_text({}, 0.80)
-    assert LOSS_BRIGHT in header_text({}, 0.30)
-
-
-def test_header_without_win_chance_stays_plain():
-    assert header_text({}) == BRAND_TITLE
-    assert header_text({}, None) == BRAND_TITLE
-
-
 # --- тренування: таблиця останніх заїздів ------------------------------------
 
 

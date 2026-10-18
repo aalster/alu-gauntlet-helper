@@ -21,8 +21,10 @@ from alu_gauntlet_helper.screen_recognition.screens.opponent_scout import Oppone
 from alu_gauntlet_helper.screen_recognition.screens.race_result import RaceResultExtractor
 from alu_gauntlet_helper.screen_recognition.screens.training_lobby import TrainingLobbyExtractor
 from alu_gauntlet_helper.screen_recognition.screens.training_result import TrainingResultExtractor
-from alu_gauntlet_helper.services.challenge_session import LOW_CONFIDENCE, RACE_COUNT
+from alu_gauntlet_helper.services.challenge_session import (LOW_CONFIDENCE, RACE_COUNT,
+                                                            WIN_GOALS)
 from alu_gauntlet_helper.services.training_session import TrainingSessionService
+from alu_gauntlet_helper.views.components.chip_tooltip import goal_label
 from alu_gauntlet_helper.views.overlay import (OverlayWindow, build_races_table,
                                                build_training_table, header_text)
 
@@ -66,6 +68,8 @@ class CaptureController(QObject):
         self.overlay.capture_requested.connect(self.capture_now)
         # 👎 у рядку таблиці — фліп bad_timing у сесії; listener сам оновить оверлей
         self.overlay.dislike_toggled.connect(self._toggle_bad_timing)
+        # режим 3/5 · 4/5 · 5/5 (Ctrl+Alt) — той самий, що й у табі асистента
+        self.overlay.goal_selected.connect(self._set_goal)
         APP_CONTEXT.session_manager.add_listener(self._refresh_overlay)
 
     def apply_settings(self) -> bool:
@@ -238,6 +242,15 @@ class CaptureController(QObject):
         # 👎 з оверлея завжди стосується активної сесії
         APP_CONTEXT.session_manager.active.toggle_bad_timing(race_number)
 
+    def _set_goal(self, goal: int):
+        # режим живе в активній сесії челенджа; listener сесії оновить і оверлей,
+        # і таб асистента
+        session = APP_CONTEXT.session_manager.active
+        if isinstance(session, TrainingSessionService):
+            return
+        if goal != session.goal:
+            APP_CONTEXT.assistant.set_goal(session, goal)
+
     @staticmethod
     def _apply_game_language(language: str):
         """Авто-перемикання мови гри за розпізнаним екраном (симетрично EN↔RU):
@@ -337,9 +350,12 @@ class CaptureController(QObject):
                       and (grade := APP_CONTEXT.assistant.run_grade(
                           e.track_id, e.car_id, e.time)) is not None}
 
+        dists = APP_CONTEXT.assistant.goal_distributions(session)
+        self.overlay.set_goals({goal: goal_label(goal, dists[goal] if dists else None)
+                                for goal in WIN_GOALS}, session.goal)
         self._push_overlay(
             session,
-            header_text(effective, APP_CONTEXT.assistant.win_chance(session)),
+            header_text(effective),
             build_races_table(effective, track_names, car_names, beat_stats,
                               track_maps=track_maps, map_names=map_names,
                               run_grades=run_grades),
@@ -365,6 +381,7 @@ class CaptureController(QObject):
                       if e.track_id and e.car_id > 0 and e.time
                       and (grade := APP_CONTEXT.assistant.run_grade(
                           e.track_id, e.car_id, e.time)) is not None}
+        self.overlay.set_goals(None)
         self._push_overlay(
             session, header_text({}),
             build_training_table(effective, track_names, car_names,

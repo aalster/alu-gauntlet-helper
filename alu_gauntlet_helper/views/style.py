@@ -39,9 +39,8 @@ COUNT_WARN = "#D9A05A"
 
 
 def win_chance_color(pct: int) -> str:
-    """Колір загального шансу перемоги в матчі (P(≥3 з 5), у відсотках):
-    >75 — зелений, >50 — помаранчевий, інакше червоний. Спільні пороги для
-    низу таба асистента й заголовка оверлея."""
+    """Колір шансу перемог у матчі (P(≥k з 5), у відсотках): >75 — зелений,
+    >50 — помаранчевий, інакше червоний. Пороги для тултіпа режимів підбору."""
     return WIN_BRIGHT if pct > 75 else RANK_DOWN if pct > 50 else LOSS_BRIGHT
 
 CHECKMARK_ICON = get_resource_path("icons/check.svg").replace("\\", "/")
@@ -85,12 +84,12 @@ QWidget#aggStatRow {{
     border-radius: 4px;
 }}
 
-QWidget#trackInfo, QWidget#vsStats, QWidget#winChance {{
+QWidget#trackInfo, QWidget#vsStats {{
     border-radius: 6px;
 }}
 
 QWidget#aggMainStat:hover, QWidget#aggStatRow:hover, QWidget#trackInfo:hover,
-QWidget#vsStats:hover, QWidget#winChance:hover {{
+QWidget#vsStats:hover {{
     background-color: rgba(10, 16, 36, 140);
 }}
 
@@ -263,6 +262,27 @@ QPushButton#secondary:hover {{
 
 QPushButton#secondary:checked {{
     background-color: {CARD_SELECTED};
+    border: 1px solid {CYAN};
+    color: {CYAN};
+}}
+
+/* режим підбору 3/5 · 4/5 · 5/5 (GoalButton — QLabel з rich-text): окремі
+   кнопки у secondary-стилі, вибрана — темна */
+QLabel#goal {{
+    background-color: #1C2C74;
+    color: {TEXT};
+    font-weight: bold;
+    border: 1px solid {BORDER};
+    border-radius: 4px;
+    padding: 7px 12px;
+}}
+
+QLabel#goal:hover {{
+    border: 1px solid {CYAN};
+}}
+
+QLabel#goal[active="true"] {{
+    background-color: {BG_BOTTOM};
     border: 1px solid {CYAN};
     color: {CYAN};
 }}

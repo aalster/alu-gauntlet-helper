@@ -10,14 +10,17 @@ from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QPushButton,
 
 from alu_gauntlet_helper import ui_lang
 from alu_gauntlet_helper.services.assistant import BeatStats
-from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, EffectiveRace
+from alu_gauntlet_helper.services.challenge_session import (RACE_COUNT, WIN_GOALS,
+                                                            EffectiveRace)
 from alu_gauntlet_helper.utils.utils import (format_signed_delta, format_time,
                                              get_resource_path)
+from alu_gauntlet_helper.views.components.chip_tooltip import WIDEST_GOAL_LABEL
 from alu_gauntlet_helper.views.components.common import res_to_pixmap
+from alu_gauntlet_helper.views.components.goal_button import GoalButton
 from alu_gauntlet_helper.views.style import (BORDER, CARD_SELECTED, CYAN,
                                              LOSS_BRIGHT, TEXT, TEXT_DARK,
                                              WIN_BRIGHT, YELLOW, YELLOW_HOVER,
-                                             YELLOW_PRESSED, win_chance_color)
+                                             YELLOW_PRESSED)
 
 MARGIN = 16
 # Qt rich text підтримує vertical-align лише на <td> (не на <img>), тож центруємо
@@ -107,17 +110,10 @@ def _grade_icon(grade: int) -> str:
     return f" <img src='{src}' width='12' height='12'>"
 
 
-def header_text(races: dict[int, EffectiveRace],
-                win_chance: float | None = None) -> str:
-    """Заголовок оверлея: бренд + «72%» — шанс виграти матч (P(≥3 з 5)),
-    коли в сесії є часи суперника. Без них — статичний бренд, як раніше.
-    QLabel з дефолтним AutoText сам розпізнає rich-text за тегом <span>."""
-    title = ui_lang.t("window.title")
-    if win_chance is None:
-        return title
-    pct = round(win_chance * 100)
-    return (f"{escape(title)} <span style='color:{win_chance_color(pct)};"
-            f"font-weight:bold'>{pct}%</span>")
+def header_text(races: dict[int, EffectiveRace]) -> str:
+    """Заголовок оверлея — статичний бренд; шанси перемог показують кнопки
+    режимів поруч (OverlayWindow.set_goals)."""
+    return ui_lang.t("window.title")
 
 
 def _track_cell(e: EffectiveRace, track_names: dict[int, str],
@@ -181,7 +177,7 @@ def build_races_table(races: dict[int, EffectiveRace],
         car_cell = _cell(car, CYAN if suggested else None)
         # як на картці гонки: зіграна — мій час (+👎), незіграна з авто — Δ
         # «мій мінус суперника» (−1.300 = я швидший, зелена) і «7/10» без
-        # перемикача 👎 (без часу він безглуздий); нічия = програш, як у win_chance
+        # перемикача 👎 (без часу він безглуздий); нічия = програш, як в оцінці шансів
         played = e.time > 0
         beat = beat_stats.get(n) if not played else None
         with_car = e.shown_car_id > 0 or bool(e.car_name)
@@ -203,7 +199,7 @@ def build_races_table(races: dict[int, EffectiveRace],
             last_td = ("<td></td>" if not played and with_car
                        else _dislike_cell(n, e.bad_timing))
         # програш проти суперника (лише коли його час відомий): нічия = програш,
-        # як у win_chance
+        # як в оцінці шансів
         lost = played and e.opponent_time > 0 and e.time >= e.opponent_time
         rows.append(
             f"<tr>"
@@ -309,6 +305,16 @@ _HANDLE_STYLE = (
     f" padding: 4px 7px; font-weight: bold;"
 )
 _HANDLE_HOVER_STYLE = _HANDLE_STYLE + f" border: 1px solid {CYAN};"
+# режими підбору 3/5 · 4/5 · 5/5 у заголовку: неактивні — просто текст,
+# активний — темний фон без рамки; ховер (лише в Ctrl+Alt, інакше вікно
+# click-through) — той самий фон
+_GOAL_STYLE = (
+    f"QLabel {{ background-color: transparent; color: #9aa0c0;"
+    f" border: none; border-radius: 4px; padding: 2px 6px;"
+    f" font-size: 13px; font-weight: bold; }}"
+    f"QLabel:hover {{ background-color: {_SECONDARY_BG}; }}"
+    f"QLabel[active=\"true\"] {{ background-color: {_SECONDARY_BG}; color: {TEXT}; }}"
+)
 
 
 class _DragHandle(QLabel):
@@ -392,6 +398,7 @@ class OverlayWindow(QWidget):
     capture_requested = pyqtSignal()  # клік Capture на оверлеї
     close_requested = pyqtSignal()    # клік ✕ на оверлеї
     dislike_toggled = pyqtSignal(int)  # клік 👎 у рядку гонки (номер гонки)
+    goal_selected = pyqtSignal(int)    # клік по режиму 3/5 · 4/5 · 5/5 (k)
     visibility_changed = pyqtSignal(bool)  # show/hide вікна — стан тогл-кнопки «Оверлей»
 
     def __init__(self):
@@ -435,14 +442,31 @@ class OverlayWindow(QWidget):
         toolbar_layout.addWidget(self.close_button)
         # кнопки видимі лише в режимі керування; коли сховані, панель має ~нульову
         # ширину й нічого не резервує. Зміну ширини оверлея від появи кнопок
-        # компенсує resizeEvent, тримаючи прив'язаний край — без фіксації ширини.
+        # компенсує set_actions_mode, тримаючи прив'язаний край — без фіксації ширини.
         self.drag_handle.setVisible(False)
         self.close_button.setVisible(False)  # кнопки видимі лише в режимі переміщення
+
+        # режими підбору поруч із заголовком; сховані для тренування
+        self.goals_widget = QWidget()
+        goals_row = QHBoxLayout(self.goals_widget)
+        goals_row.setContentsMargins(0, 0, 0, 0)
+        goals_row.setSpacing(2)
+        self.goal_buttons: dict[int, GoalButton] = {}
+        for goal in WIN_GOALS:
+            button = GoalButton()
+            button.setStyleSheet(_GOAL_STYLE)
+            button.reserve_width(WIDEST_GOAL_LABEL)
+            button.setText(f"{goal}/{RACE_COUNT}")
+            button.clicked.connect(lambda g=goal: self.goal_selected.emit(g))
+            self.goal_buttons[goal] = button
+            goals_row.addWidget(button)
+        self.goals_widget.setVisible(False)
 
         self.top_widget = QWidget()
         top_row = QHBoxLayout(self.top_widget)
         top_row.setContentsMargins(0, 0, 0, 0)
         top_row.addWidget(self.header_label)
+        top_row.addWidget(self.goals_widget)
         top_row.addStretch()
         top_row.addWidget(self.toolbar)
 
@@ -590,6 +614,15 @@ class OverlayWindow(QWidget):
         ay = geo.top() + self.height() if anchor_bottom else geo.top()
         return ax, ay, anchor_right, anchor_bottom
 
+    def set_goals(self, labels: dict[int, str] | None, active: int = 0):
+        """Кнопки режимів підбору: {k: «5/5 72%»} і активний k; None — сховати
+        (тренування). Викликати перед update_content — той переобчислює розмір."""
+        self.goals_widget.setVisible(labels is not None)
+        for goal, button in self.goal_buttons.items():
+            if labels is not None:
+                button.setText(labels[goal])
+            button.set_active(goal == active)
+
     def set_save_enabled(self, enabled: bool):
         """Віддзеркалює стан кнопки Save застосунку (нема що зберігати → сіра)."""
         self.save_button.setEnabled(enabled)
@@ -660,6 +693,12 @@ class OverlayWindow(QWidget):
             return
         self._actions_mode = on
         visible = self.isVisible()
+        # край, до якого притиснутий оверлей, і геометрія ДО перемикання:
+        # setWindowFlag ховає вікно, а сховане отримує resize-подію без старого
+        # розміру — resizeEvent не компенсує зміну ширини від появи/зникнення
+        # кнопок керування, тож прив'язаний край тримаємо тут явно
+        anchor_right, anchor_bottom = self._current_side()
+        old_x, old_y, old_w, old_h = self.x(), self.y(), self.width(), self.height()
         # WindowTransparentForInput на Windows застосовується лише після re-show
         self.setWindowFlag(Qt.WindowType.WindowTransparentForInput, not on)
         # у режимі керування картка завжди 100% непрозора; поза ним — за налаштуванням
@@ -668,8 +707,11 @@ class OverlayWindow(QWidget):
         # праворуч унизу Save заступає підказку з хоткеями
         self.drag_handle.setVisible(on)
         self.close_button.setVisible(on)
-        # ширина стека однакова в обох режимах, тож оверлей не міняє розмір
+        # ширина стека однакова в обох режимах; ширину може змінити лише
+        # рядок заголовка (режими підбору + ручка/✕), коли він ширший за таблицю
         self.bottom_right.setCurrentIndex(1 if on else 0)
         self.adjustSize()
+        self.move(old_x + old_w - self.width() if anchor_right else old_x,
+                  old_y + old_h - self.height() if anchor_bottom else old_y)
         if visible:
             self.show()  # WA_ShowWithoutActivating — без крадіжки фокуса в гри

@@ -3,7 +3,7 @@ import statistics
 from typing import NamedTuple
 
 from alu_gauntlet_helper.services.races import CarSuggestion
-from alu_gauntlet_helper.services.challenge_session import RACE_COUNT
+from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, WIN_GOALS
 from alu_gauntlet_helper.services.opponent_picker import Candidate, pick_cars, win_distribution
 
 
@@ -84,6 +84,21 @@ class VsSuggestion(CarSuggestion):
     p: float = 0.5         # win_prob(delta); 0.5 — час суперника невідомий
 
 
+def _planned_cars(session, assignment: dict[int, int]) -> dict[int, int]:
+    """Авто гонок, якби підбір assignment застосували через set_assignments:
+    запінені гонки й гонки з відомим авто/часом лишаються як є."""
+    cars = {}
+    for n in range(1, RACE_COUNT + 1):
+        e = session.effective(n)
+        if e is None:
+            continue
+        if n in session.pinned_races or e.has_car or e.time > 0:
+            cars[n] = e.shown_car_id
+        else:
+            cars[n] = assignment.get(n, 0)
+    return cars
+
+
 class AssistantService:
     """Статистика підбору авто проти суперника. Читає БД через RacesService."""
 
@@ -154,6 +169,30 @@ class AssistantService:
             return
         if force:
             session.clear_pins()
+        self._apply_plan(session)
+
+    def set_goal(self, session, goal: int):
+        """Перемикач режиму 3/5 · 4/5 · 5/5: перепідбирає авто під нову ціль.
+        Ручні піни лишаються — перепідбираються лише незакріплені гонки."""
+        session.set_goal(goal)
+        self.resolve_tracks(session)
+        self._apply_plan(session)
+
+    def _apply_plan(self, session):
+        assignment = self._plan(session, session.goal)
+        if assignment is not None:
+            session.set_assignments(assignment)
+
+    def _plan(self, session, goal: int) -> dict[int, int] | None:
+        """Оптимальне призначення під ціль «≥goal перемог»; сесію не змінює.
+        None — немає жодної гонки, де є що обирати."""
+        race_candidates, fixed = self._pick_inputs(session)
+        if not race_candidates:
+            return None
+        return pick_cars(race_candidates, pinned=fixed, wins_needed=goal)
+
+    def _pick_inputs(self, session) -> tuple[dict[int, list[Candidate]], dict[int, int]]:
+        """Кандидати авто по гонках + зафіксовані авто (піни, зіграні, відомі)."""
         race_candidates: dict[int, list[Candidate]] = {}
         fixed: dict[int, int] = {}  # запінені вручну + зіграні (авто вже витрачене)
         for n in range(1, RACE_COUNT + 1):
@@ -205,24 +244,36 @@ class AssistantService:
                 race_candidates[n] = cands
                 if n in session.pinned_races and e.suggested_car_id:
                     fixed[n] = e.suggested_car_id
-        if not race_candidates:
-            return
-        session.set_assignments(pick_cars(race_candidates, pinned=fixed))
+        return race_candidates, fixed
 
-    def win_chance(self, session) -> float | None:
-        """P(виграти ≥3 з 5) за фактичними/рекомендованими авто. None — немає часів суперника."""
-        dist = self.win_distribution(session)
-        return sum(dist[3:]) if dist else None
+    def goal_distributions(self, session) -> dict[int, list[float]] | None:
+        """{режим k: P(рівно j перемог)} для кнопок 3/5 · 4/5 · 5/5. Активний
+        режим — за показаними авто; інші — за підбором, який дав би перемикач
+        (з тими самими пінами). None — немає часів суперника."""
+        current = self.win_distribution(session)
+        if current is None:
+            return None
+        race_candidates, fixed = self._pick_inputs(session)
+        result = {}
+        for goal in WIN_GOALS:
+            if goal == session.goal or not race_candidates:
+                result[goal] = current
+                continue
+            assignment = pick_cars(race_candidates, pinned=fixed, wins_needed=goal)
+            result[goal] = self.win_distribution(session, _planned_cars(session, assignment))
+        return result
 
-    def win_distribution(self, session) -> list[float] | None:
-        """P(рівно j перемог), j=0..5, за фактичними/рекомендованими авто —
-        для тултіпа-розбивки загального шансу. None — немає часів суперника."""
+    def win_distribution(self, session,
+                         cars: dict[int, int] | None = None) -> list[float] | None:
+        """P(рівно j перемог), j=0..5, за фактичними/рекомендованими авто
+        (або за cars {гонка: авто} — гіпотетичний підбір іншого режиму).
+        None — немає часів суперника."""
         probs = []
         has_opponent = False
         for n in range(1, RACE_COUNT + 1):
             e = session.effective(n)
             opp = e.opponent_time if e else 0
-            car_id = e.shown_car_id if e else 0
+            car_id = 0 if not e else e.shown_car_id if cars is None else cars.get(n, 0)
             if e and opp and e.time > 0:
                 # гонка вже зіграна — результат відомий точно, не оцінка
                 has_opponent = True
@@ -287,7 +338,7 @@ class AssistantService:
         Вага треку — exp(−(d/τ)²) від відносної відстані часу суперника до
         медіани моїх останніх 50 чистих часів на треку (будь-яким авто);
         частки нормовані до 1. СУТО візуальний сигнал: на narrow_track,
-        win_chance і підбір авто не впливає. Порожній dict — оцінювати немає
+        win_distribution і підбір авто не впливає. Порожній dict — оцінювати немає
         сенсу: немає часу суперника або дані є менш ніж у двох кандидатів
         (єдиний трек з даними завжди отримував би оманливі 100%)."""
         if not opponent_time:
@@ -351,7 +402,7 @@ class AssistantService:
         замість «авто, що підходить під відомі треки карти». Авто без даних на
         треку, де дані є в інших, штрафується як невідоме (0.5/маржин 0) —
         суперник міг вибрати саме цей трек. Це правило лише для ПІДБОРУ;
-        win_chance лишається песимістичним по всіх кандидатах (спека §5)."""
+        win_distribution лишається песимістичним по всіх кандидатах (спека §5)."""
         per_track = {tid: cars
                      for tid in track_ids
                      if (cars := {v.car_id: v for v in self.suggestions_vs(tid, opp)})}

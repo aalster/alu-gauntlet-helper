@@ -28,6 +28,12 @@ class FakeCars:
         return {i: self.cars[i] for i in ids if i in self.cars}
 
 
+def chance3(svc, session):
+    """P(≥3 з 5) за показаними авто; None — немає часів суперника."""
+    dist = svc.win_distribution(session)
+    return sum(dist[3:]) if dist else None
+
+
 def service(times_by_car, cars=None):
     ids = list(times_by_car)
     return AssistantService(FakeRaces(times_by_car),
@@ -202,14 +208,14 @@ def test_auto_pick_fixes_scanned_car_without_time():
 def test_win_chance_none_without_opponent_times():
     svc = track_service({7: {501: [19000] * 10}})
     s = session_with(race(1, 7))
-    assert svc.win_chance(s) is None
+    assert chance3(svc, s) is None
 
 
 def test_win_chance_uses_assigned_cars():
     svc = track_service({7: {501: [19000] * 10}})
     s = session_with(race(1, 7, opp_time=25000))
     svc.auto_pick(s)
-    chance = svc.win_chance(s)
+    chance = chance3(svc, s)
     # гонка 1: Δ = 25000 − 19000 = +6000 → Φ(6) ≈ 1; гонки 2-5 невідомі (0.5)
     assert abs(chance - prob_at_least([win_prob(6000), 0.5, 0.5, 0.5, 0.5], 3)) < 1e-9
 
@@ -223,7 +229,7 @@ def test_win_chance_reflects_delta_magnitude():
     s2 = session_with(race(1, 7, opp_time=25000))
     small.auto_pick(s1)
     big.auto_pick(s2)
-    assert big.win_chance(s2) > small.win_chance(s1) + 0.05
+    assert chance3(big, s2) > chance3(small, s1) + 0.05
 
 
 def test_win_distribution_none_without_opponent_times():
@@ -232,7 +238,7 @@ def test_win_distribution_none_without_opponent_times():
     assert svc.win_distribution(s) is None
 
 
-def test_win_distribution_matches_win_chance():
+def test_win_distribution_exact_for_assigned_cars():
     svc = track_service({7: {501: [19000] * 10}})
     s = session_with(race(1, 7, opp_time=25000))
     svc.auto_pick(s)
@@ -240,7 +246,6 @@ def test_win_distribution_matches_win_chance():
     from alu_gauntlet_helper.services.opponent_picker import win_distribution
     expected = win_distribution([win_prob(6000), 0.5, 0.5, 0.5, 0.5])
     assert all(abs(a - b) < 1e-9 for a, b in zip(dist, expected, strict=True))
-    assert abs(sum(dist[3:]) - svc.win_chance(s)) < 1e-9
 
 
 def test_win_chance_driven_race_is_exact():
@@ -249,7 +254,7 @@ def test_win_chance_driven_race_is_exact():
     s = session_with(race(1, 7, opp_time=25000))
     s.apply(RecognitionResult(screen="test", captures=[RaceCapture(
         race_number=1, car=FieldGuess(value=501, score=0.9), time=19100)]))
-    assert abs(svc.win_chance(s) - prob_at_least([1.0, 0.5, 0.5, 0.5, 0.5], 3)) < 1e-9
+    assert abs(chance3(svc, s) - prob_at_least([1.0, 0.5, 0.5, 0.5, 0.5], 3)) < 1e-9
 
 
 def test_beat_stats_with_delta():
@@ -418,7 +423,7 @@ def test_win_chance_pessimistic_min():
     assert s.effective(1).suggested_car_id == 501
     # p гонки 1 = min(Φ(5) на треку 21, 0.5 на 22) = 0.5; решта — монетки
     expected = prob_at_least([0.5, 0.5, 0.5, 0.5, 0.5], 3)
-    assert abs(svc.win_chance(s) - expected) < 1e-9
+    assert abs(chance3(svc, s) - expected) < 1e-9
 
 
 # --- фікси фінального ревʼю: песимізм для невпевненого OCR-треку та ін. ----
@@ -457,7 +462,7 @@ def test_win_chance_pessimistic_for_uncertain_ocr_track():
     svc.auto_pick(s)
     assert s.effective(1).suggested_car_id == 501
     expected = prob_at_least([0.5, 0.5, 0.5, 0.5, 0.5], 3)  # min(Φ(5), 0.5) = 0.5
-    assert abs(svc.win_chance(s) - expected) < 1e-9
+    assert abs(chance3(svc, s) - expected) < 1e-9
 
 
 def test_chip_limit_holds_after_fix_insert():
@@ -560,3 +565,72 @@ def test_unknown_car_on_data_track_still_penalized():
     s = session_with(map_race(1, 5, opp_time=27000))
     svc.auto_pick(s)
     assert s.effective(1).suggested_car_id == 502  # стабільний на обох треках з даними
+
+
+# --- режими підбору 3/5 · 4/5 · 5/5 -----------------------------------------
+# гонки 3–5 зіграні (2 перемоги, програш), вирішують гонки 1–2. Авто 501
+# надійне на треку 7 (p≈0.99) і посереднє на 8 (≈0.6); 502 — ≈0.9 і ≈0.1.
+
+
+def goal_scenario():
+    svc = track_service({7: {501: [22674] * 10, 502: [23718] * 10},
+                         8: {501: [24747] * 10, 502: [26282] * 10}})
+    s = session_with(race(1, 7, 25000), race(2, 8, 25000), race(3, 9, 25000),
+                     race(4, 9, 25000), race(5, 9, 25000))
+    s.apply(RecognitionResult(screen="test", captures=[
+        RaceCapture(race_number=3, car=FieldGuess(value=601, score=0.9), time=20000),
+        RaceCapture(race_number=4, car=FieldGuess(value=602, score=0.9), time=20000),
+        RaceCapture(race_number=5, car=FieldGuess(value=603, score=0.9), time=30000)]))
+    return svc, s
+
+
+def test_new_session_goal_is_5_and_spreads_cars():
+    svc, s = goal_scenario()
+    assert s.goal == 5
+    svc.auto_pick(s)
+    # 5/5 недосяжне → максимум очікуваних перемог: 0.9 + 0.6 > 0.99 + 0.1
+    assert (assigned_car(s, 1), assigned_car(s, 2)) == (502, 501)
+
+
+def test_set_goal_repicks_for_new_target():
+    svc, s = goal_scenario()
+    svc.auto_pick(s)
+    svc.set_goal(s, 3)
+    assert s.goal == 3
+    # 3/5 = ще ≥1 перемога: надійна гонка 1 вигідніша
+    assert (assigned_car(s, 1), assigned_car(s, 2)) == (501, 502)
+    assert s.pinned_races == set()
+
+
+def test_set_goal_keeps_pins():
+    svc, s = goal_scenario()
+    s.set_assigned(2, 999)  # ручний вибір
+    svc.set_goal(s, 3)
+    assert assigned_car(s, 2) == 999
+    assert s.pinned_races == {2}
+    assert assigned_car(s, 1) == 501  # незапінена гонка перепідібрана
+
+
+def test_goal_distributions_show_tradeoff():
+    svc, s = goal_scenario()
+    svc.auto_pick(s)  # режим 5/5
+    dists = svc.goal_distributions(s)
+    assert set(dists) == {3, 4, 5}
+    # активний режим — за показаними авто
+    assert dists[5] == svc.win_distribution(s)
+    # підбір під 3/5 надійніший для ≥3, але програє в ≥4
+    assert sum(dists[3][3:]) > sum(dists[5][3:])
+    assert sum(dists[3][4:]) < sum(dists[5][4:])
+
+
+def test_goal_distributions_none_without_opponent_times():
+    svc = track_service({7: {501: [19000] * 10}})
+    s = session_with(race(1, 7))
+    assert svc.goal_distributions(s) is None
+
+
+def test_clear_resets_goal():
+    s = ChallengeSessionService()
+    s.set_goal(3)
+    s.clear()
+    assert s.goal == 5

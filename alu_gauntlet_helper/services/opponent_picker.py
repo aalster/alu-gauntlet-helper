@@ -1,14 +1,13 @@
-"""Чиста математика автопідбору авто проти суперника (перемога = ≥3 гонки з 5).
+"""Чиста математика автопідбору авто проти суперника: ціль — щонайменше
+k перемог з 5 (режим сесії 3/5, 4/5 чи 5/5).
 
 Обґрунтування K = кількості вільних гонок (аргумент обміну): інші N-1 гонок
 займають щонайбільше N-1 авто з топ-N будь-якої гонки, тож завжди лишається
-вільний кандидат не гірший за будь-якого поза топ-N; P(≥3) монотонна по
+вільний кандидат не гірший за будь-якого поза топ-N; P(≥k) і Σp монотонні по
 кожному p окремо, тому обмін не погіршує рішення. Умова коректності:
 кандидати ранжуються ТИМ САМИМ ключем (p ↓, margin ↓), що й цільова функція.
 """
 from typing import NamedTuple
-
-WINS_NEEDED = 3
 
 
 class Candidate(NamedTuple):
@@ -36,13 +35,16 @@ def prob_at_least(probs: list[float], k: int) -> float:
 
 
 def pick_cars(race_candidates: dict[int, list[Candidate]],
-              pinned: dict[int, int]) -> dict[int, int]:
+              pinned: dict[int, int], wins_needed: int) -> dict[int, int]:
     """Оптимальне призначення різних авто на гонки.
 
     race_candidates — лише гонки, де є що обирати (може бути < 5).
     pinned {race_number: car_id} — зафіксовані вручну: входять у відповідь
     як є, їхні авто виключаються з пулів інших гонок.
-    Ціль: max (P(≥3 перемог), сума маржинів) лексикографічно."""
+    Ціль: max (P(≥wins_needed перемог), очікувана кількість перемог Σp,
+    сума маржинів) лексикографічно. Σp розрізняє варіанти, коли ціль уже
+    досягнута чи вже недосяжна (P(≥k) = 1 або 0 для будь-якого підбору) —
+    тоді виграємо якомога більше гонок."""
     pinned_cars = set(pinned.values())
     free_races = [r for r in sorted(race_candidates) if r not in pinned]
 
@@ -59,13 +61,14 @@ def pick_cars(race_candidates: dict[int, list[Candidate]],
         cand = next((c for c in race_candidates.get(r, []) if c.car_id == car_id), None)
         base_probs.append(cand.p if cand else 0.5)
 
-    best_score = (-1.0, float("-inf"))
+    best_score = (-1.0, -1.0, float("-inf"))
     best_picks: dict[int, int] = {}
 
     def dfs(idx: int, used: set, picks: dict, probs: list, margin_sum: int):
         nonlocal best_score, best_picks
         if idx == len(free_races):
-            score = (prob_at_least(base_probs + probs, WINS_NEEDED), margin_sum)
+            all_probs = base_probs + probs
+            score = (prob_at_least(all_probs, wins_needed), sum(all_probs), margin_sum)
             if score > best_score:
                 best_score, best_picks = score, dict(picks)
             return

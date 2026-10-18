@@ -23,7 +23,7 @@ def test_win_distribution_exact_values():
 
 def test_pick_assigns_distinct_cars():
     shared = [Candidate(1, 0.9, 100), Candidate(2, 0.8, 100), Candidate(3, 0.7, 100)]
-    picks = pick_cars({1: shared, 2: shared, 3: shared}, pinned={})
+    picks = pick_cars({1: shared, 2: shared, 3: shared}, pinned={}, wins_needed=3)
     assert sorted(picks) == [1, 2, 3]
     assert len(set(picks.values())) == 3  # усі авто різні
 
@@ -36,27 +36,28 @@ def test_pick_prefers_reliability_over_one_star_race():
         2: [Candidate(1, 0.6, 50), Candidate(3, 0.55, 40)],
         3: [Candidate(1, 0.95, 300), Candidate(4, 0.5, 10)],
     }
-    picks = pick_cars(candidates, pinned={})
+    picks = pick_cars(candidates, pinned={}, wins_needed=3)
     # оптимум у цьому кейсі єдиний — можна порівняти призначення напряму
-    assert picks == brute_force(candidates)[0]
+    assert picks == brute_force(candidates, 3)[0]
 
 
-def score_of(race_candidates, assignment):
-    """(P(≥3), сума маржинів) призначення — та сама ціль, що й у pick_cars."""
+def score_of(race_candidates, assignment, k):
+    """(P(≥k), Σp, сума маржинів) призначення — та сама ціль, що й у pick_cars."""
     chosen = [next(c for c in race_candidates[r] if c.car_id == car_id)
               for r, car_id in assignment.items()]
-    return (prob_at_least([c.p for c in chosen], 3), sum(c.margin for c in chosen))
+    probs = [c.p for c in chosen]
+    return (prob_at_least(probs, k), sum(probs), sum(c.margin for c in chosen))
 
 
-def brute_force(race_candidates):
+def brute_force(race_candidates, k):
     races = sorted(race_candidates)
-    best, best_score = None, (-1.0, float("-inf"))
+    best, best_score = None, (-1.0, -1.0, float("-inf"))
     pools = [race_candidates[r] for r in races]
     def rec(i, used, acc):
         nonlocal best, best_score
         if i == len(races):
             probs = [c.p for c in acc]
-            score = (prob_at_least(probs, 3), sum(c.margin for c in acc))
+            score = (prob_at_least(probs, k), sum(probs), sum(c.margin for c in acc))
             if score > best_score:
                 best_score, best = score, {r: c.car_id for r, c in zip(races, acc)}
             return
@@ -68,30 +69,34 @@ def brute_force(race_candidates):
 
 
 def test_pick_matches_brute_force_on_dense_case():
-    # 5 гонок × 6 спільних авто з різними p/margin — топ-K не має губити оптимум.
-    # Порівнюємо СКОРИ, а не словники: оптимумів з однаковим скором може бути кілька.
+    # 5 гонок × 6 спільних авто з різними p/margin — топ-K не має губити оптимум
+    # для жодного режиму. Порівнюємо СКОРИ, а не словники: оптимумів з однаковим
+    # скором може бути кілька.
     cars = range(1, 7)
     candidates = {
         r: [Candidate(c, ((c * 7 + r * 3) % 10) / 10 + 0.05, (c * 13 + r * 5) % 200)
             for c in cars]
         for r in range(1, 6)
     }
-    picks = pick_cars(candidates, pinned={})
-    _, best_score = brute_force(candidates)
-    got_p, got_margin = score_of(candidates, picks)
-    assert abs(got_p - best_score[0]) < 1e-9
-    assert got_margin == best_score[1]
+    for k in (3, 4, 5):
+        picks = pick_cars(candidates, pinned={}, wins_needed=k)
+        _, best_score = brute_force(candidates, k)
+        got = score_of(candidates, picks, k)
+        assert abs(got[0] - best_score[0]) < 1e-9
+        assert abs(got[1] - best_score[1]) < 1e-9
+        assert got[2] == best_score[2]
 
 
 def test_pinned_car_excluded_from_other_races():
     shared = [Candidate(1, 0.9, 100), Candidate(2, 0.8, 90), Candidate(3, 0.7, 80)]
-    picks = pick_cars({1: shared, 2: shared, 3: shared}, pinned={2: 1})
+    picks = pick_cars({1: shared, 2: shared, 3: shared}, pinned={2: 1}, wins_needed=3)
     assert picks[2] == 1
     assert picks[1] != 1 and picks[3] != 1
 
 
 def test_race_without_free_candidates_left_unassigned():
-    picks = pick_cars({1: [Candidate(1, 0.9, 10)], 2: [Candidate(1, 0.9, 10)]}, pinned={})
+    picks = pick_cars({1: [Candidate(1, 0.9, 10)], 2: [Candidate(1, 0.9, 10)]},
+                      pinned={}, wins_needed=3)
     # авто одне на двох — одна гонка лишається без призначення
     assert len(picks) == 1
 
@@ -101,5 +106,35 @@ def test_tie_break_by_margin_sum():
         1: [Candidate(1, 0.8, 10), Candidate(2, 0.8, 500)],
         2: [Candidate(1, 0.8, 500), Candidate(2, 0.8, 10)],
     }
-    picks = pick_cars(candidates, pinned={})
+    picks = pick_cars(candidates, pinned={}, wins_needed=3)
     assert picks == {1: 2, 2: 1}  # однакове P, але сума маржинів 1000 > 20
+
+
+# --- режими 3/5 · 4/5 · 5/5 ---------------------------------------------------
+# гонки 3–5 зіграні: 2 перемоги (p=1) і програш (p=0); вирішують гонки 1–2.
+# Авто A (1) надійне на гонці 1, B (2) там трохи гірше, а на гонці 2 — слабке.
+DECIDED = {3: [Candidate(3, 1.0, 0)], 4: [Candidate(4, 1.0, 0)], 5: [Candidate(5, 0.0, 0)]}
+PLAYED = {3: 3, 4: 4, 5: 5}
+OPEN = {
+    1: [Candidate(1, 0.99, 900), Candidate(2, 0.9, 500)],
+    2: [Candidate(1, 0.6, 100), Candidate(2, 0.1, -900)],
+}
+
+
+def test_goal_3_secures_one_race():
+    # 3/5 = ще ≥1 з двох: A на гонку 1 → 1 − 0.01·0.9 = 0.991 > 1 − 0.1·0.4 = 0.96
+    picks = pick_cars({**OPEN, **DECIDED}, pinned=PLAYED, wins_needed=3)
+    assert (picks[1], picks[2]) == (1, 2)
+
+
+def test_goal_4_spreads_cars_to_win_both():
+    # 4/5 = обидві: 0.99·0.1 = 0.099 < 0.9·0.6 = 0.54 — A іде на гонку 2
+    picks = pick_cars({**OPEN, **DECIDED}, pinned=PLAYED, wins_needed=4)
+    assert (picks[1], picks[2]) == (2, 1)
+
+
+def test_unreachable_goal_falls_back_to_expected_wins():
+    # 5/5 недосяжне (гонку 5 програно): P = 0 для будь-якого підбору, тож
+    # вирішує Σp — 0.9 + 0.6 = 1.5 > 0.99 + 0.1 = 1.09, хоч маржин і менший
+    picks = pick_cars({**OPEN, **DECIDED}, pinned=PLAYED, wins_needed=5)
+    assert (picks[1], picks[2]) == (2, 1)

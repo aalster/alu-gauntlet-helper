@@ -1,4 +1,5 @@
 from alu_gauntlet_helper import ui_lang
+from alu_gauntlet_helper.services.challenge_session import RACE_COUNT
 from alu_gauntlet_helper.utils.utils import format_signed_delta, format_time
 from alu_gauntlet_helper.views import style
 
@@ -17,17 +18,38 @@ def _row(value: str, label: str) -> str:
             f"<td style='padding-left:8px;white-space:nowrap'>{label}</td></tr>")
 
 
-def win_chance_tooltip(dist: list[float]) -> str:
-    """Тултіп загального шансу перемоги — таблиця «{p}% | шанс виграти
-    щонайменше N гонки» для N=3..4 і «... всі гонки» для N=5: за 4 і 5 перемог
-    дають додаткові очки, тож це бонус поверх перемоги (≥3). Перший відсоток
-    збігається з великою цифрою; кольори — ті самі пороги win_chance_color."""
+def goal_percent(dist: list[float], goal: int) -> int:
+    """P(≥goal перемог) у відсотках — число на кнопці режиму."""
+    return round(sum(dist[goal:]) * 100)
+
+
+def goal_label(goal: int, dist: list[float] | None) -> str:
+    """Rich-text підпис кнопки режиму: «5/5» кольору кнопки + «72%» кольору
+    шансу (пороги win_chance_color); без часів суперника — просто «5/5»."""
+    label = f"{goal}/{RACE_COUNT}"
+    if dist is None:
+        return label
+    pct = goal_percent(dist, goal)
+    return f"{label} <span style='color:{style.win_chance_color(pct)}'>{pct}%</span>"
+
+
+# найширший підпис — під нього резервується ширина кнопки (GoalButton.reserve_width)
+WIDEST_GOAL_LABEL = goal_label(RACE_COUNT, [0.0] * RACE_COUNT + [1.0])
+
+
+def win_chance_tooltip(dist: list[float], goal: int | None = None) -> str:
+    """Тултіп кнопки режиму — таблиця «{p}% | шанс виграти щонайменше N
+    гонки» для N=3..4 і «... всі гонки» для N=5 за підбором цього режиму;
+    рядок самого режиму (goal) жирний — його відсоток і є на кнопці.
+    Кольори — пороги win_chance_color."""
     rows = []
     for n in range(3, len(dist)):
-        pct = round(sum(dist[n:]) * 100)
+        pct = goal_percent(dist, n)
         p = f"<span style='color:{style.win_chance_color(pct)}'>{pct}%</span>"
         label = (ui_lang.t("assistant.win_all") if n == len(dist) - 1
                  else ui_lang.t("assistant.win_at_least").format(n=n))
+        if n == goal:
+            p, label = f"<b>{p}</b>", f"<b>{label}</b>"
         rows.append(_row(p, label))
     return "<table cellspacing='0' cellpadding='1'>" + "".join(rows) + "</table>"
 
