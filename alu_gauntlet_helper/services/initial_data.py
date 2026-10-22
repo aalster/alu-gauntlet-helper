@@ -31,10 +31,19 @@ def _bundled_track_preview(map_name: str, track_name: str) -> str:
 
 
 def sync_track_icons():
-    """Кожен старт: підтягує іконку та превʼю маршруту з бандла для треків без власної.
+    """Кожен старт: підтягує іконки карт і треків (іконка + превʼю маршруту) з бандла для тих, що без власної.
 
-    Не додає й не воскрешає видалені треки і не чіпає вже встановлені (зокрема правки користувача).
+    Не додає й не воскрешає видалені карти/треки і не чіпає вже встановлені (зокрема правки користувача).
+    Карти/треки, долиті міграцією в наявну БД (або в нову БД до сіду), отримують іконки саме тут.
     """
+    for map_ in APP_CONTEXT.maps_service.autocomplete(""):
+        if map_.icon:
+            continue
+        icon_file = f"{map_.name}.png"
+        icon_path = copy_resource_to_data(f"icons/maps/{icon_file}", os.path.join(DATA_PATH_MAPS, icon_file))
+        if icon_path:
+            map_.icon = icon_path
+            APP_CONTEXT.maps_service.repo.update(map_)
     for track in APP_CONTEXT.tracks_service.get_all_views():
         if track.icon and track.icon_preview:
             continue
@@ -58,14 +67,18 @@ map_names = [
     ("Auckland", "Окленд"),
     ("Buenos Aires", "Буэнос-Айрес"),
     ("Cairo", "Каир"),
+    ("Chicago", "Чикаго"),
     ("Greenland", "Гренландия"),
     ("Himalayas", "Гималаи"),
+    ("India", "Индия"),
+    ("Mt. Fuji", ""),  # у рос. версії гри без перекладу
     ("Nevada", "Невада"),
     ("New York", "Нью-Йорк"),
     ("Norway", "Норвегия"),
     ("Osaka", "Осака"),
     ("Paris", "Париж"),
     ("Rome", "Рим"),
+    ("San Diego", "Сан-Диего"),
     ("San Francisco", "Сан-Франциско"),
     ("Scotland", "Шотландия"),
     ("Shanghai", "Шанхай"),
@@ -87,10 +100,16 @@ tracks = [
     TrackView(map_name="Buenos Aires", name="Water Run", name_ru="Водный Заезд"),
     TrackView(map_name="Cairo", name="A Kings Revival", name_ru="Возвращение Короля"),
     TrackView(map_name="Cairo", name="Gezira Island", name_ru="Остров Гезира"),
+    TrackView(map_name="Chicago", name="Echo Drift", name_ru="Эходрифт"),
+    TrackView(map_name="Chicago", name="Ironclad Descent", name_ru="Жесткая Посадка"),
     TrackView(map_name="Greenland", name="Ice Breakers", name_ru="Ледоломы"),
     TrackView(map_name="Greenland", name="Out of the Center", name_ru="Из Центра"),
     TrackView(map_name="Himalayas", name="Freefall", name_ru="Свободное Падение"),
     TrackView(map_name="Himalayas", name="Leap of Faith", name_ru="Прыжок Веры"),
+    TrackView(map_name="India", name="Gravel Grooves", name_ru="Гравиевые Дороги"),
+    TrackView(map_name="India", name="Rock Terrain", name_ru="Скалистая Местность"),
+    TrackView(map_name="Mt. Fuji", name="Countryside Sprint", name_ru="Деревенский Спринт"),
+    TrackView(map_name="Mt. Fuji", name="Bullet Train Sprint", name_ru="Молниеносный Спринт"),
     TrackView(map_name="Nevada", name="Bridge to Bridge", name_ru="От Моста к Мосту"),
     TrackView(map_name="Nevada", name="Tunnel Sprint", name_ru="Туннельный Спринт"),
     TrackView(map_name="New York", name="A Run in the Park", name_ru="Пробежка по Парку"),
@@ -105,6 +124,8 @@ tracks = [
     TrackView(map_name="Paris", name="Notre Dame", name_ru="Нотр-Дам"),
     TrackView(map_name="Rome", name="Roman Byroads", name_ru="Римские Тропы"),
     TrackView(map_name="Rome", name="Roman Tumble", name_ru="Римские Качели"),
+    TrackView(map_name="San Diego", name="Container Chaos", name_ru="Контейнерный Хаос"),
+    TrackView(map_name="San Diego", name="Pacific Rampage", name_ru="Океаническая Ярость"),
     TrackView(map_name="San Francisco", name="Railroad Bustle", name_ru="Железная Дорога"),
     TrackView(map_name="San Francisco", name="The Tunnel", name_ru="Тоннель"),
     TrackView(map_name="Scotland", name="Ghost Ships", name_ru="Летучий Голландец"),

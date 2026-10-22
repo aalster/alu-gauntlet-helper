@@ -82,9 +82,10 @@ class TrackResolver:
             map_ru = getattr(t, "map_name_ru", "")
             name_ru = getattr(t, "name_ru", "")
             variants = [(t.map_name, t.name)]
-            if map_ru:
-                # трек без перекладу → у грі під рос. картою лишається англ. назва
-                variants.append((map_ru, name_ru or t.name))
+            if map_ru or name_ru:
+                # трек без перекладу → у грі під рос. картою лишається англ. назва;
+                # карта без перекладу (Mt. Fuji) → під англ. картою рос. назва треку
+                variants.append((map_ru or t.map_name, name_ru or t.name))
             for map_name, track_name in variants:
                 norm_map = normalize(map_name)
                 if not norm_map:

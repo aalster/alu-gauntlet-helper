@@ -112,3 +112,37 @@ def test_track_with_empty_map_name_resolves_via_fallback():
     resolver = TrackResolver(local_tracks)
     guess = resolver.resolve("Ghost Circuit")
     assert guess and guess.value == 10
+
+
+def tv_ru(track_id: int, name: str, map_name: str, name_ru: str, map_name_ru: str):
+    return SimpleNamespace(id=track_id, name=name, map_name=map_name, name_ru=name_ru, map_name_ru=map_name_ru)
+
+
+RU_TRACKS = [
+    # карта з перекладом: на RU-екрані і карта, і трек російською
+    tv_ru(20, "Echo Drift", "Chicago", "Эходрифт", "Чикаго"),
+    tv_ru(21, "Ironclad Descent", "Chicago", "Жесткая Посадка", "Чикаго"),
+    # карта без перекладу (Mt. Fuji): на RU-екрані англ. карта + рос. назва треку
+    tv_ru(22, "Countryside Sprint", "Mt. Fuji", "Деревенский Спринт", ""),
+    tv_ru(23, "Bullet Train Sprint", "Mt. Fuji", "Молниеносный Спринт", ""),
+]
+
+
+def test_ru_screen_translated_map_and_track():
+    resolver = TrackResolver(RU_TRACKS)
+    guess = resolver.resolve("ЧИКАГО\nЖЕСТКАЯ ПОСАДКА")
+    assert guess and guess.value == 21
+
+
+def test_ru_screen_untranslated_map_with_ru_track_name():
+    resolver = TrackResolver(RU_TRACKS)
+    guess = resolver.resolve("MT. FUJI\nМОЛНИЕНОСНЫЙ СПРИНТ")
+    assert guess and guess.value == 23
+    guess = resolver.resolve("MT. FUJI\nДЕРЕВЕНСКИЙ СПРИНТ")
+    assert guess and guess.value == 22
+
+
+def test_en_screen_untranslated_map_still_resolves_english_track():
+    resolver = TrackResolver(RU_TRACKS)
+    guess = resolver.resolve("MT. FUJI\nBULLET TRAIN SPRINT")
+    assert guess and guess.value == 23
