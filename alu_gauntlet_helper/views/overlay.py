@@ -306,15 +306,23 @@ _HANDLE_STYLE = (
 )
 _HANDLE_HOVER_STYLE = _HANDLE_STYLE + f" border: 1px solid {CYAN};"
 # режими підбору 3/5 · 4/5 · 5/5 у заголовку: неактивні — просто текст,
-# активний — темний фон без рамки; ховер (лише в Ctrl+Alt, інакше вікно
-# click-through) — той самий фон
-_GOAL_STYLE = (
-    f"QLabel {{ background-color: transparent; color: #9aa0c0;"
-    f" border: none; border-radius: 4px; padding: 2px 6px;"
-    f" font-size: 13px; font-weight: bold; }}"
-    f"QLabel:hover {{ background-color: {_SECONDARY_BG}; }}"
-    f"QLabel[active=\"true\"] {{ background-color: {_SECONDARY_BG}; color: {TEXT}; }}"
-)
+# активний — фон без рамки. У режимі керування (Ctrl+Alt) картка непрозора,
+# тож активний — secondary-фон застосунку, як у табі; ховер (лише там, інакше
+# вікно click-through) — той самий фон. Поза ним картка напівпрозора, і
+# суцільний фон виглядав би плямою — активний лише трохи затемнює картку
+# напівпрозорим чорним.
+_GOAL_ACTIVE_TRANSLUCENT = "rgba(0, 0, 12, 110)"
+
+
+def _goal_style(actions_mode: bool) -> str:
+    active_bg = _SECONDARY_BG if actions_mode else _GOAL_ACTIVE_TRANSLUCENT
+    return (
+        f"QLabel {{ background-color: transparent; color: #9aa0c0;"
+        f" border: none; border-radius: 4px; padding: 2px 6px;"
+        f" font-size: 13px; font-weight: bold; }}"
+        f"QLabel:hover {{ background-color: {_SECONDARY_BG}; }}"
+        f"QLabel[active=\"true\"] {{ background-color: {active_bg}; color: {TEXT}; }}"
+    )
 
 
 class _DragHandle(QLabel):
@@ -454,7 +462,7 @@ class OverlayWindow(QWidget):
         self.goal_buttons: dict[int, GoalButton] = {}
         for goal in WIN_GOALS:
             button = GoalButton()
-            button.setStyleSheet(_GOAL_STYLE)
+            button.setStyleSheet(_goal_style(False))
             button.reserve_width(WIDEST_GOAL_LABEL)
             button.setText(f"{goal}/{RACE_COUNT}")
             button.clicked.connect(lambda g=goal: self.goal_selected.emit(g))
@@ -615,11 +623,16 @@ class OverlayWindow(QWidget):
         return ax, ay, anchor_right, anchor_bottom
 
     def set_goals(self, labels: dict[int, str] | None, active: int = 0):
-        """Кнопки режимів підбору: {k: «5/5 72%»} і активний k; None — сховати
-        (тренування). Викликати перед update_content — той переобчислює розмір."""
+        """Кнопки режимів підбору: {k: «5/5 72%»} лише для режимів, які варто
+        показувати (visible_goals), і активний k; None — сховати все
+        (тренування). Активний режим може бути поза labels — тоді жодна
+        видима кнопка не підсвічена. Викликати перед update_content — той
+        переобчислює розмір."""
         self.goals_widget.setVisible(labels is not None)
         for goal, button in self.goal_buttons.items():
-            if labels is not None:
+            shown = labels is not None and goal in labels
+            button.setVisible(shown)
+            if shown:
                 button.setText(labels[goal])
             button.set_active(goal == active)
 
@@ -703,6 +716,8 @@ class OverlayWindow(QWidget):
         self.setWindowFlag(Qt.WindowType.WindowTransparentForInput, not on)
         # у режимі керування картка завжди 100% непрозора; поза ним — за налаштуванням
         self.card.setStyleSheet(_card_style(100 if on else self._opacity_percent, on))
+        for button in self.goal_buttons.values():
+            button.setStyleSheet(_goal_style(on))
         # контроли активні лише коли оверлей ловить мишу (Ctrl+Alt);
         # праворуч унизу Save заступає підказку з хоткеями
         self.drag_handle.setVisible(on)

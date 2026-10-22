@@ -3,7 +3,8 @@ import statistics
 from typing import NamedTuple
 
 from alu_gauntlet_helper.services.races import CarSuggestion
-from alu_gauntlet_helper.services.challenge_session import RACE_COUNT, WIN_GOALS
+from alu_gauntlet_helper.services.challenge_session import (RACE_COUNT, WIN_GOALS,
+                                                            reachable_goal)
 from alu_gauntlet_helper.services.opponent_picker import Candidate, pick_cars, win_distribution
 
 
@@ -177,6 +178,15 @@ class AssistantService:
         session.set_goal(goal)
         self.resolve_tracks(session)
         self._apply_plan(session)
+
+    def reconcile_goal(self, session):
+        """Після кожного скану челенджа: якщо ціль стала недосяжною (програш)
+        чи вже перевищена (перемоги), перемикає на найближчу досяжну й
+        перепідбирає авто — як клік по кнопці режиму."""
+        won, lost, _ = session.outcomes()
+        goal = reachable_goal(session.goal, won, lost)
+        if goal != session.goal:
+            self.set_goal(session, goal)
 
     def _apply_plan(self, session):
         assignment = self._plan(session, session.goal)

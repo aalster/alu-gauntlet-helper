@@ -13,6 +13,29 @@ WIN_GOALS = (3, 4, RACE_COUNT)
 DEFAULT_GOAL = RACE_COUNT
 
 
+def visible_goals(won: int, lost: int, no_data: int) -> tuple[int, ...]:
+    """Які кнопки режиму показувати на оверлеї: лише ще досяжні й ще не
+    перевищені цілі — k у межах won ≤ k ≤ 5 − lost − no_data. Гонка без
+    даних вважається пропущеною (гравець часто їде лише 3 з 5 і треки
+    решти не сканує). Коли межі порожні (нова сесія без сканів, 3 програші),
+    лишається найнижча ціль — хоч одна кнопка видима завжди."""
+    hi = RACE_COUNT - lost - no_data
+    goals = tuple(g for g in WIN_GOALS if won <= g <= hi)
+    return goals or (WIN_GOALS[0],)
+
+
+def reachable_goal(goal: int, won: int, lost: int) -> int:
+    """Ціль, під яку є сенс підбирати: поточна, якщо її ще можна досягти й вона
+    не нижча за вже вигране, інакше найближча така. Гонки без даних тут не
+    враховуються: вони ще можуть бути зіграні (гравець зазвичай спершу
+    підбирає всі авто й лише потім їде), тож автоперемикання реагує лише
+    на факти — програші та перемоги."""
+    goals = [g for g in WIN_GOALS if won <= g <= RACE_COUNT - lost]
+    if not goals:
+        return WIN_GOALS[0]
+    return goal if goal in goals else min(goals, key=lambda g: abs(g - goal))
+
+
 class EffectiveRace(BaseModel):
     """Злиті дані гонки: драфт юзера поверх OCR. Єдине джерело для таба/оверлея/збереження."""
     track_id: int = 0
@@ -300,6 +323,22 @@ class ChallengeSessionService:
         if any(c.time for c in self.races.values()):
             return False
         return not any(d.time or d.note or d.bad_timing for d in self.drafts.values())
+
+    def outcomes(self) -> tuple[int, int, int]:
+        """(виграно, програно, без даних) по 5 гонках. Результат відомий лише
+        для зіграної гонки з часом суперника; нічия = програш, як в оцінці
+        шансів (гра ховає мілісекунди, тож рівні часи — умовність)."""
+        won = lost = no_data = 0
+        for n in range(1, RACE_COUNT + 1):
+            e = self.effective(n)
+            if e is None:
+                no_data += 1
+            elif e.time > 0 and e.opponent_time > 0:
+                if e.time < e.opponent_time:
+                    won += 1
+                else:
+                    lost += 1
+        return won, lost, no_data
 
     @property
     def timed_count(self) -> int:

@@ -640,3 +640,61 @@ def test_track_fix_notifies_and_clears():
     assert len(events) == 1
     s.clear()
     assert s.track_fix == {} and s.inferred_tracks == set()
+
+
+# --- видимість режимів 3/5 · 4/5 · 5/5 і досяжна ціль ---------------------
+
+from alu_gauntlet_helper.services.challenge_session import reachable_goal, visible_goals
+
+
+def test_outcomes_counts_won_lost_and_no_data():
+    s = ChallengeSessionService()
+    s.apply(result(
+        RaceCapture(race_number=1, time=19000, opponent_time=20000),  # виграш
+        RaceCapture(race_number=2, time=21000, opponent_time=20000),  # програш
+        RaceCapture(race_number=3, time=20000, opponent_time=20000),  # нічия = програш
+        RaceCapture(race_number=4, opponent_time=20000),              # ще не зіграна
+    ))
+    assert s.outcomes() == (1, 2, 1)
+
+
+def test_outcomes_played_without_opponent_time_is_neither():
+    s = ChallengeSessionService()
+    s.apply(result(capture(1, time=19000)))
+    assert s.outcomes() == (0, 0, 4)
+
+
+def test_visible_goals_hides_unreachable_by_no_data():
+    assert visible_goals(0, 0, 0) == (3, 4, 5)
+    assert visible_goals(0, 0, 1) == (3, 4)
+    assert visible_goals(0, 0, 2) == (3,)
+
+
+def test_visible_goals_hides_unreachable_by_losses():
+    assert visible_goals(0, 1, 0) == (3, 4)
+    assert visible_goals(0, 2, 0) == (3,)
+    assert visible_goals(0, 1, 1) == (3,)
+
+
+def test_visible_goals_hides_already_exceeded():
+    assert visible_goals(3, 0, 0) == (3, 4, 5)
+    assert visible_goals(4, 0, 0) == (4, 5)
+    assert visible_goals(5, 0, 0) == (5,)
+    assert visible_goals(4, 1, 0) == (4,)
+
+
+def test_visible_goals_always_at_least_lowest():
+    assert visible_goals(0, 0, 5) == (3,)   # нова сесія без сканів
+    assert visible_goals(0, 3, 0) == (3,)   # челендж програно
+    assert visible_goals(1, 2, 2) == (3,)
+
+
+def test_reachable_goal_ignores_no_data_and_clamps_by_facts():
+    assert reachable_goal(5, 0, 0) == 5
+    assert reachable_goal(5, 0, 1) == 4
+    assert reachable_goal(5, 0, 2) == 3
+    assert reachable_goal(5, 0, 3) == 3
+    assert reachable_goal(4, 0, 1) == 4
+    assert reachable_goal(3, 4, 0) == 4
+    assert reachable_goal(3, 5, 0) == 5
+    assert reachable_goal(4, 5, 0) == 5

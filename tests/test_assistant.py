@@ -634,3 +634,25 @@ def test_clear_resets_goal():
     s.set_goal(3)
     s.clear()
     assert s.goal == 5
+
+
+# --- автоперемикання цілі, коли вона стала недосяжною ----------------------
+
+def test_reconcile_goal_switches_after_loss_and_repicks():
+    svc = track_service({1: {1: [19000]}, 2: {2: [19000]}, 3: {3: [19000]}})
+    s = session_with(race(1, 1, 20000), race(2, 2, 20000), race(3, 3, 20000))
+    svc.auto_pick(s)
+    assert s.goal == 5
+    s.apply(RecognitionResult(screen="test", captures=[
+        RaceCapture(race_number=1, time=21000, car=FieldGuess(value=1, score=0.9))]))
+    svc.reconcile_goal(s)
+    assert s.goal == 4
+    assert assigned_car(s, 2) and assigned_car(s, 3)  # підбір перерахований
+
+
+def test_reconcile_goal_keeps_reachable_goal():
+    svc = track_service({1: {1: [19000]}})
+    s = session_with(race(1, 1, 20000))
+    s.set_goal(4)
+    svc.reconcile_goal(s)
+    assert s.goal == 4

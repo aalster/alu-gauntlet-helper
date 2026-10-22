@@ -22,7 +22,7 @@ from alu_gauntlet_helper.screen_recognition.screens.race_result import RaceResul
 from alu_gauntlet_helper.screen_recognition.screens.training_lobby import TrainingLobbyExtractor
 from alu_gauntlet_helper.screen_recognition.screens.training_result import TrainingResultExtractor
 from alu_gauntlet_helper.services.challenge_session import (LOW_CONFIDENCE, RACE_COUNT,
-                                                            WIN_GOALS)
+                                                            visible_goals)
 from alu_gauntlet_helper.services.training_session import TrainingSessionService
 from alu_gauntlet_helper.views.components.chip_tooltip import goal_label
 from alu_gauntlet_helper.views.overlay import (OverlayWindow, build_races_table,
@@ -350,9 +350,12 @@ class CaptureController(QObject):
                       and (grade := APP_CONTEXT.assistant.run_grade(
                           e.track_id, e.car_id, e.time)) is not None}
 
+        # лише ще досяжні/не перевищені режими — оверлей не захаращуємо
+        # кнопками, які вже не мають сенсу (гонки без даних = пропущені)
         dists = APP_CONTEXT.assistant.goal_distributions(session)
         self.overlay.set_goals({goal: goal_label(goal, dists[goal] if dists else None)
-                                for goal in WIN_GOALS}, session.goal)
+                                for goal in visible_goals(*session.outcomes())},
+                               session.goal)
         self._push_overlay(
             session,
             header_text(effective),

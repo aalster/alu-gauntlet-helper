@@ -24,6 +24,7 @@ class AppContext:
         self.races_service = RacesService(RacesRepository(), self.tracks_service, self.cars_service)
         self.assistant = AssistantService(self.races_service, self.cars_service,
                                           self.tracks_service)
-        self.session_manager = SessionManager(auto_pick=self.assistant.auto_pick)
+        self.session_manager = SessionManager(auto_pick=self.assistant.auto_pick,
+                                              reconcile_goal=self.assistant.reconcile_goal)
 
 APP_CONTEXT: AppContext = AppContext()

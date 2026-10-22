@@ -268,3 +268,19 @@ def test_auto_pick_not_called_for_training_scans():
     m.apply(lobby_result())
     m.apply(run_result(26499))
     assert picked == []
+
+
+def test_reconcile_goal_called_after_every_challenge_scan():
+    seen = []
+    m = SessionManager(reconcile_goal=lambda s: seen.append(s))
+    m.apply(result(capture(1, time=20000)))      # мій результат — теж тригер
+    m.apply(result(capture(1, opp_time=19152)))
+    assert seen == [m.active, m.active]
+
+
+def test_reconcile_goal_not_called_for_training_scans():
+    seen = []
+    m = SessionManager(reconcile_goal=lambda s: seen.append(s))
+    m.apply(RecognitionResult(screen="training_lobby", captures=[
+        RaceCapture(race_number=1, track=FieldGuess(value=11, score=0.9))]))
+    assert seen == []

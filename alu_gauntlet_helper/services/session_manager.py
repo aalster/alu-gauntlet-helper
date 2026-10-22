@@ -26,8 +26,10 @@ class SessionManager:
     зникає, цінна — лишається в списку табом (read-only для сканів, поки
     сумісний скан її не реактивує). Викликається тільки з UI-потоку."""
 
-    def __init__(self, auto_pick: Callable[[ChallengeSessionService], None] | None = None):
+    def __init__(self, auto_pick: Callable[[ChallengeSessionService], None] | None = None,
+                 reconcile_goal: Callable[[ChallengeSessionService], None] | None = None):
         self._auto_pick = auto_pick
+        self._reconcile_goal = reconcile_goal
         self.sessions: list[Session] = []
         self._active: Session | None = None
         self._listeners: list[Callable[[], None]] = []
@@ -127,6 +129,11 @@ class SessionManager:
         self._active.apply(result)  # сесія сама нотифікує через ретрансляцію
         if is_training:
             return  # автопідбір — суто челенджева механіка
+        # мій результат міг зробити ціль недосяжною (програш) або
+        # перевищеною — перемикаємо режим до підбору, щоб він рахувався під
+        # реальну мету
+        if self._reconcile_goal:
+            self._reconcile_goal(self._active)
         has_opponent_data = any(c.opponent_time or c.opponent_car or c.map or c.track
                                 for c in result.captures)
         if has_opponent_data and self._auto_pick:
