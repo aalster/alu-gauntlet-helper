@@ -15,6 +15,7 @@ class Car(BaseModel):
     car_class: str = ""
     rank: int = 0
     max_rank: int = 0
+    evo: bool = False  # ранг можна підняти вище max_rank evo-деталями (не оверклок)
     favorite: bool = False
     icon: str = ""
 
@@ -35,8 +36,8 @@ class CarsRepository:
     def add(self, item: Car) -> int:
         with connect() as conn:
             return conn.execute(
-                "INSERT INTO cars(asec_id, name, brand, model, car_class, `rank`, max_rank, favorite, icon)"
-                " VALUES (:asec_id, :name, :brand, :model, :car_class, :rank, :max_rank, :favorite, :icon)",
+                "INSERT INTO cars(asec_id, name, brand, model, car_class, `rank`, max_rank, evo, favorite, icon)"
+                " VALUES (:asec_id, :name, :brand, :model, :car_class, :rank, :max_rank, :evo, :favorite, :icon)",
                 item.model_dump()).lastrowid
 
 
@@ -91,7 +92,8 @@ class CarsRepository:
         with connect() as conn:
             rank_update = ", `rank` = :rank" if update_empty_rank or item.rank > 0 else ""
             conn.execute(f"UPDATE cars SET asec_id = :asec_id, name = :name, brand = :brand, model = :model,"
-                         f" car_class = :car_class, max_rank = :max_rank, favorite = :favorite, icon = :icon {rank_update}"
+                         f" car_class = :car_class, max_rank = :max_rank, evo = :evo, favorite = :favorite,"
+                         f" icon = :icon {rank_update}"
                          f" WHERE id = :id", item.model_dump())
 
     def toggle_favorite(self, car_id: int):
@@ -125,12 +127,12 @@ class CarsRepository:
             for item in updates:
                 conn.execute(
                     "UPDATE cars SET asec_id = :asec_id, name = :name, brand = :brand, model = :model,"
-                    " car_class = :car_class, max_rank = :max_rank, icon = :icon WHERE id = :id",
+                    " car_class = :car_class, max_rank = :max_rank, evo = :evo, icon = :icon WHERE id = :id",
                     item.model_dump())
             for item in inserts:
                 conn.execute(
-                    "INSERT INTO cars(asec_id, name, brand, model, car_class, `rank`, max_rank, favorite, icon)"
-                    " VALUES (:asec_id, :name, :brand, :model, :car_class, :rank, :max_rank, :favorite, :icon)",
+                    "INSERT INTO cars(asec_id, name, brand, model, car_class, `rank`, max_rank, evo, favorite, icon)"
+                    " VALUES (:asec_id, :name, :brand, :model, :car_class, :rank, :max_rank, :evo, :favorite, :icon)",
                     item.model_dump())
 
 
@@ -229,12 +231,13 @@ class CarsService(Observable):
         icon = self._resolve_icon(asec_id)
         car_class = entry.get("car_class") or ""
         max_rank = entry.get("max_rank") or 0
+        evo = bool(entry.get("evo"))
 
         if car:
             new_icon = icon or car.icon
             if (car.asec_id == asec_id and car.name == name and car.brand == brand
                     and car.model == model and car.car_class == car_class
-                    and car.max_rank == max_rank and car.icon == new_icon):
+                    and car.max_rank == max_rank and car.evo == evo and car.icon == new_icon):
                 return None  # без змін — не пишемо
             car.asec_id = asec_id
             car.name = name
@@ -242,11 +245,12 @@ class CarsService(Observable):
             car.model = model
             car.car_class = car_class
             car.max_rank = max_rank
+            car.evo = evo
             car.icon = new_icon
             return "update", car
 
         new_car = Car(asec_id=asec_id, name=name, brand=brand, model=model,
-                      car_class=car_class, max_rank=max_rank, icon=icon)
+                      car_class=car_class, max_rank=max_rank, evo=evo, icon=icon)
         # реєструємо, щоб дублікати в межах одного бандла не призвели до подвійного insert
         by_asec[asec_id] = new_car
         by_name[name.lower()] = new_car

@@ -38,6 +38,7 @@ class RaceView(Race):
     car_class: str = ""
     car_rank: int = 0
     car_max_rank: int = 0
+    car_evo: bool = False
     car_icon: str = ""
 
     @property
@@ -65,6 +66,7 @@ class RaceAggregate(BaseModel):
     car_class: str = ""
     car_rank: int = 0
     car_max_rank: int = 0
+    car_evo: bool = False
     car_icon: str = ""
     best_time: int = 0
     avg_recent: int = 0  # середнє за останні 10 заїздів без дизлайків
@@ -347,6 +349,7 @@ class RacesService(Observable):
                 car_class=car.car_class if car else "",
                 car_rank=car.rank if car else 0,
                 car_max_rank=car.max_rank if car else 0,
+                car_evo=car.evo if car else False,
                 car_icon=car.icon if car else ""
             ))
         return result
@@ -385,6 +388,7 @@ class RacesService(Observable):
                 car_class=car.car_class if car else "",
                 car_rank=car.rank if car else 0,
                 car_max_rank=car.max_rank if car else 0,
+                car_evo=car.evo if car else False,
                 car_icon=car.icon if car else "",
                 best_time=int(s["best_time"] or 0),
                 avg_recent=int(s["avg_recent"] or 0),

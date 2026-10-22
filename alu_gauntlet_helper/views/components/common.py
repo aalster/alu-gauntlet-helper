@@ -83,34 +83,50 @@ class ListItemWidget(QWidget):
         hint.setHeight(hint.height() + self.ITEM_CHROME_HEIGHT)
         list_item.setSizeHint(hint)
 
+OC_ICON = "icons/ocActive.webp"
+EVO_ICON = "icons/evoActive.webp"
+
+
+def rank_badge_parts(rank: int, max_rank: int, evo: bool = False) -> tuple[str, str]:
+    """Текст бейджа рангу і службова іконка зліва ('' | OC_ICON | EVO_ICON).
+
+    Evo-авто на максимумі й вище — це evo-деталі, а не оверклок: показуємо лише ранг
+    з evo-іконкою. Нижче максимуму evo-авто поводиться як звичайне."""
+    if evo and rank and max_rank and rank >= max_rank:
+        return f"{rank:,}", EVO_ICON
+    if rank and max_rank and rank != max_rank:
+        text = f"{rank:,} / {max_rank:,}"
+    elif rank:
+        text = f"{rank:,}"
+    elif max_rank:
+        text = f"{max_rank:,}"
+    else:
+        text = ""
+    icon = OC_ICON if rank and max_rank and rank > max_rank else ""
+    return text, icon
+
+
 class RankClassBadge(QWidget):
     """Game-style badge: dark plate with the rank next to a white plate with the class letter."""
-    def __init__(self, rank: int, max_rank: int, car_class: str, rank_color: str = "", parent=None):
+    def __init__(self, rank: int, max_rank: int, car_class: str, rank_color: str = "", evo: bool = False,
+                 parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        rank_text = ""
-        if rank and max_rank and rank != max_rank:
-            rank_text = f"{rank:,} / {max_rank:,}"
-        elif rank:
-            rank_text = f"{rank:,}"
-        elif max_rank:
-            rank_text = f"{max_rank:,}"
-
-        over_max = bool(rank and max_rank and rank > max_rank)
+        rank_text, icon = rank_badge_parts(rank, max_rank, evo)
         if rank_text:
-            if over_max:
-                oc_label = QLabel(self)
-                oc_label.setPixmap(res_to_pixmap("icons/ocActive.webp", 14))
-                oc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                oc_label.setStyleSheet(
+            if icon:
+                icon_label = QLabel(self)
+                icon_label.setPixmap(res_to_pixmap(icon, 14))
+                icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                icon_label.setStyleSheet(
                     f"background-color: {style.TEXT_DARK}; border-top-left-radius: 3px;"
                     " border-bottom-left-radius: 3px; padding: 2px 0 2px 4px;")
-                layout.addWidget(oc_label)
+                layout.addWidget(icon_label)
             rank_label = QLabel(rank_text, self)
-            left_radius = "" if over_max else " border-top-left-radius: 3px; border-bottom-left-radius: 3px;"
+            left_radius = "" if icon else " border-top-left-radius: 3px; border-bottom-left-radius: 3px;"
             right_radius = "" if car_class else " border-top-right-radius: 3px; border-bottom-right-radius: 3px;"
             rank_label.setStyleSheet(
                 f"background-color: {style.TEXT_DARK}; color: {rank_color or style.TEXT}; font-weight: bold;"

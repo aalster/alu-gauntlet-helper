@@ -120,7 +120,7 @@ class RaceListWidget(ListItemWidget):
             elif race.car_rank < race.rank:
                 rank_color = style.RANK_DOWN
         self.rank_badge = RankClassBadge(race.rank, race.car_max_rank if race.rank else 0, race.car_class,
-                                         rank_color=rank_color)
+                                         rank_color=rank_color, evo=race.car_evo)
         self.car_info = CarInfoWidget(race.car_icon, race.car_brand, race.car_model, self.rank_badge)
 
         time_font = QFont()
@@ -318,7 +318,7 @@ class RaceAggregateWidget(ListItemWidget):
         if show_track:
             self.track_info = TrackInfoWidget(agg.map_icon, agg.track_icon,
                                               agg.display_map_name, agg.display_track_name)
-        badge = RankClassBadge(agg.car_rank, agg.car_max_rank, agg.car_class)
+        badge = RankClassBadge(agg.car_rank, agg.car_max_rank, agg.car_class, evo=agg.car_evo)
         self.car_info = CarInfoWidget(agg.car_icon, agg.car_brand, agg.car_model, badge)
 
         stats_rows = [

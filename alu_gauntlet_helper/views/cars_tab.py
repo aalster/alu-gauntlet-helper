@@ -76,7 +76,8 @@ class CarDialog(EditDialog):
 
         return Car(id=self.item.id, asec_id=self.item.asec_id, name=f"{brand} {model}".strip(),
                    brand=brand, model=model, car_class=self.item.car_class,
-                   rank=rank, max_rank=self.item.max_rank, favorite=self.item.favorite, icon=icon_path)
+                   rank=rank, max_rank=self.item.max_rank, evo=self.item.evo, favorite=self.item.favorite,
+                   icon=icon_path)
 
 
 class CarListWidget(ListItemWidget):
@@ -107,7 +108,7 @@ class CarListWidget(ListItemWidget):
         name_font.setBold(True)
         self.model_label.setFont(name_font)
 
-        self.rank_badge = RankClassBadge(item.rank, item.max_rank, item.car_class)
+        self.rank_badge = RankClassBadge(item.rank, item.max_rank, item.car_class, evo=item.evo)
 
         self.fav_button = QPushButton()
         self.fav_button.setFlat(True)
